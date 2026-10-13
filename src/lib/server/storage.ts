@@ -50,12 +50,18 @@ export async function saveBytes(
   return { relPath: path.join(bucket, id, fname), absPath };
 }
 
-export async function readBytes(relPath: string): Promise<Buffer> {
-  return fs.readFile(path.join(ROOT, relPath));
+/** Resolve a stored relative key and reject paths that escape the storage root. */
+export function absOf(relPath: string): string {
+  const resolved = path.resolve(ROOT, relPath);
+  const relative = path.relative(ROOT, resolved);
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error("INVALID_STORAGE_PATH: path escapes storage root");
+  }
+  return resolved;
 }
 
-export function absOf(relPath: string): string {
-  return path.join(ROOT, relPath);
+export async function readBytes(relPath: string): Promise<Buffer> {
+  return fs.readFile(absOf(relPath));
 }
 
 export const MAX_FILE_BYTES = Number(process.env.XRAY_MAX_FILE_BYTES ?? 60 * 1024 * 1024);
