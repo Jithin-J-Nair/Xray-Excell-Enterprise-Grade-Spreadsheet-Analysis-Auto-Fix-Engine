@@ -20,7 +20,7 @@
     "exceljs": "^4.4.0",
     "framer-motion": "^14.1.0",
     "lucide-react": "^1.55.0",
-    "next": "16.2.6",
+    "next": "16.4.0",
     "pg": "8.20.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
@@ -36,7 +36,7 @@
     "@types/react-dom": "19.2.3",
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
-    "eslint-config-next": "16.2.6",
+    "eslint-config-next": "16.4.0",
     "postcss": "8.5.8",
     "tailwindcss": "4.1.17",
     "typescript": "5.9.3"
