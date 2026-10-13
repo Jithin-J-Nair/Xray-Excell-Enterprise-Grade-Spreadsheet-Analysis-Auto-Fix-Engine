@@ -41,6 +41,16 @@ function visibilityOf(meta?: SheetMeta): SheetModel["visibility"] {
   return "visible";
 }
 
+/** Never allow a capped, partial workbook to masquerade as a complete analysis. */
+function requireCompleteModel(model: WorkbookModel): WorkbookModel {
+  if (model.truncated) {
+    throw new Error(
+      `MODEL_TRUNCATED: ${model.fileName} exceeds the ${MAX_MODEL_CELLS.toLocaleString()}-cell analysis limit. No partial workbook was returned; split the workbook or raise the configured limit after profiling.`
+    );
+  }
+  return model;
+}
+
 function workbookToModel(wb: XLSX.WorkBook, fileId: string, fileName: string, encoding?: string): WorkbookModel {
   const model: WorkbookModel = { fileId, fileName, encoding, sheets: [], names: [] };
   let budget = MAX_MODEL_CELLS;
@@ -173,15 +183,15 @@ export function parseFile(fileId: string, fileName: string, bytes: Uint8Array): 
   if (lower.endsWith(".json") || lower.endsWith(".ndjson")) {
     const text = new TextDecoder("utf-8").decode(bytes);
     const wb = jsonToWorkbook(text, lower);
-    return workbookToModel(wb, fileId, fileName, "UTF-8");
+    return requireCompleteModel(workbookToModel(wb, fileId, fileName, "UTF-8"));
   }
   if (lower.endsWith(".csv") || lower.endsWith(".tsv") || lower.endsWith(".txt")) {
     const { text, encoding } = decodeDelimited(bytes, lower);
     const wb = XLSX.read(text, { type: "string", cellDates: true });
-    return workbookToModel(wb, fileId, fileName, encoding);
+    return requireCompleteModel(workbookToModel(wb, fileId, fileName, encoding));
   }
   const wb = XLSX.read(bytes, { type: "array", cellDates: true, cellNF: true, dense: false });
-  return workbookToModel(wb, fileId, fileName, "binary");
+  return requireCompleteModel(workbookToModel(wb, fileId, fileName, "binary"));
 }
 
 /** Text entry-point used by browser local-mode (CSV/TSV/JSON strings). */
