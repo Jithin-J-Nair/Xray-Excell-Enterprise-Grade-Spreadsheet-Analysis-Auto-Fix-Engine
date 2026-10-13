@@ -12,14 +12,32 @@ const VALID_FORMATS = new Set(["xlsx", "csv", "json", "ndjson", "md"]);
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   try {
-    const body = (await req.json()) as {
-      previewId?: string;
-      exportFormats?: string[];
-      localRecord?: boolean;
-      tools?: string[];
-      summary?: Record<string, unknown>;
-      language?: "en" | "jp";
+    const raw: unknown = await req.json();
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      return NextResponse.json({ errorCode: "BAD_REQUEST", message: "Request body must be an object", retryable: false }, { status: 400 });
+    }
+    const body = raw as {
+      previewId?: unknown;
+      exportFormats?: unknown;
+      localRecord?: unknown;
+      tools?: unknown;
+      summary?: unknown;
+      language?: unknown;
     };
+    if (body.exportFormats !== undefined && (!Array.isArray(body.exportFormats) || body.exportFormats.some((f) => typeof f !== "string"))) {
+      return NextResponse.json({ errorCode: "BAD_FORMAT", message: "exportFormats must be an array of format IDs", retryable: false }, { status: 400 });
+    }
+    if (body.tools !== undefined && (!Array.isArray(body.tools) || body.tools.some((t) => typeof t !== "string"))) {
+      return NextResponse.json({ errorCode: "BAD_TOOLS", message: "tools must be an array of rule IDs", retryable: false }, { status: 400 });
+    }
+    if (body.localRecord !== undefined && typeof body.localRecord !== "boolean") {
+      return NextResponse.json({ errorCode: "BAD_REQUEST", message: "localRecord must be boolean", retryable: false }, { status: 400 });
+    }
+    const requestedFormats = (body.exportFormats as string[] | undefined) ?? ["xlsx"];
+    const formats = [...new Set(requestedFormats.filter((f) => VALID_FORMATS.has(f)))];
+    if (formats.length === 0 || formats.length !== requestedFormats.length) {
+      return NextResponse.json({ errorCode: "BAD_FORMAT", message: "Provide one or more supported export formats: xlsx, csv, json, ndjson, md", retryable: false }, { status: 400 });
+    }
     const [row] = await db.select().from(analyses).where(eq(analyses.id, id)).limit(1);
     if (!row) return NextResponse.json({ errorCode: "NOT_FOUND", message: "Analysis not found", retryable: false }, { status: 404 });
     if (row.status !== "completed") {
@@ -36,7 +54,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           kind: "apply",
           status: "completed",
           progress: 100,
-          formats: body.exportFormats ?? ["xlsx"],
+          formats,
           summary: body.summary ?? {},
           completedAt: new Date(),
         })
@@ -55,10 +73,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const [preview] = await db.select().from(previews).where(eq(previews.id, body.previewId)).limit(1);
     if (!preview || preview.analysisId !== id) {
       return NextResponse.json({ errorCode: "PREVIEW_NOT_FOUND", message: "Preview not found for this analysis", retryable: false }, { status: 404 });
-    }
-    const formats = (body.exportFormats ?? ["xlsx"]).filter((f) => VALID_FORMATS.has(f));
-    if (!formats.length) {
-      return NextResponse.json({ errorCode: "BAD_FORMAT", message: "At least one valid export format is required", retryable: false }, { status: 400 });
     }
     const [job] = await db
       .insert(jobs)
