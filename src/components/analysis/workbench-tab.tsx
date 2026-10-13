@@ -82,8 +82,16 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
     [t]
   );
 
-  const onToggle = (id: string) => setToolStates((prev) => toggleTool(prev, id));
-  const onAutoFix = () => setToolStates((prev) => autoFixSelection(prev));
+  const onToggle = (id: string) => {
+    setPreview(null);
+    setApplyDone(null);
+    setToolStates((prev) => toggleTool(prev, id));
+  };
+  const onAutoFix = () => {
+    setPreview(null);
+    setApplyDone(null);
+    setToolStates((prev) => autoFixSelection(prev));
+  };
 
   const runPreview = useCallback(async () => {
     const tools = enabledToolIds(toolStates);
@@ -96,8 +104,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
         const { allModels, rescoreModel } = await import("@/lib/excel/analyze");
         const models = allModels(res);
         const before = rescoreModel(models[0], { language: lang });
-        const { diffs, summary } = applyTransforms(models, tools, { minOccurrences: minOcc });
-        const { models: patched } = applyTransforms(models, tools, { minOccurrences: minOcc });
+        const { models: patched, diffs, summary } = applyTransforms(models, tools, { minOccurrences: minOcc });
         summary.riskScoreBefore = before;
         summary.riskScoreAfter = rescoreModel(patched[0], { language: lang });
         summary.risksResolved = Math.max(0, summary.riskScoreBefore - summary.riskScoreAfter);
@@ -184,19 +191,19 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
         const csv = sheetToCsv(sheet);
         const name = `${base}_${sheet.name}_${ts}.csv`;
         saveBlob(new TextEncoder().encode(csv), name, "text/csv; charset=utf-8");
-        done.push({ format: "csv", fileId: "local", name, size: csv.length });
+        done.push({ format: "csv", fileId: "local", name, size: new TextEncoder().encode(csv).byteLength });
       }
       if (formats.has("json")) {
         const json = modelToJson(main);
         const name = `${base}_${ts}.json`;
         saveBlob(new TextEncoder().encode(json), name, "application/json");
-        done.push({ format: "json", fileId: "local", name, size: json.length });
+        done.push({ format: "json", fileId: "local", name, size: new TextEncoder().encode(json).byteLength });
       }
       if (formats.has("ndjson")) {
         const nd = modelToNdjson(main);
         const name = `${base}_${ts}.ndjson`;
         saveBlob(new TextEncoder().encode(nd), name, "application/x-ndjson");
-        done.push({ format: "ndjson", fileId: "local", name, size: nd.length });
+        done.push({ format: "ndjson", fileId: "local", name, size: new TextEncoder().encode(nd).byteLength });
       }
       if (formats.has("md")) {
         const md = buildMarkdownReport({
@@ -207,7 +214,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
         });
         const name = `report_${base}_${ts}.md`;
         saveBlob(new TextEncoder().encode(md), name, "text/markdown");
-        done.push({ format: "md", fileId: "local", name, size: md.length });
+        done.push({ format: "md", fileId: "local", name, size: new TextEncoder().encode(md).byteLength });
       }
       await fetch(`/api/analysis/${detail.id}/apply`, {
         method: "POST",
@@ -344,7 +351,11 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
                 min={2}
                 max={50}
                 value={minOcc}
-                onChange={(e) => setMinOcc(Math.max(2, Math.min(50, Number(e.target.value) || 3)))}
+                onChange={(e) => {
+                  setPreview(null);
+                  setApplyDone(null);
+                  setMinOcc(Math.max(2, Math.min(50, Number(e.target.value) || 3)));
+                }}
                 className="w-16 !py-1 !px-2 text-xs text-right"
               />
             </div>
