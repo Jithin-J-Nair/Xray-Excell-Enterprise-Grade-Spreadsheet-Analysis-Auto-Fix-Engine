@@ -43,6 +43,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
   const res = detail.result!;
   const isLocal = detail.mode === "local";
   const hasMacroInput = res.files.some((file) => /\.xlsm$/i.test(file.name));
+  const xlsxDisabled = hasMacroInput || Boolean(res.model.styleMetadataUnavailable);
 
   // ── tool toggle state machine ────────────────────────────────────────────
   const findingsByTool = useMemo(() => {
@@ -67,7 +68,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
 
   const [minOcc, setMinOcc] = useState(3);
   const [formats, setFormats] = useState<Set<string>>(
-    () => new Set(hasMacroInput ? ["csv", "md"] : ["xlsx", "csv", "md"])
+    () => new Set(xlsxDisabled ? ["csv", "md"] : ["xlsx", "csv", "md"])
   );
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [busyPreview, setBusyPreview] = useState(false);
@@ -514,7 +515,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
                   <input
                     type="checkbox"
                     checked={formats.has(f.id)}
-                    disabled={hasMacroInput && f.id === "xlsx"}
+                    disabled={xlsxDisabled && f.id === "xlsx"}
                     onChange={() =>
                       setFormats((prev) => {
                         const next = new Set(prev);
@@ -530,11 +531,15 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
                 <span className="text-dim text-[10px] text-right">{f.desc}</span>
               </label>
             ))}
-            {hasMacroInput && (
+            {xlsxDisabled && (
               <p className="text-[10px] text-warn mt-2">
-                {lang === "jp"
-                  ? "マクロを失わないよう、XLSMからのXLSX出力は無効です。CSV、JSON、NDJSON、Markdownを選択してください。"
-                  : "XLSX export is disabled for macro-enabled input to prevent silent VBA loss. Choose CSV, JSON, NDJSON, or Markdown."}
+                {hasMacroInput
+                  ? lang === "jp"
+                    ? "マクロを失わないよう、XLSMからのXLSX出力は無効です。CSV、JSON、NDJSON、Markdownを選択してください。"
+                    : "XLSX export is disabled for macro-enabled input to prevent silent VBA loss. Choose CSV, JSON, NDJSON, or Markdown."
+                  : lang === "jp"
+                    ? "書式情報を完全に読み取れないため、書式の消失を防ぐ目的でXLSX出力を無効にしました。"
+                    : "XLSX export is disabled because workbook style metadata could not be read reliably."}
               </p>
             )}
           </div>
