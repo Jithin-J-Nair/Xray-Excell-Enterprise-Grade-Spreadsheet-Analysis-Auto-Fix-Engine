@@ -43,6 +43,7 @@ function visibilityOf(meta?: SheetMeta): SheetModel["visibility"] {
 
 /** Never allow a capped, partial workbook to masquerade as a complete analysis. */
 function requireCompleteModel(model: WorkbookModel): WorkbookModel {
+  model.macroEnabled = /\.xlsm$/i.test(model.fileName);
   if (model.truncated) {
     throw new Error(
       `MODEL_TRUNCATED: ${model.fileName} exceeds the ${MAX_MODEL_CELLS.toLocaleString()}-cell analysis limit. No partial workbook was returned; split the workbook or raise the configured limit after profiling.`
