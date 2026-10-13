@@ -92,6 +92,8 @@ export function GraphTab({ detail }: { detail: AnalysisDetail }) {
 
   // Fit to view whenever layout, filters, or viewport dimensions change.
   useEffect(() => {
+    // Recenter the SVG viewport after graph layout/filter changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fitView(laid.width, laid.height);
   }, [fitView, laid, autoFitKey]);
 
