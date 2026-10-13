@@ -5,12 +5,17 @@ import { MAX_MODEL_CELLS, parseFile } from "../src/lib/excel/parse";
 import { workbookToXlsxBytes } from "../src/lib/excel/serialize";
 import type { WorkbookModel } from "../src/lib/excel/types";
 
+function xlsxBytes(workbook: XLSX.WorkBook): Uint8Array {
+  const raw = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+  return raw instanceof Uint8Array ? raw : new Uint8Array(raw as ArrayBuffer);
+}
+
 describe("workbook parsing safety", () => {
   it("rejects a workbook that exceeds the model cell budget instead of returning partial data", async () => {
     const wb = XLSX.utils.book_new();
     const rows = Array.from({ length: MAX_MODEL_CELLS + 1 }, (_, i) => [i + 1]);
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Large");
-    const bytes = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
+    const bytes = xlsxBytes(wb);
     await assert.rejects(() => parseFile("large", "large.xlsx", bytes), /MODEL_TRUNCATED/);
   });
 
