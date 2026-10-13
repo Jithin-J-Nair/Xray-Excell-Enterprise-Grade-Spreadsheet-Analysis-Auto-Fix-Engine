@@ -69,7 +69,7 @@ export default function AnalyzePage() {
         const metas = [];
         for (const p of files) {
           const bytes = new Uint8Array(await p.file.arrayBuffer());
-          const model = parseFile(p.id, p.file.name, bytes);
+          const model = await parseFile(p.id, p.file.name, bytes);
           models.push(model);
           metas.push({ id: p.id, name: p.file.name, size: p.file.size, encoding: model.encoding });
         }
