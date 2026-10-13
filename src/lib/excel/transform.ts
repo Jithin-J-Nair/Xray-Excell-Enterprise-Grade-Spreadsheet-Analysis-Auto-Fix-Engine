@@ -563,6 +563,10 @@ export function applyTransforms(
   toolIds: string[],
   options: TransformOptions = {}
 ): TransformResult {
+  const partial = input.find((model) => model.truncated);
+  if (partial) {
+    throw new Error(`MODEL_TRUNCATED: refusing to transform incomplete workbook ${partial.fileName}`);
+  }
   const models = structuredClone(input);
   const ctx: Ctx = { diffs: [], byTool: {}, total: 0 };
   const order = EXECUTION_ORDER.filter((id) => toolIds.includes(id));
