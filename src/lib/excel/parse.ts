@@ -194,7 +194,7 @@ function record(value: unknown): Record<string, unknown> {
 
 function normalizeColor(value: unknown): unknown {
   const color = record(value);
-  if (typeof color.argb === "string") return { rgb: color.argb.slice(-6) };
+  if (typeof color.argb === "string") return { rgb: color.argb };
   return value;
 }
 
