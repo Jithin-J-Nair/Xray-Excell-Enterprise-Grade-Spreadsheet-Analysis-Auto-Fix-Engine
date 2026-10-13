@@ -26,7 +26,9 @@ const MIME_BY_EXT: Record<string, string> = {
 
 function contentDisposition(name: string): string {
   const ascii = name.replace(/[^\x20-\x7e]/g, "_").replace(/"/g, "'");
-  const encoded = encodeURIComponent(name).replace(/'/g, "%27");
+  const encoded = encodeURIComponent(name).replace(/[!'()*]/g, (char) =>
+    `%${char.charCodeAt(0).toString(16).toUpperCase()}`
+  );
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }
 
