@@ -158,7 +158,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
     const ps = await saveBytes("exports", jobId, patchName, enc.encode(patchDoc));
     const [patchRow] = await db
       .insert(files)
-      .values({ jobId, analysisId, kind: "patch", name: patchName, size: patchDoc.length, mime: MIME.patch, path: ps.relPath, sha256: sha256(enc.encode(patchDoc)) })
+      .values({ jobId, analysisId, kind: "patch", name: patchName, size: enc.encode(patchDoc).byteLength, mime: MIME.patch, path: ps.relPath, sha256: sha256(enc.encode(patchDoc)) })
       .returning();
     await db.update(jobs).set({ patchFileId: patchRow.id, progress: 55 }).where(eq(jobs.id, jobId));
 
