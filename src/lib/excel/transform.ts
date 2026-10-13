@@ -120,7 +120,14 @@ function t010Dates(models: WorkbookModel[], ctx: Ctx) {
       const d = parseInt(m[3] ?? m[6], 10);
       if (mo < 1 || mo > 12 || d < 1 || d > 31) continue;
       const dt = new Date(Date.UTC(y, mo - 1, d));
-      if (isNaN(dt.getTime())) continue;
+      // Date.UTC normalizes overflow (e.g. February 31 into March); only
+      // accept a parsed date when every calendar component round-trips.
+      if (
+        isNaN(dt.getTime()) ||
+        dt.getUTCFullYear() !== y ||
+        dt.getUTCMonth() !== mo - 1 ||
+        dt.getUTCDate() !== d
+      ) continue;
       pushDiff(ctx, {
         sheet: sheet.name, cell: addr.toUpperCase(), before: cell.v, after: dt.toISOString().slice(0, 10),
         kind: "value", ruleId: "T010", reason: "Converted date text to a real date cell",
