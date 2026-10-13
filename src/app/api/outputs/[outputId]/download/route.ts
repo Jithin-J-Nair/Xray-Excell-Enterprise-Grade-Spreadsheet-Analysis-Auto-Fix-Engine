@@ -68,10 +68,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ outputId: 
   }
 
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  // Known export extensions are authoritative; a stale/mistyped DB MIME
+  // must not cause XLSX bytes to be served as JSON or generic binary.
   const contentType =
-    file.mime && file.mime !== "application/octet-stream"
-      ? file.mime
-      : (MIME_BY_EXT[ext] ?? "application/octet-stream");
+    MIME_BY_EXT[ext] ??
+    (file.mime && file.mime !== "application/octet-stream" ? file.mime : "application/octet-stream");
 
   const stream = Readable.toWeb(createReadStream(abs)) as ReadableStream<Uint8Array>;
   return new Response(stream, {
