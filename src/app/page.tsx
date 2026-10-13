@@ -82,6 +82,9 @@ export default function Dashboard() {
         body: JSON.stringify({ uploadId: json.uploadId, options: { resolveCrossFile: true, language: lang } }),
       });
       const json2 = await res2.json();
+      if (!res2.ok || typeof json2.analysisId !== "string" || !json2.analysisId) {
+        throw new Error(json2.message ?? json2.errorCode ?? "failed to start demo analysis");
+      }
       router.push(`/analysis/${json2.analysisId}`);
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e));
