@@ -22,7 +22,9 @@ const MIME_BY_EXT: Record<string, string> = {
 
 export function contentDisposition(name: string): string {
   const ascii = name.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
-  const encoded = encodeURIComponent(name).replace(/'/g, "%27");
+  const encoded = encodeURIComponent(name).replace(/[!'()*]/g, (char) =>
+    `%${char.charCodeAt(0).toString(16).toUpperCase()}`
+  );
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
 }
 
@@ -42,12 +44,19 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ outputId: 
     );
   }
 
-  const abs = absOf(file.path);
+  let abs: string;
   let fileStat;
   try {
+    abs = absOf(file.path);
     fileStat = await stat(abs);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
+    if (code === "INVALID_STORAGE_PATH") {
+      return Response.json(
+        { errorCode: "OUTPUT_INVALID", message: "Export path is outside the configured storage root", retryable: false },
+        { status: 500 }
+      );
+    }
     if (code === "ENOENT" || code === "ENOTDIR") {
       return Response.json(
         { errorCode: "OUTPUT_GONE", message: "Export file is missing from storage", retryable: false },
