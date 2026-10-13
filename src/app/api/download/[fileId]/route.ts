@@ -10,6 +10,20 @@ import { absOf } from "@/lib/server/storage";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const MIME_BY_EXT: Record<string, string> = {
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  xlsm: "application/vnd.ms-excel.sheet.macroEnabled.12",
+  xlsb: "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
+  xls: "application/vnd.ms-excel",
+  csv: "text/csv; charset=utf-8",
+  tsv: "text/tab-separated-values; charset=utf-8",
+  txt: "text/plain; charset=utf-8",
+  json: "application/json; charset=utf-8",
+  ndjson: "application/x-ndjson; charset=utf-8",
+  md: "text/markdown; charset=utf-8",
+  patch: "application/json; charset=utf-8",
+};
+
 function contentDisposition(name: string): string {
   const ascii = name.replace(/[^\x20-\x7e]/g, "_").replace(/"/g, "'");
   const encoded = encodeURIComponent(name).replace(/'/g, "%27");
@@ -28,11 +42,13 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ fileId: st
     if (!fileStat.isFile()) {
       return Response.json({ errorCode: "INVALID_FILE", message: "Stored path is not a regular file", retryable: false }, { status: 500 });
     }
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    const contentType = MIME_BY_EXT[ext] ?? (file.mime || "application/octet-stream");
     const stream = Readable.toWeb(createReadStream(abs)) as ReadableStream<Uint8Array>;
     return new Response(stream, {
       status: 200,
       headers: {
-        "Content-Type": file.mime || "application/octet-stream",
+        "Content-Type": contentType,
         "Content-Length": String(fileStat.size),
         "Content-Disposition": contentDisposition(file.name),
         "Cache-Control": "no-store",
