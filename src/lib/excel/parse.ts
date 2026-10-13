@@ -263,7 +263,9 @@ async function addStyleMetadata(model: WorkbookModel, bytes: Uint8Array): Promis
       const widths: { wch?: number; hidden?: boolean }[] = [];
       source.columns.forEach((column, index) => {
         const item: { wch?: number; hidden?: boolean } = {};
-        if (column.isCustomWidth && typeof column.width === "number") item.wch = column.width;
+        // SheetJS wch is the Excel character width before its XML padding; ExcelJS
+        // reports the serialized width including the ~0.832 character padding.
+        if (column.isCustomWidth && typeof column.width === "number") item.wch = Math.max(0, column.width - 0.83203125);
         if (column.hidden) item.hidden = true;
         widths[index] = item;
       });
