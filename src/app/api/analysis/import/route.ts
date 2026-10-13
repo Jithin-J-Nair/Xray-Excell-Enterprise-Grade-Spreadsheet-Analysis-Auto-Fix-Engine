@@ -18,7 +18,10 @@ export async function POST(req: NextRequest) {
     if (!result || !result.metrics || !result.model) {
       return NextResponse.json({ errorCode: "BAD_RESULT", message: "A valid analysis result payload is required", retryable: false }, { status: 400 });
     }
-    const size = JSON.stringify(result).length;
+    if (result.model.truncated) {
+      return NextResponse.json({ errorCode: "MODEL_TRUNCATED", message: "Incomplete workbook models cannot be imported or exported", retryable: false }, { status: 422 });
+    }
+    const size = new TextEncoder().encode(JSON.stringify(result)).byteLength;
     if (size > 30 * 1024 * 1024) {
       return NextResponse.json({ errorCode: "RESULT_TOO_LARGE", message: "Analysis payload exceeds 30MB", retryable: false }, { status: 413 });
     }
