@@ -42,6 +42,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
   const router = useRouter();
   const res = detail.result!;
   const isLocal = detail.mode === "local";
+  const hasMacroInput = res.files.some((file) => /\.xlsm$/i.test(file.name));
 
   // ── tool toggle state machine ────────────────────────────────────────────
   const findingsByTool = useMemo(() => {
@@ -65,7 +66,9 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
   const selectedIds = useMemo(() => enabledToolIds(toolStates), [toolStates]);
 
   const [minOcc, setMinOcc] = useState(3);
-  const [formats, setFormats] = useState<Set<string>>(new Set(["xlsx", "csv", "md"]));
+  const [formats, setFormats] = useState<Set<string>>(
+    () => new Set(hasMacroInput ? ["csv", "md"] : ["xlsx", "csv", "md"])
+  );
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [busyPreview, setBusyPreview] = useState(false);
   const [applyJob, setApplyJob] = useState<string | null>(null);
@@ -511,6 +514,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
                   <input
                     type="checkbox"
                     checked={formats.has(f.id)}
+                    disabled={hasMacroInput && f.id === "xlsx"}
                     onChange={() =>
                       setFormats((prev) => {
                         const next = new Set(prev);
@@ -526,6 +530,13 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
                 <span className="text-dim text-[10px] text-right">{f.desc}</span>
               </label>
             ))}
+            {hasMacroInput && (
+              <p className="text-[10px] text-warn mt-2">
+                {lang === "jp"
+                  ? "マクロを失わないよう、XLSMからのXLSX出力は無効です。CSV、JSON、NDJSON、Markdownを選択してください。"
+                  : "XLSX export is disabled for macro-enabled input to prevent silent VBA loss. Choose CSV, JSON, NDJSON, or Markdown."}
+              </p>
+            )}
           </div>
           <div className="px-4 pb-4">
             <button onClick={apply} disabled={!preview || !formats.size || !!applyJob} className="btn btn-primary w-full justify-center !py-3">
