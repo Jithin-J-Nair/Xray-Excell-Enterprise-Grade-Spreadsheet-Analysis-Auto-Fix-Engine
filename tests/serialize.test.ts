@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import * as XLSX from "xlsx";
-import * as XLSXStyle from "xlsx-js-style";
+import ExcelJS from "exceljs";
 import type { WorkbookModel } from "../src/lib/excel/types";
 import { modelToNdjson, sheetToCsv, workbookToXlsxBytes } from "../src/lib/excel/serialize";
 
@@ -58,15 +58,17 @@ describe("xlsx export round-trip", () => {
     assert.ok((wb.Workbook?.Names ?? []).some((n) => n.Name === "P"));
   });
 
-  it("round-trips basic cell styles, column widths, and row heights", () => {
+  it("round-trips basic cell styles, column widths, and row heights", async () => {
     const original = model();
     const bytes = workbookToXlsxBytes(original);
-    const wb = XLSXStyle.read(Buffer.from(bytes), { type: "buffer", cellStyles: true });
-    const ws = wb.Sheets.Vol;
-    assert.equal((ws.A1.s as { font?: { bold?: boolean } })?.font?.bold, true);
-    assert.equal((ws.A1.s as { alignment?: { horizontal?: string } })?.alignment?.horizontal, "center");
-    assert.ok(ws["!cols"]?.[0]?.wch === 22 || (ws["!cols"]?.[0]?.wpx ?? 0) > 0);
-    assert.ok((ws["!rows"]?.[0]?.hpt ?? ws["!rows"]?.[0]?.hpx ?? 0) > 0);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(Buffer.from(bytes));
+    const ws = wb.getWorksheet("Vol");
+    assert.ok(ws);
+    assert.equal(ws.getCell("A1").font.bold, true);
+    assert.equal(ws.getCell("A1").alignment.horizontal, "center");
+    assert.equal(ws.getColumn(1).width, 22);
+    assert.equal(ws.getRow(1).height, 24);
   });
 
   it("refuses to export a truncated workbook rather than silently dropping cells", () => {
