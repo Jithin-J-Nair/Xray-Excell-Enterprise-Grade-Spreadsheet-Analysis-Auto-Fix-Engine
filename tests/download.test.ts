@@ -20,6 +20,7 @@ async function loadModules() {
 
 describe("GET /api/outputs/:outputId/download", () => {
   let fileId = "";
+  let payload = new Uint8Array();
   let cleanup: () => Promise<void>;
 
   before(async () => {
@@ -51,7 +52,7 @@ describe("GET /api/outputs/:outputId/download", () => {
       ],
       names: [],
     };
-    const payload = workbookToXlsxBytes(model);
+    payload = workbookToXlsxBytes(model);
     const saved = await saveBytes("exports", "test-output", "fixed_Test Book.xlsx", payload);
     const [row] = await db
       .insert(files)
