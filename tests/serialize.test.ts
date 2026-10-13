@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import * as XLSX from "xlsx";
+import * as XLSX from "@redoper1/xlsx-js-style";
 import ExcelJS from "exceljs";
 import type { WorkbookModel } from "../src/lib/excel/types";
 import { modelToNdjson, sheetToCsv, workbookToXlsxBytes } from "../src/lib/excel/serialize";
