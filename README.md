@@ -140,9 +140,9 @@ The application now sends baseline browser security headers, validates storage p
 
 ## Workbook fidelity and safety limits
 
-The workbook model preserves cell values/formulas, number formats, basic font/fill/border/alignment styles, row heights, column widths, merges, defined names, and hidden/very-hidden sheet state. The parser refuses files exceeding the configured model cell budget instead of returning a partial workbook.
+For `.xlsx` files, the workbook model preserves cell values/formulas, number formats, basic font/fill/border/alignment styles, row heights, column widths, merges, defined names, and hidden/very-hidden sheet state. The parser refuses files exceeding the configured model cell budget instead of returning a partial workbook. Legacy `.xls`/`.xlsb` inputs do not have the same style-fidelity guarantee.
 
-This is not a byte-for-byte Excel editor. Conditional formatting, charts, drawings, slicers, pivot caches, external connection metadata, VBA macros in `.xlsm`, and some advanced workbook features are not guaranteed to survive reconstruction. Do not export macro-enabled workbooks as `.xlsx` if VBA must be retained. Validate business-critical workbooks in desktop Excel before using repaired exports.
+This is not a byte-for-byte Excel editor. Conditional formatting, charts, drawings, slicers, pivot caches, external connection metadata, VBA macros in `.xlsm`, and some advanced workbook features are not guaranteed to survive reconstruction. XLSX export is disabled for macro-enabled inputs to prevent silent VBA loss. Validate business-critical workbooks in desktop Excel before using repaired exports.
 
 ## 7. Roadmap
 
