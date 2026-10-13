@@ -61,10 +61,14 @@ function hasWsIssue(s: string): boolean {
 export function analyzeAll(models: WorkbookModel[], metas: FileMeta[], opts: AnalyzeOptions = {}): AnalysisResult {
   const risks: Risk[] = [];
   const counts: Partial<Record<RiskType, number>> = {};
+  const storedCounts = new Map<RiskType, number>();
   const push = (r: Risk) => {
     counts[r.type] = (counts[r.type] ?? 0) + 1;
-    const existing = risks.filter((x) => x.type === r.type).length;
-    if (existing < CAP_RISK_PER_TYPE) risks.push(r);
+    const stored = storedCounts.get(r.type) ?? 0;
+    if (stored < CAP_RISK_PER_TYPE) {
+      risks.push(r);
+      storedCounts.set(r.type, stored + 1);
+    }
   };
 
   const multi = models.length > 1;
