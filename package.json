@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "worker": "node --import tsx scripts/worker.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
