@@ -14,9 +14,24 @@ const VALID_IDS = new Set(TOOLS.map((t) => t.id));
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   try {
-    const body = (await req.json()) as { tools?: string[]; options?: { minOccurrences?: number } };
-    const tools = (body.tools ?? []).filter((t) => VALID_IDS.has(t));
-    const options = { minOccurrences: Math.max(2, Math.min(50, body.options?.minOccurrences ?? 3)) };
+    const body: unknown = await req.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json({ errorCode: "BAD_REQUEST", message: "Request body must be an object", retryable: false }, { status: 400 });
+    }
+    const input = body as { tools?: unknown; options?: unknown };
+    if (input.tools !== undefined && (!Array.isArray(input.tools) || input.tools.some((t) => typeof t !== "string"))) {
+      return NextResponse.json({ errorCode: "BAD_TOOLS", message: "tools must be an array of rule IDs", retryable: false }, { status: 400 });
+    }
+    if (input.options !== undefined && (!input.options || typeof input.options !== "object" || Array.isArray(input.options))) {
+      return NextResponse.json({ errorCode: "BAD_OPTIONS", message: "options must be an object", retryable: false }, { status: 400 });
+    }
+    const tools = [...new Set((input.tools as string[] | undefined ?? []).filter((t) => VALID_IDS.has(t)))];
+    const rawOptions = (input.options ?? {}) as { minOccurrences?: unknown };
+    const rawMin = rawOptions.minOccurrences ?? 3;
+    if (typeof rawMin !== "number" || !Number.isFinite(rawMin)) {
+      return NextResponse.json({ errorCode: "BAD_OPTIONS", message: "minOccurrences must be a finite number", retryable: false }, { status: 400 });
+    }
+    const options = { minOccurrences: Math.max(2, Math.min(50, Math.trunc(rawMin))) };
     const [row] = await db.select().from(analyses).where(eq(analyses.id, id)).limit(1);
     if (!row) return NextResponse.json({ errorCode: "NOT_FOUND", message: "Analysis not found", retryable: false }, { status: 404 });
     if (row.status !== "completed" || !row.result) {
@@ -27,9 +42,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const language = (result.language ?? "en") as "en" | "jp";
 
     const before = models[0] ? rescoreModel(models[0], { language }) : 0;
-    const { diffs, summary } = applyTransforms(models, tools, options);
-    // re-score a copy with same tools applied to measure real risk delta
-    const { models: patched } = applyTransforms(models, tools, options);
+    const { models: patched, diffs, summary } = applyTransforms(models, tools, options);
     const after = patched[0] ? rescoreModel(patched[0], { language }) : before;
     summary.riskScoreBefore = before;
     summary.riskScoreAfter = after;
