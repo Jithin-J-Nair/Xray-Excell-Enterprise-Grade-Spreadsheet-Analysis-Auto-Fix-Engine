@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import * as XLSX from "xlsx";
+import * as XLSXStyle from "xlsx-js-style";
 import type { WorkbookModel } from "../src/lib/excel/types";
 import { modelToNdjson, sheetToCsv, workbookToXlsxBytes } from "../src/lib/excel/serialize";
 
@@ -60,7 +61,7 @@ describe("xlsx export round-trip", () => {
   it("round-trips basic cell styles, column widths, and row heights", () => {
     const original = model();
     const bytes = workbookToXlsxBytes(original);
-    const wb = XLSX.read(Buffer.from(bytes), { type: "buffer", cellStyles: true });
+    const wb = XLSXStyle.read(Buffer.from(bytes), { type: "buffer", cellStyles: true });
     const ws = wb.Sheets.Vol;
     assert.equal((ws.A1.s as { font?: { bold?: boolean } })?.font?.bold, true);
     assert.equal((ws.A1.s as { alignment?: { horizontal?: string } })?.alignment?.horizontal, "center");
