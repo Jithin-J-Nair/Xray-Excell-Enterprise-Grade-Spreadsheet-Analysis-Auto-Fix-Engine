@@ -62,7 +62,7 @@ describe("xlsx export round-trip", () => {
     const original = model();
     const bytes = workbookToXlsxBytes(original);
     const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(Buffer.from(bytes));
+    await wb.xlsx.load(Buffer.from(bytes) as never);
     const ws = wb.getWorksheet("Vol");
     assert.ok(ws);
     assert.equal(ws.getCell("A1").font.bold, true);
