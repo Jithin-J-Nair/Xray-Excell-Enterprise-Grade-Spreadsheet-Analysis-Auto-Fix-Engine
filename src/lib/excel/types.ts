@@ -12,8 +12,10 @@ export interface CellModel {
   v: string | number | boolean | null;
   /** formula WITHOUT leading "=" */
   f?: string;
-  /** Excel number-format code (e.g. "0.00", "yyyy-mm-dd"); not full cell styling. */
+  /** Excel number-format code (e.g. "0.00", "yyyy-mm-dd"). */
   z?: string;
+  /** Basic Excel cell style payload supported by xlsx-js-style (font/fill/border/alignment). */
+  s?: Record<string, unknown>;
 }
 
 export interface MergeRange {
@@ -33,6 +35,9 @@ export interface SheetModel {
   /** address -> cell */
   cells: Record<string, CellModel>;
   merges: MergeRange[];
+  /** Column widths and row heights, indexed by column/row. */
+  columnWidths?: { wch?: number; wpx?: number; hidden?: boolean }[];
+  rowHeights?: { hpt?: number; hpx?: number; hidden?: boolean }[];
 }
 
 export interface NamedRangeModel {
