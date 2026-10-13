@@ -263,11 +263,11 @@ async function addStyleMetadata(model: WorkbookModel, bytes: Uint8Array): Promis
       const widths: { wch?: number; hidden?: boolean }[] = [];
       source.columns.forEach((column, index) => {
         const item: { wch?: number; hidden?: boolean } = {};
-        if (typeof column.width === "number") item.wch = column.width;
+        if (column.isCustomWidth && typeof column.width === "number") item.wch = column.width;
         if (column.hidden) item.hidden = true;
         widths[index] = item;
       });
-      if (widths.length) sheetModel.columnWidths = widths;
+      if (widths.some((item) => item.wch !== undefined || item.hidden !== undefined)) sheetModel.columnWidths = widths;
       const heights: { hpt?: number; hidden?: boolean }[] = [];
       source.eachRow({ includeEmpty: true }, (row) => {
         const item: { hpt?: number; hidden?: boolean } = {};
