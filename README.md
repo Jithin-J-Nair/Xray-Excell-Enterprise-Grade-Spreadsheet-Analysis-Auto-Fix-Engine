@@ -134,6 +134,10 @@ The integration tests need a reachable PostgreSQL database. The end-to-end valid
 
 Server downloads use `src/lib/download.ts` (`fetch → blob → object URL → anchor click`). Browser-local exports serialize and download in the client without sending workbook bytes to the server.
 
+## Production deployment security
+
+The application now sends baseline browser security headers, validates storage paths, and bounds upload sizes. It does **not** yet implement user authentication or a distributed rate limiter. Keep it on localhost/private networking or put it behind a trusted authentication gateway with request quotas before exposing it to the public internet. A process-local limiter alone is not a production-grade substitute for gateway/DB-backed controls.
+
 ## Workbook fidelity and safety limits
 
 The workbook model preserves cell values/formulas, number formats, basic font/fill/border/alignment styles, row heights, column widths, merges, defined names, and hidden/very-hidden sheet state. The parser refuses files exceeding the configured model cell budget instead of returning a partial workbook.
