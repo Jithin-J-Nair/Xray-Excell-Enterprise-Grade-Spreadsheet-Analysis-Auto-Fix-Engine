@@ -115,6 +115,7 @@ function workbookToModel(wb: XLSX.WorkBook, fileId: string, fileName: string, en
       if (cell.f !== undefined && cell.f !== null) {
         c.f = String(cell.f).replace(/^=/, "");
       }
+      if (typeof cell.z === "string") c.z = cell.z;
       sheet.cells[c.a] = c;
       budget--;
       if (parsed.r + 1 > sheet.rows) sheet.rows = parsed.r + 1;
@@ -179,7 +180,7 @@ export function parseFile(fileId: string, fileName: string, bytes: Uint8Array): 
     const wb = XLSX.read(text, { type: "string", cellDates: true });
     return workbookToModel(wb, fileId, fileName, encoding);
   }
-  const wb = XLSX.read(bytes, { type: "array", cellDates: true, dense: false });
+  const wb = XLSX.read(bytes, { type: "array", cellDates: true, cellNF: true, dense: false });
   return workbookToModel(wb, fileId, fileName, "binary");
 }
 
