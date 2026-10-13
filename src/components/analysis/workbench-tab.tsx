@@ -57,6 +57,8 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
 
   const [toolStates, setToolStates] = useState<ToolState[]>(() => computeToolStates(findingsByTool));
   useEffect(() => {
+    // Preserve user toggles while reconciling availability when findings change.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setToolStates((prev) => reconcile(prev, findingsByTool));
   }, [findingsByTool]);
 
