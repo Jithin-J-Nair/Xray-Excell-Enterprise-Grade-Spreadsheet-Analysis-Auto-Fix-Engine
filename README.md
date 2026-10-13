@@ -98,23 +98,47 @@ Structured errors: `{ errorCode, message, retryable, details? }`.
 ```bash
 npm install
 npx drizzle-kit push   # create tables (PostgreSQL via DATABASE_URL)
-npm run build && npm start
+npm run dev
 ```
 
-Validation: `npx next typegen` · `tsc --noEmit` · `npm run build` — all green.
+For a persistent Node deployment, run the web server and the durable database-polling worker as separate processes:
+
+```bash
+npm run build
+npm start
+npm run worker
+``
+
+The worker scans queued analyses/exports and claims each job atomically, so a worker and a request-triggered runner cannot both process the same queued record. Set `XRAY_DATA_DIR` to a persistent mounted directory in production; the default `.data` directory is only durable when the host filesystem itself is persistent. Configure upload budgets with `XRAY_MAX_FILE_BYTES`, `XRAY_WORKER_POLL_MS`, and `XRAY_WORKER_BATCH_SIZE`.
 
 ## Tests
 
 ```bash
-node --import tsx --test tests/*.test.ts   # 38 tests, all engine-pure + one live integration
+npm run test:unit          # pure engine, parser, serializer, graph and storage tests
+npm run test:integration   # live PostgreSQL + real file/API XLSX round-trip
+npm run validate:fixes     # full live upload → analysis → preview → apply → download smoke test; app must be running
+npm run typecheck
+npm run lint
+npm run build
 ```
 
-- `tests/formula.test.ts` — tokenizer, externals, function-vs-ref disambiguation, R1C1 relocation, literal replacement
-- `tests/transform.test.ts` — all 12 deterministic rules produce correct diffs/mutations; input immutability; determinism
-- `tests/graph-state.test.ts` — toggle state machine (`{id, enabled, available, defaultOn}`, preview payload = enabled+available only), graph filtering (sheet/severity/type/circular/external, 1-hop widening, 300-node cap), dagre layout (per-sheet clusters, routed edges, LR ranks)
-- `tests/download.test.ts` — live integration for `GET /api/outputs/:outputId/download` (exact headers, byte-identical stream, structured 404) + RFC 5987 filename parsing used by the browser blob download path
+The integration tests need a reachable PostgreSQL database. The end-to-end validation script also needs the app running at `BASE_URL` (default `http://localhost:3000`). These commands have not been reported as passing unless CI output confirms it.
 
-Frontend downloads (server + local mode) go through `src/lib/download.ts`: `fetch → blob → URL.createObjectURL → a.click → revoke`, with loading state and error toasts.
+- `tests/formula.test.ts` — tokenizer, external references, function/ref disambiguation, R1C1 relocation and literal replacement
+- `tests/transform.test.ts` — deterministic rule behavior, immutability, and refusal to auto-fix truncated models
+- `tests/parse.test.ts` — cell-budget rejection and number-format parsing
+- `tests/serialize.test.ts` — formula, merge, defined-name, basic-style, dimensions, CSV/NDJSON and truncated-export checks
+- `tests/graph-state.test.ts` — toggle state machine, graph filters, node cap and layout invariants
+- `tests/storage.test.ts` — storage-root traversal protection
+- `tests/download.test.ts` — live PostgreSQL integration: real XLSX bytes, exact Content-Length despite stale DB size, formulas, number formats, merges, hidden sheets and filename parsing
+
+Server downloads use `src/lib/download.ts` (`fetch → blob → object URL → anchor click`). Browser-local exports serialize and download in the client without sending workbook bytes to the server.
+
+## Workbook fidelity and safety limits
+
+The workbook model preserves cell values/formulas, number formats, basic font/fill/border/alignment styles, row heights, column widths, merges, defined names, and hidden/very-hidden sheet state. The parser refuses files exceeding the configured model cell budget instead of returning a partial workbook.
+
+This is not a byte-for-byte Excel editor. Conditional formatting, charts, drawings, slicers, pivot caches, external connection metadata, VBA macros in `.xlsm`, and some advanced workbook features are not guaranteed to survive reconstruction. Do not export macro-enabled workbooks as `.xlsx` if VBA must be retained. Validate business-critical workbooks in desktop Excel before using repaired exports.
 
 ## 7. Roadmap
 
