@@ -281,6 +281,7 @@ async function addStyleMetadata(model: WorkbookModel, bytes: Uint8Array): Promis
     // SheetJS remains the compatibility parser for unusual Excel files.
     // If ExcelJS cannot read a workbook, value/formula parsing still works;
     // unsupported style metadata is not fabricated.
+    model.styleMetadataUnavailable = true;
     console.warn("xlsx-style-metadata-unavailable", model.fileName, error);
   }
 }
