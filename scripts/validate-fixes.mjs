@@ -108,7 +108,7 @@ async function runCase(label, getUploadId, tools, verifyDownloaded) {
     await fetch(`${B}/api/analysis/${analysisId}/apply`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ previewId: pv.previewId, exportFormats: ["xlsx"] }),
+      body: JSON.stringify({ previewId: pv.previewId, exportFormats: ["xlsx", "csv", "json", "ndjson", "md"] }),
     })
   );
   const job = await waitStatus(`${B}/api/jobs/${jobId}`);
@@ -132,6 +132,44 @@ async function runCase(label, getUploadId, tools, verifyDownloaded) {
   check(`${label}: download 200 + exact headers`, hdrOK, `ct=${head.ct}`);
   const notJson = buf.length > 2 && !(buf[0] === 0x7b && buf[1] === 0x7d); // not "{}"
   check(`${label}: body is binary (not JSON/empty)`, buf.length > 500 && notJson, `${buf.length} bytes, magic=${buf.subarray(0, 2).toString("hex")}`);
+
+  // Verify every advertised export format through its actual download endpoint.
+  for (const format of ["csv", "json", "ndjson", "md"]) {
+    const other = job.outputs.find((o) => o.format === format);
+    check(`${label}: ${format.toUpperCase()} output registered`, Boolean(other), other?.name);
+    if (!other) continue;
+    const otherRes = await fetch(`${B}/api/outputs/${other.fileId}/download`);
+    const otherBytes = Buffer.from(await otherRes.arrayBuffer());
+    const otherText = otherBytes.toString("utf8");
+    const expectedMime = {
+      csv: "text/csv; charset=utf-8",
+      json: "application/json; charset=utf-8",
+      ndjson: "application/x-ndjson; charset=utf-8",
+      md: "text/markdown; charset=utf-8",
+    }[format];
+    check(`${label}: ${format.toUpperCase()} download headers + byte length`,
+      otherRes.status === 200 &&
+      otherRes.headers.get("content-type") === expectedMime &&
+      otherRes.headers.get("content-length") === String(otherBytes.length) &&
+      otherBytes.length > 0,
+      `bytes=${otherBytes.length}`);
+    try {
+      if (format === "csv") {
+        if (!otherText.startsWith("\uFEFF") || !otherText.includes("\n")) throw new Error("CSV missing UTF-8 BOM or rows");
+      } else if (format === "json") {
+        JSON.parse(otherText);
+      } else if (format === "ndjson") {
+        const rows = otherText.trim().split(/\r?\n/);
+        if (!rows.length || rows.some((line) => !line.trim())) throw new Error("NDJSON contains empty rows");
+        for (const line of rows) JSON.parse(line);
+      } else if (!otherText.startsWith("# X-RAY://EXCEL")) {
+        throw new Error("Markdown report header missing");
+      }
+      check(`${label}: ${format.toUpperCase()} content parses`, true);
+    } catch (e) {
+      check(`${label}: ${format.toUpperCase()} content parses`, false, String(e.message ?? e));
+    }
+  }
 
   // (6) opens as valid xlsx
   let wb = null;
