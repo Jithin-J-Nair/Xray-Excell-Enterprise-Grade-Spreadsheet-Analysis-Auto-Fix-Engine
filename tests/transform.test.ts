@@ -28,6 +28,12 @@ function workbook(sheets: SheetModel[], names: WorkbookModel["names"] = []): Wor
 }
 
 describe("deterministic transformation rules", () => {
+  it("refuses to auto-fix a truncated workbook", () => {
+    const partial = workbook([sheet("S", [c("A1", 0, 0, "s", "partial")])]);
+    partial.truncated = true;
+    assert.throws(() => applyTransforms([partial], ["T007"]), /MODEL_TRUNCATED/);
+  });
+
   it("T002 normalizes a deviating column formula to the majority pattern", () => {
     const m = workbook([
       sheet("S", [
