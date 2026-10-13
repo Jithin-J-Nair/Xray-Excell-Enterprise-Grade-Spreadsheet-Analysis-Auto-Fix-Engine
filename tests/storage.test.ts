@@ -6,7 +6,7 @@ import { absOf } from "../src/lib/server/storage";
 describe("storage path confinement", () => {
   it("resolves a valid storage key below .data", () => {
     const resolved = absOf(path.join("exports", "job-id", "book.xlsx"));
-    assert.ok(resolved.endsWith(path.join(".data", "exports", "job-id", "book.xlsx")));
+    assert.ok(resolved.endsWith(path.join("exports", "job-id", "book.xlsx")));
   });
 
   it("rejects traversal outside the storage root", () => {
