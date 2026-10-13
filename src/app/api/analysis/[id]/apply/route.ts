@@ -67,8 +67,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json({ jobId: job.id, status: "completed", mode: "local" });
     }
 
-    if (!body.previewId) {
-      return NextResponse.json({ errorCode: "BAD_REQUEST", message: "previewId is required", retryable: false }, { status: 400 });
+    if (typeof body.previewId !== "string" || !body.previewId) {
+      return NextResponse.json({ errorCode: "BAD_REQUEST", message: "previewId must be a non-empty string", retryable: false }, { status: 400 });
     }
     const [preview] = await db.select().from(previews).where(eq(previews.id, body.previewId)).limit(1);
     if (!preview || preview.analysisId !== id) {
