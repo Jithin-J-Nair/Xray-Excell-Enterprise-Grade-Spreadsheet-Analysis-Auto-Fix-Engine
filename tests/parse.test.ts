@@ -6,18 +6,15 @@ import { workbookToXlsxBytes } from "../src/lib/excel/serialize";
 import type { WorkbookModel } from "../src/lib/excel/types";
 
 describe("workbook parsing safety", () => {
-  it("rejects a workbook that exceeds the model cell budget instead of returning partial data", () => {
+  it("rejects a workbook that exceeds the model cell budget instead of returning partial data", async () => {
     const wb = XLSX.utils.book_new();
     const rows = Array.from({ length: MAX_MODEL_CELLS + 1 }, (_, i) => [i + 1]);
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Large");
     const bytes = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
-    assert.throws(
-      () => parseFile("large", "large.xlsx", bytes),
-      /MODEL_TRUNCATED/
-    );
+    await assert.rejects(() => parseFile("large", "large.xlsx", bytes), /MODEL_TRUNCATED/);
   });
 
-  it("round-trips basic styles and dimensions through the parser model", () => {
+  it("round-trips basic styles and dimensions through the parser model", async () => {
     const model: WorkbookModel = {
       fileId: "styled",
       fileName: "styled.xlsx",
@@ -41,29 +38,29 @@ describe("workbook parsing safety", () => {
       }],
       names: [],
     };
-    const parsed = parseFile("styled", "styled.xlsx", workbookToXlsxBytes(model));
+    const parsed = await parseFile("styled", "styled.xlsx", workbookToXlsxBytes(model));
     const style = parsed.sheets[0].cells.A1.s as { font?: { bold?: boolean } } | undefined;
     assert.equal(style?.font?.bold, true);
     assert.equal(parsed.sheets[0].columnWidths?.[0]?.wch, 26);
     assert.equal(parsed.sheets[0].rowHeights?.[0]?.hpt, 28);
   });
 
-  it("marks XLSM inputs and refuses to export them as macro-less XLSX", () => {
+  it("marks XLSM inputs and refuses to export them as macro-less XLSX", async () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["data"]]), "Data");
     const bytes = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
-    const model = parseFile("macro", "financial-model.xlsm", bytes);
+    const model = await parseFile("macro", "financial-model.xlsm", bytes);
     assert.equal(model.macroEnabled, true);
     assert.throws(() => workbookToXlsxBytes(model), /MACROS_UNSUPPORTED/);
   });
 
-  it("preserves number-format codes when parsing an XLSX", () => {
+  it("preserves number-format codes when parsing an XLSX", async () => {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([[12.5]]);
     ws.A1.z = "#,##0.00";
     XLSX.utils.book_append_sheet(wb, ws, "Data");
     const bytes = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
-    const model = parseFile("formatted", "formatted.xlsx", bytes);
+    const model = await parseFile("formatted", "formatted.xlsx", bytes);
     assert.equal(model.sheets[0].cells.A1.z, "#,##0.00");
   });
 });
