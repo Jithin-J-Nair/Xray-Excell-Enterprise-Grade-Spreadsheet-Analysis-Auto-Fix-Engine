@@ -1,5 +1,5 @@
 // ── Demo / QA datasets: "monster" workbook + Japanese messy workbook ─────────
-import * as XLSX from "xlsx";
+import * as XLSX from "@redoper1/xlsx-js-style";
 
 function setF(ws: XLSX.WorkSheet, addr: string, f: string, v?: string | number) {
   let cell: XLSX.CellObject;
