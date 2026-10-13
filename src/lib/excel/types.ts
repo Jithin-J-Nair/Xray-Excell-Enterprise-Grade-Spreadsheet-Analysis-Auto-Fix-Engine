@@ -56,6 +56,8 @@ export interface WorkbookModel {
   truncated?: boolean;
   /** True for macro-enabled inputs; reconstruction to .xlsx would drop VBA. */
   macroEnabled?: boolean;
+  /** XLSX style metadata could not be read; XLSX export must fail closed. */
+  styleMetadataUnavailable?: boolean;
 }
 
 // ── Formula tokens ───────────────────────────────────────────────────────────
