@@ -12,7 +12,23 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: app_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d app_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,7 +42,29 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint
+      - name: Create database schema
+        run: npx drizzle-kit push
       - name: Unit tests
         run: npm run test:unit
+      - name: XLSX download integration test
+        run: npm run test:integration
       - name: Build
         run: npm run build
+      - name: Start app for full export smoke test
+        run: |
+          npm start > /tmp/xray-next.log 2>&1 &
+          echo $! > /tmp/xray-next.pid
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/api/health > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat /tmp/xray-next.log
+          exit 1
+      - name: End-to-end upload → preview → apply → all exports → download
+        run: npm run validate:fixes
+      - name: Stop app
+        if: always()
+        run: |
+          if [ -f /tmp/xray-next.pid ]; then kill "$(cat /tmp/xray-next.pid)" || true; fi
