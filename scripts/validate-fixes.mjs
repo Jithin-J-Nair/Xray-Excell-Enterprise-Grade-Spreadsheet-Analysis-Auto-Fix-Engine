@@ -3,7 +3,7 @@
  * (4) download → (5) file downloads as binary → (6) opens as valid XLSX →
  * (7) downloaded file contains the applied fixes.
  */
-import * as XLSX from "xlsx";
+import * as XLSX from "@redoper1/xlsx-js-style";
 
 const B = process.env.BASE_URL ?? "http://localhost:3000";
 const results = [];
