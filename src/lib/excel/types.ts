@@ -54,6 +54,8 @@ export interface WorkbookModel {
   sheets: SheetModel[];
   names: NamedRangeModel[];
   truncated?: boolean;
+  /** True for macro-enabled inputs; reconstruction to .xlsx would drop VBA. */
+  macroEnabled?: boolean;
 }
 
 // ── Formula tokens ───────────────────────────────────────────────────────────
