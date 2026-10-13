@@ -384,6 +384,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>("en");
   useEffect(() => {
     const saved = (typeof window !== "undefined" && localStorage.getItem("xray-lang")) as Lang | null;
+    // Restore the user's persisted language preference once after hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (saved === "jp" || saved === "en") setLangState(saved);
   }, []);
   const setLang = (l: Lang) => {
