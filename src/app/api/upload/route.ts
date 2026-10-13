@@ -26,6 +26,11 @@ function mimeOf(name: string): string {
 
 export async function POST(req: NextRequest) {
   try {
+    const contentLength = Number(req.headers.get("content-length") ?? 0);
+    const maxRequestBytes = MAX_FILE_BYTES * 2 + 1024 * 1024;
+    if (contentLength > maxRequestBytes) {
+      return NextResponse.json({ errorCode: "BATCH_TOO_LARGE", message: "Combined upload exceeds the 2-file-size batch budget", retryable: false }, { status: 413 });
+    }
     const form = await req.formData();
     const entries = form.getAll("files").filter((f): f is File => f instanceof File);
     if (!entries.length) {
@@ -47,6 +52,11 @@ export async function POST(req: NextRequest) {
           { status: 413 }
         );
       }
+    }
+
+    const totalBytes = entries.reduce((sum, file) => sum + file.size, 0);
+    if (totalBytes > MAX_FILE_BYTES * 2) {
+      return NextResponse.json({ errorCode: "BATCH_TOO_LARGE", message: "Combined upload exceeds the 2-file-size batch budget", retryable: false }, { status: 413 });
     }
 
     const name = entries.length === 1 ? entries[0].name : `${entries[0].name} +${entries.length - 1}`;
