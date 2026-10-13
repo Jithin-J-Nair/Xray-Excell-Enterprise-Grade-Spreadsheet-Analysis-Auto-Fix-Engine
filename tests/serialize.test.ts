@@ -67,7 +67,8 @@ describe("xlsx export round-trip", () => {
     assert.ok(ws);
     assert.equal(ws.getCell("A1").font.bold, true);
     assert.equal(ws.getCell("A1").alignment?.horizontal, "center");
-    assert.ok(ws.getColumn(1).width >= 22.8 && ws.getColumn(1).width < 23);
+    const columnWidth = ws.getColumn(1).width;
+    assert.ok(typeof columnWidth === "number" && columnWidth >= 22.8 && columnWidth < 23);
     assert.equal(ws.getRow(1).height, 24);
   });
 
