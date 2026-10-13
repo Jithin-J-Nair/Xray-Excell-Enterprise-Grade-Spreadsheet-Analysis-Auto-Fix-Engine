@@ -126,6 +126,14 @@ export async function runApplyJob(jobId: string): Promise<void> {
     if (!arow?.result) throw new Error("ANALYSIS_NOT_FOUND");
     const result = arow.result as unknown as AnalysisResult;
     const models = allModels(result);
+    const formats = (job.formats ?? ["xlsx"]) as string[];
+    const unsafeXlsxModel = models.find((model) => model.macroEnabled || model.styleMetadataUnavailable);
+    if (formats.includes("xlsx") && unsafeXlsxModel) {
+      if (unsafeXlsxModel.macroEnabled) {
+        throw new Error(`MACROS_UNSUPPORTED: ${unsafeXlsxModel.fileName} is macro-enabled; XLSX export would discard VBA.`);
+      }
+      throw new Error(`STYLE_METADATA_UNAVAILABLE: ${unsafeXlsxModel.fileName} could not be read with reliable style metadata; XLSX export was blocked.`);
+    }
 
     const [preview] = job.previewId
       ? await db.select().from(previews).where(eq(previews.id, job.previewId)).limit(1)
@@ -143,7 +151,6 @@ export async function runApplyJob(jobId: string): Promise<void> {
     summary.risksResolved = Math.max(0, before - after);
 
     await db.update(jobs).set({ progress: 45 }).where(eq(jobs.id, jobId));
-    const formats = (job.formats ?? ["xlsx"]) as string[];
     const outputs: { format: string; fileId: string; name: string; size: number }[] = [];
     const main = patched[0];
     const baseName = (result.files[0]?.name ?? "workbook").replace(/\.[^.]+$/, "");
