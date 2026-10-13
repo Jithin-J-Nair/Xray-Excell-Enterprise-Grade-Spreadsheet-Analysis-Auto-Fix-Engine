@@ -1,8 +1,11 @@
 import { NextRequest } from "next/server";
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import { Readable } from "node:stream";
 import { db } from "@/db";
 import { files } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { readBytes } from "@/lib/server/storage";
+import { absOf } from "@/lib/server/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,25 +23,21 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ fileId: st
     return Response.json({ errorCode: "NOT_FOUND", message: "File not found" }, { status: 404 });
   }
   try {
-    const buf = await readBytes(file.path);
-    // chunked streaming (64KB chunks) so large exports don't blow memory
-    const stream = new ReadableStream<Uint8Array>({
-      start(controller) {
-        const CHUNK = 64 * 1024;
-        for (let off = 0; off < buf.length; off += CHUNK) {
-          controller.enqueue(new Uint8Array(buf.subarray(off, Math.min(off + CHUNK, buf.length))));
-        }
-        controller.close();
-      },
-    });
+    const abs = absOf(file.path);
+    const fileStat = await stat(abs);
+    if (!fileStat.isFile()) {
+      return Response.json({ errorCode: "INVALID_FILE", message: "Stored path is not a regular file", retryable: false }, { status: 500 });
+    }
+    const stream = Readable.toWeb(createReadStream(abs)) as ReadableStream<Uint8Array>;
     return new Response(stream, {
       status: 200,
       headers: {
         "Content-Type": file.mime || "application/octet-stream",
-        "Content-Length": String(buf.length),
+        "Content-Length": String(fileStat.size),
         "Content-Disposition": contentDisposition(file.name),
         "Cache-Control": "no-store",
         "X-Content-SHA256": file.sha256 ?? "",
+        "X-Content-Type-Options": "nosniff",
       },
     });
   } catch (e) {
