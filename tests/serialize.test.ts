@@ -15,12 +15,22 @@ function model(): WorkbookModel {
         rows: 4,
         cols: 2,
         cells: {
-          A1: { a: "A1", r: 0, c: 0, t: "s", v: "hdr" },
+          A1: {
+            a: "A1", r: 0, c: 0, t: "s", v: "hdr",
+            s: {
+              font: { bold: true, color: { rgb: "FFFF0000" } },
+              fill: { patternType: "solid", fgColor: { rgb: "FFFFFF00" } },
+              alignment: { horizontal: "center" },
+              border: { bottom: { style: "thin", color: { rgb: "FF000000" } } },
+            },
+          },
           A2: { a: "A2", r: 1, c: 0, t: "n", v: 4, f: "RANDBETWEEN(1,6)" }, // cached formula
           A3: { a: "A3", r: 2, c: 0, t: "s", v: null, f: "TODAY()" }, // UNCACHED formula
           A4: { a: "A4", r: 3, c: 0, t: "n", v: 10, f: "A2*2.5" }, // cached formula
         },
         merges: [],
+        columnWidths: [{ wch: 22 }, { wch: 14 }],
+        rowHeights: [{ hpt: 24 }],
       },
     ],
     names: [{ name: "P", ref: "Vol!$A$1", sheet: null, broken: false }],
@@ -45,6 +55,17 @@ describe("xlsx export round-trip", () => {
     const wb = XLSX.read(Buffer.from(workbookToXlsxBytes(m)), { type: "buffer" });
     assert.equal((wb.Sheets["Vol"]["!merges"] ?? []).length, 1);
     assert.ok((wb.Workbook?.Names ?? []).some((n) => n.Name === "P"));
+  });
+
+  it("round-trips basic cell styles, column widths, and row heights", () => {
+    const original = model();
+    const bytes = workbookToXlsxBytes(original);
+    const wb = XLSX.read(Buffer.from(bytes), { type: "buffer", cellStyles: true });
+    const ws = wb.Sheets.Vol;
+    assert.equal((ws.A1.s as { font?: { bold?: boolean } })?.font?.bold, true);
+    assert.equal((ws.A1.s as { alignment?: { horizontal?: string } })?.alignment?.horizontal, "center");
+    assert.ok(ws["!cols"]?.[0]?.wch === 22 || (ws["!cols"]?.[0]?.wpx ?? 0) > 0);
+    assert.ok((ws["!rows"]?.[0]?.hpt ?? ws["!rows"]?.[0]?.hpx ?? 0) > 0);
   });
 
   it("refuses to export a truncated workbook rather than silently dropping cells", () => {
