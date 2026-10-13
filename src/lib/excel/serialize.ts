@@ -23,6 +23,9 @@ function sanitizeSheetName(raw: string, used: Set<string>): string {
 /** Rebuild a real XLSX workbook (formulas, merges, defined names) from a model. */
 export function modelToWorkbook(model: WorkbookModel): XLSX.WorkBook {
   assertCompleteModel(model);
+  if (model.macroEnabled) {
+    throw new Error("MACROS_UNSUPPORTED: exporting this macro-enabled workbook as .xlsx would discard VBA; export a non-macro copy or use a macro-preserving workflow.");
+  }
   const wb = XLSX.utils.book_new();
   const used = new Set<string>();
   for (const sheet of model.sheets) {
