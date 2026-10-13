@@ -1,5 +1,5 @@
 // ── Workbook ingestion: bytes/text → WorkbookModel (isomorphic) ──────────────
-import * as XLSX from "xlsx-js-style";
+import * as XLSX from "@redoper1/xlsx-js-style";
 import type { CellModel, NamedRangeModel, SheetModel, WorkbookModel } from "./types";
 
 export const MAX_MODEL_CELLS = 60000;
