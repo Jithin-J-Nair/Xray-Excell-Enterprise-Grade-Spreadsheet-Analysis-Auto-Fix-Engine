@@ -1,5 +1,5 @@
 // ── Export serializers: XLSX / CSV(+BOM) / JSON / NDJSON / MD (isomorphic) ──
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 import type { AnalysisResult, CellModel, SheetModel, WorkbookModel } from "./types";
 import { addrOf } from "./formula";
 
@@ -53,6 +53,7 @@ export function modelToWorkbook(model: WorkbookModel): XLSX.WorkBook {
         out.v = String(cell.v ?? "");
       }
       if (cell.z) out.z = cell.z;
+      if (cell.s) (out as XLSX.CellObject & { s?: Record<string, unknown> }).s = cell.s;
       if (cell.f) {
         out.f = cell.f;
         if (cell.v === null || cell.v === undefined) {
@@ -66,6 +67,8 @@ export function modelToWorkbook(model: WorkbookModel): XLSX.WorkBook {
       maxC = Math.max(maxC, cell.c);
     }
     ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: maxR, c: maxC } });
+    if (sheet.columnWidths?.length) ws["!cols"] = sheet.columnWidths as XLSX.ColInfo[];
+    if (sheet.rowHeights?.length) ws["!rows"] = sheet.rowHeights as XLSX.RowInfo[];
     if (sheet.merges.length) {
       ws["!merges"] = sheet.merges.map((m) => ({
         s: { r: m.r1, c: m.c1 },
