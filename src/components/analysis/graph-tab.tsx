@@ -48,6 +48,7 @@ export function GraphTab({ detail }: { detail: AnalysisDetail }) {
   const [tx, setTx] = useState<Tx>({ x: 24, y: 24, k: 1 });
   const [autoFitKey, setAutoFitKey] = useState(0);
   const dragRef = useRef<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const miniDragRef = useRef<boolean>(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ w: 900, h: 560 });
@@ -76,12 +77,6 @@ export function GraphTab({ detail }: { detail: AnalysisDetail }) {
 
   const laid = useMemo(() => layoutGraph(filtered.nodes, filtered.edges), [filtered]);
 
-  // fit-to-view whenever the laid graph identity changes after a filter change
-  useEffect(() => {
-    fitView(laid.width, laid.height);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [laid, autoFitKey, viewport.w, viewport.h]);
-
   const fitView = useCallback(
     (w: number, h: number) => {
       if (!w || !h) return;
@@ -94,6 +89,11 @@ export function GraphTab({ detail }: { detail: AnalysisDetail }) {
     },
     [viewport]
   );
+
+  // Fit to view whenever layout, filters, or viewport dimensions change.
+  useEffect(() => {
+    fitView(laid.width, laid.height);
+  }, [fitView, laid, autoFitKey]);
 
   const nodeById = useMemo(() => new Map(filtered.nodes.map((n) => [n.id, n])), [filtered.nodes]);
 
@@ -257,16 +257,23 @@ export function GraphTab({ detail }: { detail: AnalysisDetail }) {
           onPointerDown={(e) => {
             (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
             dragRef.current = { x: e.clientX - tx.x, y: e.clientY - tx.y };
+            setIsDragging(true);
           }}
           onPointerMove={(e) => {
             if (!dragRef.current) return;
             setTx((p) => ({ ...p, x: e.clientX - dragRef.current!.x, y: e.clientY - dragRef.current!.y }));
           }}
-          onPointerUp={() => (dragRef.current = null)}
-          onPointerLeave={() => (dragRef.current = null)}
+          onPointerUp={() => {
+            dragRef.current = null;
+            setIsDragging(false);
+          }}
+          onPointerLeave={() => {
+            dragRef.current = null;
+            setIsDragging(false);
+          }}
         >
           <svg width="100%" height="100%">
-            <g transform={`translate(${tx.x},${tx.y}) scale(${tx.k})`} style={{ transition: dragRef.current ? undefined : "transform .12s ease-out" }}>
+            <g transform={`translate(${tx.x},${tx.y}) scale(${tx.k})`} style={{ transition: isDragging ? undefined : "transform .12s ease-out" }}>
               {/* sheet clusters */}
               {laid.clusters.map((c) => (
                 <g key={c.id}>
