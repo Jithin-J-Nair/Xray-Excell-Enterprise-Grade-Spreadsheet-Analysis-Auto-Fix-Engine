@@ -20,7 +20,7 @@ async function loadModules() {
 
 describe("GET /api/outputs/:outputId/download", () => {
   let fileId = "";
-  let payload = new Uint8Array();
+  let payload: ReturnType<typeof workbookToXlsxBytes> = new Uint8Array();
   let cleanup: () => Promise<void>;
 
   before(async () => {
