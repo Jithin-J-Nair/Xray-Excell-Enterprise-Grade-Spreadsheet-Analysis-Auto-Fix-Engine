@@ -244,7 +244,7 @@ function normalizeCellStyle(value: unknown): Record<string, unknown> {
 async function addStyleMetadata(model: WorkbookModel, bytes: Uint8Array): Promise<void> {
   if (!/\.xlsx$/i.test(model.fileName)) return;
   try {
-    const ExcelJS = await import("exceljs");
+    const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
     const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
     await workbook.xlsx.load(data);
