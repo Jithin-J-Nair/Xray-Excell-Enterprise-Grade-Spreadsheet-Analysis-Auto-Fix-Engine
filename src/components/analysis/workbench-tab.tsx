@@ -182,6 +182,14 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
       const { workbookToXlsxBytes, sheetToCsv, modelToJson, modelToNdjson, buildMarkdownReport } = await import("@/lib/excel/serialize");
       const models = allModels(res);
       const { models: patched, summary } = applyTransforms(models, preview.tools, { minOccurrences: minOcc });
+      const unsafeXlsxModel = patched.find((model) => model.macroEnabled || model.styleMetadataUnavailable);
+      if (formats.has("xlsx") && unsafeXlsxModel) {
+        throw new Error(
+          unsafeXlsxModel.macroEnabled
+            ? `MACROS_UNSUPPORTED: ${unsafeXlsxModel.fileName} is macro-enabled; XLSX export would discard VBA.`
+            : `STYLE_METADATA_UNAVAILABLE: ${unsafeXlsxModel.fileName} could not be read with reliable style metadata.`
+        );
+      }
       const main = patched[0];
       const base = (res.files[0]?.name ?? "workbook").replace(/\.[^.]+$/, "");
       const ts = new Date().toISOString().slice(0, 10).replaceAll("-", "");
