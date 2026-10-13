@@ -55,7 +55,9 @@ export function absOf(relPath: string): string {
   const resolved = path.resolve(ROOT, relPath);
   const relative = path.relative(ROOT, resolved);
   if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
-    throw new Error("INVALID_STORAGE_PATH: path escapes storage root");
+    const error = new Error("INVALID_STORAGE_PATH: path escapes storage root") as NodeJS.ErrnoException;
+    error.code = "INVALID_STORAGE_PATH";
+    throw error;
   }
   return resolved;
 }
