@@ -12,6 +12,8 @@ export interface CellModel {
   v: string | number | boolean | null;
   /** formula WITHOUT leading "=" */
   f?: string;
+  /** Excel number-format code (e.g. "0.00", "yyyy-mm-dd"); not full cell styling. */
+  z?: string;
 }
 
 export interface MergeRange {
