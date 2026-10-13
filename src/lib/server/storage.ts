@@ -2,7 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import crypto from "crypto";
 
-const ROOT = path.join(process.cwd(), ".data");
+const ROOT = path.resolve(process.env.XRAY_DATA_DIR ?? path.join(process.cwd(), ".data"));
 
 function dirFor(bucket: string): string {
   return path.join(ROOT, bucket);
