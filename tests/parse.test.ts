@@ -48,6 +48,15 @@ describe("workbook parsing safety", () => {
     assert.equal(parsed.sheets[0].rowHeights?.[0]?.hpt, 28);
   });
 
+  it("marks XLSM inputs and refuses to export them as macro-less XLSX", () => {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["data"]]), "Data");
+    const bytes = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
+    const model = parseFile("macro", "financial-model.xlsm", bytes);
+    assert.equal(model.macroEnabled, true);
+    assert.throws(() => workbookToXlsxBytes(model), /MACROS_UNSUPPORTED/);
+  });
+
   it("preserves number-format codes when parsing an XLSX", () => {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet([[12.5]]);
