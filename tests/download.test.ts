@@ -60,7 +60,7 @@ describe("GET /api/outputs/:outputId/download", () => {
         kind: "export",
         name: "fixed_Test Book.xlsx",
         size: payload.length + 17, // intentionally stale metadata; route must use stat()
-        mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        mime: "application/json", // deliberately stale MIME; .xlsx extension must win
         path: saved.relPath,
       })
       .returning();
