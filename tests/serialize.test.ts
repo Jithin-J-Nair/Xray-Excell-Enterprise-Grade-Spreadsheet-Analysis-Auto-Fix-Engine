@@ -47,6 +47,12 @@ describe("xlsx export round-trip", () => {
     assert.ok((wb.Workbook?.Names ?? []).some((n) => n.Name === "P"));
   });
 
+  it("refuses to export a truncated workbook rather than silently dropping cells", () => {
+    const partial = model();
+    partial.truncated = true;
+    assert.throws(() => workbookToXlsxBytes(partial), /MODEL_TRUNCATED/);
+  });
+
   it("CSV export starts with UTF-8 BOM", () => {
     const csv = sheetToCsv(model().sheets[0]);
     assert.equal(csv.charCodeAt(0), 0xfeff);
