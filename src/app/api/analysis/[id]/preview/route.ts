@@ -25,7 +25,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (input.options !== undefined && (!input.options || typeof input.options !== "object" || Array.isArray(input.options))) {
       return NextResponse.json({ errorCode: "BAD_OPTIONS", message: "options must be an object", retryable: false }, { status: 400 });
     }
-    const tools = [...new Set((input.tools as string[] | undefined ?? []).filter((t) => VALID_IDS.has(t)))];
+    const requestedTools = (input.tools as string[] | undefined) ?? [];
+    const invalidTools = requestedTools.filter((tool) => !VALID_IDS.has(tool));
+    if (invalidTools.length) {
+      return NextResponse.json({ errorCode: "UNKNOWN_TOOL", message: `Unknown rule ID(s): ${invalidTools.join(", ")}`, retryable: false }, { status: 400 });
+    }
+    const tools = [...new Set(requestedTools)];
     const rawOptions = (input.options ?? {}) as { minOccurrences?: unknown };
     const rawMin = rawOptions.minOccurrences ?? 3;
     if (typeof rawMin !== "number" || !Number.isFinite(rawMin)) {
