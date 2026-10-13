@@ -3,6 +3,12 @@ import * as XLSX from "xlsx";
 import type { AnalysisResult, CellModel, SheetModel, WorkbookModel } from "./types";
 import { addrOf } from "./formula";
 
+function assertCompleteModel(model: WorkbookModel): void {
+  if (model.truncated) {
+    throw new Error(`MODEL_TRUNCATED: refusing to export incomplete workbook ${model.fileName}`);
+  }
+}
+
 function sanitizeSheetName(raw: string, used: Set<string>): string {
   let name = raw.replace(/[\\/?*\[\]:]/g, " ").slice(0, 31).trim() || "Sheet";
   let base = name;
@@ -16,6 +22,7 @@ function sanitizeSheetName(raw: string, used: Set<string>): string {
 
 /** Rebuild a real XLSX workbook (formulas, merges, defined names) from a model. */
 export function modelToWorkbook(model: WorkbookModel): XLSX.WorkBook {
+  assertCompleteModel(model);
   const wb = XLSX.utils.book_new();
   const used = new Set<string>();
   for (const sheet of model.sheets) {
@@ -144,6 +151,7 @@ function detectHeader(matrix: (string | number | boolean | null)[][]): boolean {
 
 /** JSON export of one or all sheets (header-aware objects). */
 export function modelToJson(model: WorkbookModel, sheetName?: string, pretty = true): string {
+  assertCompleteModel(model);
   const sheets = sheetName ? model.sheets.filter((s) => s.name === sheetName) : model.sheets;
   const toRows = (sheet: SheetModel) => {
     const matrix = sheetMatrix(sheet);
@@ -167,6 +175,7 @@ export function modelToJson(model: WorkbookModel, sheetName?: string, pretty = t
 }
 
 export function modelToNdjson(model: WorkbookModel, sheetName?: string): string {
+  assertCompleteModel(model);
   const sheets = sheetName ? model.sheets.filter((s) => s.name === sheetName) : model.sheets;
   const lines: string[] = [];
   for (const sheet of sheets) {
