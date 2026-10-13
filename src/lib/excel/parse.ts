@@ -68,6 +68,16 @@ function workbookToModel(wb: XLSX.WorkBook, fileId: string, fileName: string, en
       cols: 0,
       cells: {},
       merges: [],
+      columnWidths: (ws["!cols"] ?? []).map((col) => ({
+        ...(typeof col.wch === "number" ? { wch: col.wch } : {}),
+        ...(typeof col.wpx === "number" ? { wpx: col.wpx } : {}),
+        ...(typeof col.hidden === "boolean" ? { hidden: col.hidden } : {}),
+      })),
+      rowHeights: (ws["!rows"] ?? []).map((row) => ({
+        ...(typeof row.hpt === "number" ? { hpt: row.hpt } : {}),
+        ...(typeof row.hpx === "number" ? { hpx: row.hpx } : {}),
+        ...(typeof row.hidden === "boolean" ? { hidden: row.hidden } : {}),
+      })),
     };
     const ref = ws["!ref"];
     if (ref) {
@@ -126,6 +136,7 @@ function workbookToModel(wb: XLSX.WorkBook, fileId: string, fileName: string, en
         c.f = String(cell.f).replace(/^=/, "");
       }
       if (typeof cell.z === "string") c.z = cell.z;
+      if (cell.s && typeof cell.s === "object") c.s = cell.s as Record<string, unknown>;
       sheet.cells[c.a] = c;
       budget--;
       if (parsed.r + 1 > sheet.rows) sheet.rows = parsed.r + 1;
@@ -187,10 +198,10 @@ export function parseFile(fileId: string, fileName: string, bytes: Uint8Array): 
   }
   if (lower.endsWith(".csv") || lower.endsWith(".tsv") || lower.endsWith(".txt")) {
     const { text, encoding } = decodeDelimited(bytes, lower);
-    const wb = XLSX.read(text, { type: "string", cellDates: true });
+    const wb = XLSX.read(text, { type: "string", cellDates: true, cellStyles: true });
     return requireCompleteModel(workbookToModel(wb, fileId, fileName, encoding));
   }
-  const wb = XLSX.read(bytes, { type: "array", cellDates: true, cellNF: true, dense: false });
+  const wb = XLSX.read(bytes, { type: "array", cellDates: true, cellNF: true, cellStyles: true, dense: false });
   return requireCompleteModel(workbookToModel(wb, fileId, fileName, "binary"));
 }
 
