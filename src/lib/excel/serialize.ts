@@ -1,5 +1,5 @@
 // ── Export serializers: XLSX / CSV(+BOM) / JSON / NDJSON / MD (isomorphic) ──
-import * as XLSX from "xlsx-js-style";
+import * as XLSX from "@redoper1/xlsx-js-style";
 import type { AnalysisResult, CellModel, SheetModel, WorkbookModel } from "./types";
 import { addrOf } from "./formula";
 
