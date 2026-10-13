@@ -1,7 +1,7 @@
 // ── Server job runners: analysis pipeline & apply/export pipeline ────────────
 import { db } from "@/db";
 import { analyses, auditLogs, files, jobs, previews } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { AnalysisResult, WorkbookModel } from "@/lib/excel/types";
 import { parseFile } from "@/lib/excel/parse";
 import { allModels, analyzeAll, rescoreModel } from "@/lib/excel/analyze";
@@ -38,7 +38,13 @@ async function pushLog(analysisId: string, log: LogLine[], msg: string, progress
 
 export async function runAnalysisJob(analysisId: string): Promise<void> {
   const log: LogLine[] = [];
-  const [row] = await db.select().from(analyses).where(eq(analyses.id, analysisId)).limit(1);
+  // Atomic claim: the HTTP handler and durable worker may race, but only one
+  // runner can transition a queued analysis into processing.
+  const [row] = await db
+    .update(analyses)
+    .set({ status: "processing", statusText: "Starting" })
+    .where(and(eq(analyses.id, analysisId), eq(analyses.status, "queued")))
+    .returning();
   if (!row) return;
   try {
     await pushLog(analysisId, log, "job: acquired — loading uploaded files", 4, "Loading files");
@@ -106,11 +112,16 @@ const MIME: Record<string, string> = {
 };
 
 export async function runApplyJob(jobId: string): Promise<void> {
-  const [job] = await db.select().from(jobs).where(eq(jobs.id, jobId)).limit(1);
+  // Claim queued jobs atomically so a request-triggered runner and the durable
+  // worker cannot both generate the same exports.
+  const [job] = await db
+    .update(jobs)
+    .set({ status: "running", progress: 10 })
+    .where(and(eq(jobs.id, jobId), eq(jobs.status, "queued")))
+    .returning();
   if (!job) return;
   const analysisId = job.analysisId!;
   try {
-    await db.update(jobs).set({ status: "running", progress: 10 }).where(eq(jobs.id, jobId));
     const [arow] = await db.select().from(analyses).where(eq(analyses.id, analysisId)).limit(1);
     if (!arow?.result) throw new Error("ANALYSIS_NOT_FOUND");
     const result = arow.result as unknown as AnalysisResult;
