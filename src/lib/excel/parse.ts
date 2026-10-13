@@ -186,8 +186,107 @@ function jsonToWorkbook(text: string, name: string): XLSX.WorkBook {
   return wb;
 }
 
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function normalizeColor(value: unknown): unknown {
+  const color = record(value);
+  if (typeof color.argb === "string") return { rgb: color.argb.slice(-6) };
+  return value;
+}
+
+/** Convert ExcelJS style objects into the style shape written by xlsx-js-style. */
+function normalizeCellStyle(value: unknown): Record<string, unknown> {
+  const source = record(value);
+  const output: Record<string, unknown> = {};
+  const font = record(source.font);
+  if (Object.keys(font).length) {
+    const normalized = { ...font };
+    if (typeof font.size === "number") normalized.sz = font.size;
+    delete normalized.size;
+    if (font.color) normalized.color = normalizeColor(font.color);
+    output.font = normalized;
+  }
+  const fill = record(source.fill);
+  if (Object.keys(fill).length) {
+    const normalized = { ...fill };
+    if (typeof fill.pattern === "string") normalized.patternType = fill.pattern;
+    delete normalized.type;
+    delete normalized.pattern;
+    if (fill.fgColor) normalized.fgColor = normalizeColor(fill.fgColor);
+    if (fill.bgColor) normalized.bgColor = normalizeColor(fill.bgColor);
+    output.fill = normalized;
+  }
+  const border = record(source.border);
+  if (Object.keys(border).length) {
+    const normalized: Record<string, unknown> = {};
+    for (const [sideName, sideValue] of Object.entries(border)) {
+      const side = record(sideValue);
+      normalized[sideName] = side.color
+        ? { ...side, color: normalizeColor(side.color) }
+        : sideValue;
+    }
+    output.border = normalized;
+  }
+  const alignment = record(source.alignment);
+  if (Object.keys(alignment).length) {
+    const normalized = { ...alignment };
+    if (normalized.vertical === "middle") normalized.vertical = "center";
+    output.alignment = normalized;
+  }
+  return output;
+}
+
+/** Enrich SheetJS cell data with styles/dimensions from ExcelJS. */
+async function addStyleMetadata(model: WorkbookModel, bytes: Uint8Array): Promise<void> {
+  if (!/\.xlsx$/i.test(model.fileName)) return;
+  try {
+    const ExcelJS = await import("exceljs");
+    const workbook = new ExcelJS.Workbook();
+    const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    await workbook.xlsx.load(data);
+    for (const sheetModel of model.sheets) {
+      const source = workbook.getWorksheet(sheetModel.name);
+      if (!source) continue;
+      source.eachRow({ includeEmpty: false }, (row) => {
+        row.eachCell({ includeEmpty: false }, (cell) => {
+          const target = sheetModel.cells[cell.address];
+          if (!target) return;
+          const style = normalizeCellStyle(cell.style);
+          if (Object.keys(style).length) target.s = style;
+          if (typeof cell.numFmt === "string") target.z = cell.numFmt;
+        });
+      });
+      const widths: { wch?: number; hidden?: boolean }[] = [];
+      source.columns.forEach((column, index) => {
+        const item: { wch?: number; hidden?: boolean } = {};
+        if (typeof column.width === "number") item.wch = column.width;
+        if (column.hidden) item.hidden = true;
+        widths[index] = item;
+      });
+      if (widths.length) sheetModel.columnWidths = widths;
+      const heights: { hpt?: number; hidden?: boolean }[] = [];
+      source.eachRow({ includeEmpty: true }, (row) => {
+        const item: { hpt?: number; hidden?: boolean } = {};
+        if (typeof row.height === "number") item.hpt = row.height;
+        if (row.hidden) item.hidden = true;
+        heights[row.number - 1] = item;
+      });
+      if (heights.length) sheetModel.rowHeights = heights;
+    }
+  } catch (error) {
+    // SheetJS remains the compatibility parser for unusual Excel files.
+    // If ExcelJS cannot read a workbook, value/formula parsing still works;
+    // unsupported style metadata is not fabricated.
+    console.warn("xlsx-style-metadata-unavailable", model.fileName, error);
+  }
+}
+
 /** Parse raw file bytes into a normalized WorkbookModel. */
-export function parseFile(fileId: string, fileName: string, bytes: Uint8Array): WorkbookModel {
+export async function parseFile(fileId: string, fileName: string, bytes: Uint8Array): Promise<WorkbookModel> {
   const lower = fileName.toLowerCase();
   if (!isSupportedFile(fileName)) {
     throw new Error(`UNSUPPORTED_FORMAT: ${fileName}`);
@@ -203,11 +302,13 @@ export function parseFile(fileId: string, fileName: string, bytes: Uint8Array): 
     return requireCompleteModel(workbookToModel(wb, fileId, fileName, encoding));
   }
   const wb = XLSX.read(bytes, { type: "array", cellDates: true, cellNF: true, cellStyles: true, dense: false });
-  return requireCompleteModel(workbookToModel(wb, fileId, fileName, "binary"));
+  const model = requireCompleteModel(workbookToModel(wb, fileId, fileName, "binary"));
+  await addStyleMetadata(model, bytes);
+  return model;
 }
 
 /** Text entry-point used by browser local-mode (CSV/TSV/JSON strings). */
-export function parseText(fileId: string, fileName: string, text: string): WorkbookModel {
+export function parseText(fileId: string, fileName: string, text: string): Promise<WorkbookModel> {
   const bytes = new TextEncoder().encode(text);
   return parseFile(fileId, fileName, bytes);
 }
