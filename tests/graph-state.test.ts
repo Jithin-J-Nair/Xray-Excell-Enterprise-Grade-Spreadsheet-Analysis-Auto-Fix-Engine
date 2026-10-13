@@ -109,16 +109,32 @@ describe("graph filtering", () => {
 
   it("circular-only toggle keeps cycle members + cycle edges", () => {
     const f = filterGraph(graph, { ...DEFAULT_FILTER, onlyCircular: true }, idx);
-    assert.ok(f.nodes.every((n) => n.cycle || f.primaryIds.has(n.id) || true));
+    assert.ok(f.primaryIds.size > 0);
+    for (const id of f.primaryIds) {
+      assert.ok(graph.nodes.find((n) => n.id === id)?.cycle, `${id} is a cycle member`);
+    }
     const ids = new Set(f.nodes.map((n) => n.id));
     assert.ok(ids.has("Calc!A1") && ids.has("Calc!A2"));
     assert.ok(f.edges.every((e) => ids.has(e.from) && ids.has(e.to)));
+    // Non-cycle nodes may appear only as the documented 1-hop context.
+    for (const n of f.nodes) {
+      if (n.cycle) continue;
+      assert.ok(graph.edges.some((e) =>
+        (f.primaryIds.has(e.from) && e.to === n.id) ||
+        (f.primaryIds.has(e.to) && e.from === n.id)
+      ), `${n.id} is adjacent to a cycle member`);
+    }
   });
 
   it("external-only toggle keeps external targets", () => {
     const f = filterGraph(graph, { ...DEFAULT_FILTER, onlyExternal: true }, idx);
     assert.ok(f.nodes.some((n) => n.external));
-    for (const n of f.nodes) if (n.external) assert.ok(true);
+    assert.ok(f.primaryIds.size > 0);
+    for (const id of f.primaryIds) {
+      assert.equal(graph.nodes.find((n) => n.id === id)?.external, true, `${id} is an external target`);
+    }
+    const ids = new Set(f.nodes.map((n) => n.id));
+    assert.ok(f.edges.every((e) => ids.has(e.from) && ids.has(e.to)));
   });
 
   it("sheet filter keeps only that sheet's nodes (1-hop widened)", () => {
