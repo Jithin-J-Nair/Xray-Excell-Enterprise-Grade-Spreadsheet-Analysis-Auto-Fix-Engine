@@ -43,6 +43,8 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
+    // Initial network hydration is intentionally triggered after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
 
