@@ -58,7 +58,7 @@ describe("GET /api/outputs/:outputId/download", () => {
       .values({
         kind: "export",
         name: "fixed_Test Book.xlsx",
-        size: payload.length,
+        size: payload.length + 17, // intentionally stale metadata; route must use stat()
         mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         path: saved.relPath,
       })
@@ -88,6 +88,7 @@ describe("GET /api/outputs/:outputId/download", () => {
     assert.ok(cd.includes('filename="fixed_Test Book.xlsx"'), "ascii filename present");
     assert.ok(cd.includes("filename*=UTF-8''"), "RFC5987 filename present");
     assert.equal(res.headers.get("cache-control"), "no-store");
+    assert.equal(res.headers.get("content-length"), String(payload.length), "Content-Length must match physical bytes, not stale DB size");
     const buf = Buffer.from(await res.arrayBuffer());
     assert.deepEqual(buf, Buffer.from(payload), "downloaded bytes are identical to the generated XLSX");
 
