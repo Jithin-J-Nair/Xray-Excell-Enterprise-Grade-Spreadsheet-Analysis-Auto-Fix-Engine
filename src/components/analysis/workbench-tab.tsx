@@ -181,10 +181,15 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
       const ts = new Date().toISOString().slice(0, 10).replaceAll("-", "");
       const done: { format: string; fileId: string; name: string; size: number }[] = [];
       if (formats.has("xlsx")) {
-        const bytes = workbookToXlsxBytes(main);
-        const name = `fixed_${base}_${ts}.xlsx`;
-        saveBlob(bytes, name, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-        done.push({ format: "xlsx", fileId: "local", name, size: bytes.length });
+        // Match server mode: produce one XLSX per uploaded workbook, not only
+        // the first model in a multi-file local analysis.
+        for (const model of patched) {
+          const modelBase = (model.fileName || base).replace(/\.[^.]+$/, "");
+          const bytes = workbookToXlsxBytes(model);
+          const name = `fixed_${modelBase}_${ts}.xlsx`;
+          saveBlob(bytes, name, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+          done.push({ format: "xlsx", fileId: "local", name, size: bytes.length });
+        }
       }
       if (formats.has("csv")) {
         const sheet = [...main.sheets].sort((a, b) => Object.keys(b.cells).length - Object.keys(a.cells).length)[0];
