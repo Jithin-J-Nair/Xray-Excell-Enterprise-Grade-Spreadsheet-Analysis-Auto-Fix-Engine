@@ -1,7 +1,7 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { promises as fs } from "fs";
-import * as XLSX from "xlsx";
+import * as XLSX from "@redoper1/xlsx-js-style";
 import { workbookToXlsxBytes } from "../src/lib/excel/serialize";
 import type { WorkbookModel } from "../src/lib/excel/types";
 
