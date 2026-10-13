@@ -66,4 +66,9 @@ export async function readBytes(relPath: string): Promise<Buffer> {
   return fs.readFile(absOf(relPath));
 }
 
-export const MAX_FILE_BYTES = Number(process.env.XRAY_MAX_FILE_BYTES ?? 60 * 1024 * 1024);
+const DEFAULT_MAX_FILE_BYTES = 60 * 1024 * 1024;
+const configuredMaxFileBytes = Number(process.env.XRAY_MAX_FILE_BYTES ?? DEFAULT_MAX_FILE_BYTES);
+export const MAX_FILE_BYTES =
+  Number.isFinite(configuredMaxFileBytes) && configuredMaxFileBytes > 0
+    ? Math.min(configuredMaxFileBytes, 250 * 1024 * 1024)
+    : DEFAULT_MAX_FILE_BYTES;
