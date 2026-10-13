@@ -26,6 +26,9 @@ export function modelToWorkbook(model: WorkbookModel): XLSX.WorkBook {
   if (model.macroEnabled) {
     throw new Error("MACROS_UNSUPPORTED: exporting this macro-enabled workbook as .xlsx would discard VBA; export a non-macro copy or use a macro-preserving workflow.");
   }
+  if (model.styleMetadataUnavailable) {
+    throw new Error("STYLE_METADATA_UNAVAILABLE: XLSX style metadata could not be read reliably; XLSX export is blocked to prevent silent formatting loss.");
+  }
   const wb = XLSX.utils.book_new();
   const used = new Set<string>();
   for (const sheet of model.sheets) {
