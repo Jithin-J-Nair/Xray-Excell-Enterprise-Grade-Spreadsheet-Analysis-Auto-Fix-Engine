@@ -35,6 +35,8 @@ export default function AnalysisPage() {
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get("tab");
+    // This one-time URL-to-tab synchronization is an intentional state initializer.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (q && TABS.some((x) => x.key === q)) setTab(q);
   }, []);
 
