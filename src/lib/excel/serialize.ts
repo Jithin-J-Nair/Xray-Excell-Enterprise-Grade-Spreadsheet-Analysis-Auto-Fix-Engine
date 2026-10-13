@@ -45,6 +45,7 @@ export function modelToWorkbook(model: WorkbookModel): XLSX.WorkBook {
         out.t = "s";
         out.v = String(cell.v ?? "");
       }
+      if (cell.z) out.z = cell.z;
       if (cell.f) {
         out.f = cell.f;
         if (cell.v === null || cell.v === undefined) {
