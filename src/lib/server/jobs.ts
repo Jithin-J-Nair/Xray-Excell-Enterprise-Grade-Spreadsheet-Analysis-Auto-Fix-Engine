@@ -58,7 +58,7 @@ export async function runAnalysisJob(analysisId: string): Promise<void> {
       i++;
       await pushLog(analysisId, log, `parse: ${fr.name} (${(fr.size / 1024).toFixed(1)} KB)`, 6 + i * 6, `Parsing ${fr.name}`);
       const bytes = await readBytes(fr.path);
-      const model = parseFile(fr.id, fr.name, new Uint8Array(bytes));
+      const model = await parseFile(fr.id, fr.name, new Uint8Array(bytes));
       models.push(model);
       metas.push({ id: fr.id, name: fr.name, size: fr.size, encoding: model.encoding });
     }
