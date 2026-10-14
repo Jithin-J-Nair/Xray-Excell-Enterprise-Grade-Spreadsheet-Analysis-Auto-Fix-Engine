@@ -20,7 +20,68 @@ export async function downloadOutput(outputId: string, filename?: string): Promi
   }
   const blob = await response.blob();
   const name = filename ?? filenameFromDisposition(response.headers.get("content-disposition"));
+  try {
+    await validateDownloadBlob(
+      blob,
+      name,
+      response.headers.get("content-type"),
+      response.headers.get("content-length")
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    toast(message, "error");
+    throw error;
+  }
   saveBlob(blob, name);
+}
+
+/** Fail closed on empty/truncated exports and mislabeled XLSX responses. */
+export async function validateDownloadBlob(
+  blob: Blob,
+  filename: string,
+  contentType: string | null,
+  contentLength: string | null
+): Promise<void> {
+  if (blob.size === 0) throw new Error("EMPTY_DOWNLOAD: server returned an empty file");
+
+  if (contentLength !== null) {
+    const expected = Number(contentLength);
+    if (!Number.isSafeInteger(expected) || expected < 0 || expected !== blob.size) {
+      throw new Error(
+        `DOWNLOAD_LENGTH_MISMATCH: expected ${contentLength} bytes but received ${blob.size}`
+      );
+    }
+  }
+
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  const expectedMime: Record<string, string> = {
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    xlsm: "application/vnd.ms-excel.sheet.macroenabled.12",
+    xls: "application/vnd.ms-excel",
+    csv: "text/csv",
+    json: "application/json",
+    ndjson: "application/x-ndjson",
+    md: "text/markdown",
+  };
+  const actualMime = (contentType ?? "").split(";")[0].trim().toLowerCase();
+  if (expectedMime[ext] && actualMime !== expectedMime[ext]) {
+    throw new Error(
+      `DOWNLOAD_MIME_MISMATCH: .${ext} expected ${expectedMime[ext]} but received ${actualMime || "no Content-Type"}`
+    );
+  }
+
+  if (ext === "xlsx" || ext === "xlsm") {
+    const signature = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+    if (
+      signature.length < 4 ||
+      signature[0] !== 0x50 ||
+      signature[1] !== 0x4b ||
+      signature[2] !== 0x03 ||
+      signature[3] !== 0x04
+    ) {
+      throw new Error("INVALID_XLSX: downloaded file is not a valid ZIP-based Excel workbook");
+    }
+  }
 }
 
 /** Pure: pick the best filename from a Content-Disposition header. */
