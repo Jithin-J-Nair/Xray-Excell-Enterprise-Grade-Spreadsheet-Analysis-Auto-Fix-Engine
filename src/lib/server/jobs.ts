@@ -127,12 +127,19 @@ export async function runApplyJob(jobId: string): Promise<void> {
     const result = arow.result as unknown as AnalysisResult;
     const models = allModels(result);
     const formats = (job.formats ?? ["xlsx"]) as string[];
-    const unsafeXlsxModel = models.find((model) => model.macroEnabled || model.styleMetadataUnavailable);
+    const unsafeXlsxModel = models.find(
+      (model) => model.macroEnabled || model.styleMetadataUnavailable || model.unsupportedFeatures?.length
+    );
     if (formats.includes("xlsx") && unsafeXlsxModel) {
       if (unsafeXlsxModel.macroEnabled) {
         throw new Error(`MACROS_UNSUPPORTED: ${unsafeXlsxModel.fileName} is macro-enabled; XLSX export would discard VBA.`);
       }
-      throw new Error(`STYLE_METADATA_UNAVAILABLE: ${unsafeXlsxModel.fileName} could not be read with reliable style metadata; XLSX export was blocked.`);
+      if (unsafeXlsxModel.styleMetadataUnavailable) {
+        throw new Error(`STYLE_METADATA_UNAVAILABLE: ${unsafeXlsxModel.fileName} could not be read with reliable style metadata; XLSX export was blocked.`);
+      }
+      throw new Error(
+        `UNSUPPORTED_WORKBOOK_FEATURES: ${unsafeXlsxModel.fileName} contains unsupported features: ${(unsafeXlsxModel.unsupportedFeatures ?? []).join(", ")}.`
+      );
     }
 
     const [preview] = job.previewId
