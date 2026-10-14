@@ -39,7 +39,7 @@ describe("POST /api/upload duplicate-name safety", () => {
     form.append("files", new File(["second-content"], "duplicate.txt", { type: "text/plain" }));
     const route = await import("../src/app/api/upload/route");
     const response = await route.POST(new Request("http://localhost/api/upload", { method: "POST", body: form }) as never);
-    assert.equal(response.status, 200, await response.text().catch(() => ""));
+    if (response.status !== 200) assert.fail(`Upload returned ${response.status}: ${await response.text()}`);
     const body = await response.json() as { uploadId: string; files: Array<{ name: string; size: number }> };
     uploadId = body.uploadId;
     assert.equal(body.files.length, 2);
