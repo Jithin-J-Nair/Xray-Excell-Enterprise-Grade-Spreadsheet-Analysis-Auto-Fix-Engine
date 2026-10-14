@@ -50,8 +50,11 @@ export function assertSafeZipContainer(bytes: Uint8Array): void {
   let eocd = -1;
   for (let offset = bytes.byteLength - minEocdSize; offset >= searchStart; offset--) {
     if (view.getUint32(offset, true) === 0x06054b50) {
-      eocd = offset;
-      break;
+      const commentLength = view.getUint16(offset + 20, true);
+      if (offset + minEocdSize + commentLength === bytes.byteLength) {
+        eocd = offset;
+        break;
+      }
     }
   }
   if (eocd < 0) throw new Error("INVALID_ZIP_CONTAINER: XLSX file has no ZIP directory footer");
