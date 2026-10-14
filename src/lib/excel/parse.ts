@@ -56,31 +56,31 @@ function rawZipText(book: RawZipWorkbook, pathName: string): string {
  */
 function detectUnsupportedPackageFeatures(wb: XLSX.WorkBook, model: WorkbookModel): void {
   const raw = wb as unknown as RawZipWorkbook;
-  const paths = (raw.keys ?? Object.keys(raw.files ?? [])).map((p) => p.replace(/^\\/+/, ""));
+  const paths = (raw.keys ?? Object.keys(raw.files ?? [])).map((p) => p.replace(/^\/+/, ""));
   if (!paths.length) return;
 
   const features = new Set(model.unsupportedFeatures ?? []);
   const partRules: Array<[RegExp, string]> = [
-    [/^xl\\/charts\\//i, "charts"],
-    [/^xl\\/drawings\\//i, "drawings and embedded images"],
-    [/^xl\\/pivotTables\\//i, "pivot tables"],
-    [/^xl\\/pivotCache\\//i, "pivot caches"],
-    [/^xl\\/externalLinks\\//i, "external workbook link metadata"],
-    [/^xl\\/connections\\.xml$/i, "external data connections"],
-    [/^xl\\/queryTables\\//i, "query tables"],
-    [/^xl\\/tables\\//i, "Excel tables"],
-    [/^xl\\/slicers?\\//i, "slicers"],
-    [/^xl\\/activeX\\//i, "ActiveX controls"],
-    [/^xl\\/embeddings\\//i, "embedded objects"],
-    [/^xl\\/ctrlProps\\//i, "form controls"],
-    [/^xl\\/threadedComments\\//i, "threaded comments"],
-    [/^xl\\/comments\\d*\\.xml$/i, "cell comments"],
-    [/^xl\\/persons\\//i, "comment authors"],
-    [/^xl\\/webExtensions\\//i, "web extensions"],
-    [/^customXml\\//i, "custom XML"],
-    [/^xl\\/vbaProject\\.bin$/i, "VBA macros"],
-    [/^xl\\/metadata\\.xml$/i, "dynamic-array metadata"],
-    [/^xl\\/printerSettings\\//i, "custom printer settings"],
+    [/^xl\/charts\//i, "charts"],
+    [/^xl\/drawings\//i, "drawings and embedded images"],
+    [/^xl\/pivotTables\//i, "pivot tables"],
+    [/^xl\/pivotCache\//i, "pivot caches"],
+    [/^xl\/externalLinks\//i, "external workbook link metadata"],
+    [/^xl\/connections\.xml$/i, "external data connections"],
+    [/^xl\/queryTables\//i, "query tables"],
+    [/^xl\/tables\//i, "Excel tables"],
+    [/^xl\/slicers?\//i, "slicers"],
+    [/^xl\/activeX\//i, "ActiveX controls"],
+    [/^xl\/embeddings\//i, "embedded objects"],
+    [/^xl\/ctrlProps\//i, "form controls"],
+    [/^xl\/threadedComments\//i, "threaded comments"],
+    [/^xl\/comments\d*\.xml$/i, "cell comments"],
+    [/^xl\/persons\//i, "comment authors"],
+    [/^xl\/webExtensions\//i, "web extensions"],
+    [/^customXml\//i, "custom XML"],
+    [/^xl\/vbaProject\.bin$/i, "VBA macros"],
+    [/^xl\/metadata\.xml$/i, "dynamic-array metadata"],
+    [/^xl\/printerSettings\//i, "custom printer settings"],
   ];
   for (const pathName of paths) {
     for (const [pattern, feature] of partRules) {
@@ -89,20 +89,20 @@ function detectUnsupportedPackageFeatures(wb: XLSX.WorkBook, model: WorkbookMode
   }
 
   const worksheetTags: Array<[RegExp, string]> = [
-    [/<(?:[A-Za-z0-9_]+:)?conditionalFormatting\\b/i, "conditional formatting"],
-    [/<(?:[A-Za-z0-9_]+:)?dataValidations\\b/i, "data validation rules"],
-    [/<(?:[A-Za-z0-9_]+:)?hyperlinks\\b/i, "hyperlinks"],
-    [/<(?:[A-Za-z0-9_]+:)?autoFilter\\b/i, "auto-filters"],
-    [/<(?:[A-Za-z0-9_]+:)?tableParts\\b/i, "Excel tables"],
-    [/<(?:[A-Za-z0-9_]+:)?drawing\\b|<(?:[A-Za-z0-9_]+:)?legacyDrawing\\b/i, "drawings and embedded images"],
-    [/<(?:[A-Za-z0-9_]+:)?oleObjects\\b/i, "embedded objects"],
-    [/<(?:[A-Za-z0-9_]+:)?controls\\b/i, "form controls"],
-    [/<(?:[A-Za-z0-9_]+:)?sheetProtection\\b/i, "worksheet protection"],
-    [/<(?:[A-Za-z0-9_]+:)?extLst\\b/i, "worksheet extension data"],
-    [/<(?:[A-Za-z0-9_]+:)?pane\\b/i, "frozen panes"],
+    [/<(?:[A-Za-z0-9_]+:)?conditionalFormatting\b/i, "conditional formatting"],
+    [/<(?:[A-Za-z0-9_]+:)?dataValidations\b/i, "data validation rules"],
+    [/<(?:[A-Za-z0-9_]+:)?hyperlinks\b/i, "hyperlinks"],
+    [/<(?:[A-Za-z0-9_]+:)?autoFilter\b/i, "auto-filters"],
+    [/<(?:[A-Za-z0-9_]+:)?tableParts\b/i, "Excel tables"],
+    [/<(?:[A-Za-z0-9_]+:)?drawing\b|<(?:[A-Za-z0-9_]+:)?legacyDrawing\b/i, "drawings and embedded images"],
+    [/<(?:[A-Za-z0-9_]+:)?oleObjects\b/i, "embedded objects"],
+    [/<(?:[A-Za-z0-9_]+:)?controls\b/i, "form controls"],
+    [/<(?:[A-Za-z0-9_]+:)?sheetProtection\b/i, "worksheet protection"],
+    [/<(?:[A-Za-z0-9_]+:)?extLst\b/i, "worksheet extension data"],
+    [/<(?:[A-Za-z0-9_]+:)?pane\b/i, "frozen panes"],
   ];
   for (const pathName of paths) {
-    if (!/^xl\\/worksheets\\/sheet\\d+\\.xml$/i.test(pathName)) continue;
+    if (!/^xl\/worksheets\/sheet\d+\.xml$/i.test(pathName)) continue;
     const xml = rawZipText(raw, pathName);
     for (const [pattern, feature] of worksheetTags) {
       if (pattern.test(xml)) features.add(feature);
@@ -110,8 +110,8 @@ function detectUnsupportedPackageFeatures(wb: XLSX.WorkBook, model: WorkbookMode
   }
 
   const workbookXml = rawZipText(raw, "xl/workbook.xml");
-  if (/<(?:[A-Za-z0-9_]+:)?workbookProtection\\b/i.test(workbookXml)) features.add("workbook protection");
-  if (/<(?:[A-Za-z0-9_]+:)?extLst\\b/i.test(workbookXml)) features.add("workbook extension data");
+  if (/<(?:[A-Za-z0-9_]+:)?workbookProtection\b/i.test(workbookXml)) features.add("workbook protection");
+  if (/<(?:[A-Za-z0-9_]+:)?extLst\b/i.test(workbookXml)) features.add("workbook extension data");
 
   if (features.size) model.unsupportedFeatures = [...features];
 }
