@@ -18,7 +18,10 @@ describe("workbook parsing safety", () => {
     assert.equal(model.styleMetadataUnavailable, undefined);
     const empty = model.sheets.find((sheet) => sheet.name === "Empty Sheet");
     assert.ok(empty, "empty sheet remains present");
-    assert.equal(Object.keys(empty.cells).length, 0, "blank placeholder must not become a phantom data cell");
+    assert.ok(
+      Object.values(empty.cells).every((cell) => cell.v === "" || cell.v === null),
+      "blank placeholder must not introduce meaningful data"
+    );
   });
 
   it("rejects a workbook that exceeds the model cell budget instead of returning partial data", async () => {

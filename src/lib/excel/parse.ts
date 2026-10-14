@@ -371,12 +371,8 @@ async function addStyleMetadata(model: WorkbookModel, bytes: Uint8Array): Promis
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
     const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-    // ExcelJS expects a Node Buffer in its Node reader path. Passing a bare
-    // ArrayBuffer can fail on otherwise valid workbooks, falsely marking all
-    // style metadata unavailable and blocking exports. Keep browser parsing
-    // isomorphic by falling back to the original Uint8Array when Buffer is absent.
-    const excelData = typeof Buffer !== "undefined" ? Buffer.from(bytes) : bytes;
-    await workbook.xlsx.load(excelData as never);
+    const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    await workbook.xlsx.load(data, { ignoreNodes: ["definedNames"] });
     for (const sheetModel of model.sheets) {
       const source = workbook.getWorksheet(sheetModel.name);
       if (!source) continue;

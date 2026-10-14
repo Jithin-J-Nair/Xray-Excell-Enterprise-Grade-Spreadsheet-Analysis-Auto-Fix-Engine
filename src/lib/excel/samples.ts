@@ -154,8 +154,7 @@ export function buildMonster(): Uint8Array {
   // worksheet XML reliably; parse.ts drops this valueless placeholder so the
   // analysis model still correctly treats the sheet as empty.
   const empty = aoa([[""]]);
-  // A blank stub keeps a physical worksheet row without becoming model data.
-  empty.A1 = { t: "z" };
+  empty.A1 = { t: "s", v: "" };
   empty["!ref"] = "A1";
   XLSX.utils.book_append_sheet(wb, empty, "Empty Sheet");
 
