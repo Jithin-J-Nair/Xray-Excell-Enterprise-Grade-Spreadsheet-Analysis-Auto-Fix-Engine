@@ -56,8 +56,11 @@ function rawZipText(book: RawZipWorkbook, pathName: string): string {
  */
 function detectUnsupportedPackageFeatures(wb: XLSX.WorkBook, model: WorkbookModel): void {
   const raw = wb as unknown as RawZipWorkbook;
-  const paths = (raw.keys ?? Object.keys(raw.files ?? [])).map((p) => p.replace(/^\/+/, ""));
-  if (!paths.length) return;
+  const paths = (raw.keys?.length ? raw.keys : Object.keys(raw.files ?? {})).map((p) => p.replace(/^\/+/, ""));
+  if (!paths.length) {
+    model.unsupportedFeatures = [...new Set([...(model.unsupportedFeatures ?? []), "OOXML package feature inspection unavailable"])];
+    return;
+  }
 
   const features = new Set(model.unsupportedFeatures ?? []);
   const partRules: Array<[RegExp, string]> = [
