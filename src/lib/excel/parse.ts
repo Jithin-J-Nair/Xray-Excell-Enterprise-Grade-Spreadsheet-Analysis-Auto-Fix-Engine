@@ -371,7 +371,6 @@ async function addStyleMetadata(model: WorkbookModel, bytes: Uint8Array): Promis
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
     const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-    const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
     await workbook.xlsx.load(data, { ignoreNodes: ["definedNames"] });
     for (const sheetModel of model.sheets) {
       const source = workbook.getWorksheet(sheetModel.name);
