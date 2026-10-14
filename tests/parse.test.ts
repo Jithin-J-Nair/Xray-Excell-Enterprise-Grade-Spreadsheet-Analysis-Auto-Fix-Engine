@@ -66,6 +66,19 @@ describe("workbook parsing safety", () => {
     assert.equal(parsed.sheets[0].rowHeights?.[0]?.hpt, 28);
   });
 
+  it("blocks legacy Excel reconstruction when styles cannot be preserved", async () => {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([["Styled"]]);
+    ws.A1.s = { font: { bold: true } };
+    XLSX.utils.book_append_sheet(wb, ws, "Data");
+    const bytes = xlsxBytes(wb);
+    // The parser is intentionally told this is a legacy workbook: its format
+    // path cannot reliably carry style metadata into an XLSX reconstruction.
+    const model = await parseFile("legacy", "legacy.xls", bytes);
+    assert.equal(model.styleMetadataUnavailable, true);
+    assert.throws(() => workbookToXlsxBytes(model), /STYLE_METADATA_UNAVAILABLE/);
+  });
+
   it("detects conditional formatting and blocks lossy XLSX reconstruction", async () => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Data");
