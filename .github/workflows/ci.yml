@@ -29,6 +29,8 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/app_db
+      XRAY_BASIC_AUTH_USER: ci
+      XRAY_BASIC_AUTH_PASSWORD: ci-only-password
     steps:
       - name: Checkout
         uses: actions/checkout@v4

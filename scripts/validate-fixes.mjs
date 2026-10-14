@@ -8,6 +8,19 @@ import * as XLSX from "@redoper1/xlsx-js-style";
 const B = process.env.BASE_URL ?? "http://localhost:3000";
 const results = [];
 
+// The live smoke test uses the same configured access gate as a production
+// deployment. Never bake real credentials into this script or the repository.
+const authUser = process.env.XRAY_BASIC_AUTH_USER;
+const authPassword = process.env.XRAY_BASIC_AUTH_PASSWORD;
+if (authUser && authPassword) {
+  const nativeFetch = globalThis.fetch.bind(globalThis);
+  globalThis.fetch = (input, init = {}) => {
+    const headers = new Headers(init.headers);
+    headers.set("authorization", `Basic ${Buffer.from(`${authUser}:${authPassword}`).toString("base64")}`);
+    return nativeFetch(input, { ...init, headers });
+  };
+}
+
 function setF(ws, addr, f, v) {
   let cell;
   if (typeof v === "number") cell = { t: "n", v };

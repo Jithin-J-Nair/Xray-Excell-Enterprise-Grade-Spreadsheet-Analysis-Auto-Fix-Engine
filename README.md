@@ -136,7 +136,14 @@ Server downloads use `src/lib/download.ts` (`fetch → blob → object URL → a
 
 ## Production deployment security
 
-The application now sends baseline browser security headers, validates storage paths, and bounds upload sizes. It does **not** yet implement user authentication or a distributed rate limiter. Keep it on localhost/private networking or put it behind a trusted authentication gateway with request quotas before exposing it to the public internet. A process-local limiter alone is not a production-grade substitute for gateway/DB-backed controls.
+All pages and API routes (except the minimal `/api/health` readiness probe and static assets) are protected by a shared HTTP Basic Auth gate. **Production fails closed with HTTP 503 if either credential is missing.** Set both environment variables on the server:
+
+```bash
+XRAY_BASIC_AUTH_USER=your-private-username
+XRAY_BASIC_AUTH_PASSWORD=use-a-long-random-secret
+```
+
+Use HTTPS only; Basic Auth is not safe over plain HTTP. This is a single shared credential, not multi-user identity or per-user authorization. For public/multi-user deployment, put the app behind an identity-aware gateway and distributed request quotas; do not expose it directly. Keep `XRAY_DATA_DIR` on persistent storage and restrict filesystem/database access. Do not use the CI-only credentials shown in the workflow for a real deployment.
 
 ## Workbook fidelity and safety limits
 
