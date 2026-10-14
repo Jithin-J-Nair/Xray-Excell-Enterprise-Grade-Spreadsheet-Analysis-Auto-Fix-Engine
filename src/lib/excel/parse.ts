@@ -3,6 +3,8 @@ import * as XLSX from "@redoper1/xlsx-js-style";
 import type { CellModel, NamedRangeModel, SheetModel, WorkbookModel } from "./types";
 
 export const MAX_MODEL_CELLS = 60000;
+/** Prevent dense exports from expanding pathological sparse worksheet ranges. */
+export const MAX_MODEL_GRID_CELLS = 1_000_000;
 
 const SPREADSHEET_EXT = /\.(xlsx|xlsm|xlsb|xls|csv|tsv|txt|json|ndjson)$/i;
 
@@ -46,7 +48,7 @@ function requireCompleteModel(model: WorkbookModel): WorkbookModel {
   model.macroEnabled = /\.xlsm$/i.test(model.fileName);
   if (model.truncated) {
     throw new Error(
-      `MODEL_TRUNCATED: ${model.fileName} exceeds the ${MAX_MODEL_CELLS.toLocaleString()}-cell analysis limit. No partial workbook was returned; split the workbook or raise the configured limit after profiling.`
+      `MODEL_TRUNCATED: ${model.fileName} exceeds the configured workbook limits (${MAX_MODEL_CELLS.toLocaleString()} populated cells or ${MAX_MODEL_GRID_CELLS.toLocaleString()} total used-range grid cells). No partial workbook was returned; split the workbook or raise the limits after profiling.`
     );
   }
   return model;
@@ -55,6 +57,7 @@ function requireCompleteModel(model: WorkbookModel): WorkbookModel {
 function workbookToModel(wb: XLSX.WorkBook, fileId: string, fileName: string, encoding?: string): WorkbookModel {
   const model: WorkbookModel = { fileId, fileName, encoding, sheets: [], names: [] };
   let budget = MAX_MODEL_CELLS;
+  let gridBudget = MAX_MODEL_GRID_CELLS;
   if (model.truncated === undefined) model.truncated = false;
 
   const sheetMetas = ((wb.Workbook?.Sheets as SheetMeta[] | undefined) ?? []) as SheetMeta[];
@@ -86,6 +89,17 @@ function workbookToModel(wb: XLSX.WorkBook, fileId: string, fileName: string, en
       sheet.rows = range.e.r + 1;
       sheet.cols = range.e.c + 1;
     }
+
+    // The populated-cell cap alone does not protect dense exporters: one cell
+    // at XFD1048576 can imply a ~17-billion-cell rectangle. Bound the total
+    // logical used-range area before exposing this model to CSV/JSON exporters.
+    const gridCells = sheet.rows * sheet.cols;
+    if (!Number.isSafeInteger(gridCells) || gridCells > gridBudget) {
+      model.truncated = true;
+      break;
+    }
+    gridBudget -= gridCells;
+
     for (const m of ws["!merges"] ?? []) {
       sheet.merges.push({ r1: m.s.r, c1: m.s.c, r2: m.e.r, c2: m.e.c });
     }
