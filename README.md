@@ -149,7 +149,7 @@ Use HTTPS only; Basic Auth is not safe over plain HTTP. This is a single shared 
 
 For `.xlsx` files, the workbook model preserves cell values/formulas, number formats, basic font/fill/border/alignment styles, row heights, column widths, merges, defined names, and hidden/very-hidden sheet state. The parser refuses files exceeding the configured model cell budget instead of returning a partial workbook. Legacy `.xls`/`.xlsb` inputs do not have the same style-fidelity guarantee.
 
-This is not a byte-for-byte Excel editor. Conditional formatting, charts, drawings, slicers, pivot caches, external connection metadata, VBA macros in `.xlsm`, and some advanced workbook features are not guaranteed to survive reconstruction. XLSX export is disabled for macro-enabled inputs to prevent silent VBA loss. Validate business-critical workbooks in desktop Excel before using repaired exports.
+This is not a byte-for-byte Excel editor. Before reconstructing XLSX files, the parser inspects OOXML package parts and worksheet XML and refuses export when it detects features the reduced model cannot preserve, including conditional formatting, data validation rules, hyperlinks, auto-filters, Excel tables, charts/drawings/images, pivot tables/caches, slicers, external data connections/query tables, comments, embedded objects/controls, worksheet/workbook protection, frozen panes, workbook/worksheet extension data, VBA macros, and custom XML. This is a safety block, not a claim that those features are repaired. Validate business-critical workbooks in desktop Excel before using repaired exports.
 
 ## 7. Roadmap
 

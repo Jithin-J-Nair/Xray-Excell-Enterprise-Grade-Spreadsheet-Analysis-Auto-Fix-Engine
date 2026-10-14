@@ -439,6 +439,11 @@ export async function parseFile(fileId: string, fileName: string, bytes: Uint8Ar
   const wb = XLSX.read(bytes, { type: "array", cellDates: true, cellNF: true, cellStyles: true, dense: false, bookFiles: true });
   const model = requireCompleteModel(workbookToModel(wb, fileId, fileName, "binary"));
   detectUnsupportedPackageFeatures(wb, model);
+  // Drop raw decompressed ZIP entries before ExcelJS opens the workbook, so
+  // package inspection does not double peak memory on large files.
+  const rawPackage = wb as unknown as { keys?: string[]; files?: Record<string, unknown> };
+  delete rawPackage.keys;
+  delete rawPackage.files;
   await addStyleMetadata(model, bytes);
   return model;
 }
