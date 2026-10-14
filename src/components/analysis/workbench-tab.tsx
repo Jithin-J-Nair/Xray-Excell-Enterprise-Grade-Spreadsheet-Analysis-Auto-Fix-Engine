@@ -43,7 +43,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
   const res = detail.result!;
   const isLocal = detail.mode === "local";
   const hasMacroInput = res.files.some((file) => /\.xlsm$/i.test(file.name));
-  const xlsxDisabled = hasMacroInput || Boolean(res.model.styleMetadataUnavailable);
+  const xlsxDisabled = hasMacroInput || Boolean(res.model.styleMetadataUnavailable) || Boolean(res.model.unsupportedFeatures?.length);
 
   // ── tool toggle state machine ────────────────────────────────────────────
   const findingsByTool = useMemo(() => {
