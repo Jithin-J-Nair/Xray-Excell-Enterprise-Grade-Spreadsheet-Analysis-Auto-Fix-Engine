@@ -6,6 +6,7 @@ import { runAnalysisJob, runApplyJob } from "../src/lib/server/jobs";
 const pollMs = Math.max(250, Number(process.env.XRAY_WORKER_POLL_MS ?? 1000));
 const batchSize = Math.max(1, Math.min(20, Number(process.env.XRAY_WORKER_BATCH_SIZE ?? 4)));
 let stopping = false;
+let preferApply = false;
 
 process.on("SIGINT", () => { stopping = true; });
 process.on("SIGTERM", () => { stopping = true; });
@@ -24,12 +25,25 @@ async function main() {
         await sleep(pollMs);
         continue;
       }
+      // batchSize is a total concurrency cap, not a per-queue cap: workbook
+      // parsing is memory-heavy, so running batchSize analyses PLUS batchSize
+      // exports could double the intended peak memory. Alternate queue priority
+      // to avoid starving exports (or analyses) under a sustained backlog.
+      const candidates = [
+        ...(preferApply
+          ? queuedJobs.map(({ id }) => ({ kind: "apply" as const, id }))
+          : queuedAnalyses.map(({ id }) => ({ kind: "analysis" as const, id }))),
+        ...(preferApply
+          ? queuedAnalyses.map(({ id }) => ({ kind: "analysis" as const, id }))
+          : queuedJobs.map(({ id }) => ({ kind: "apply" as const, id }))),
+      ].slice(0, batchSize);
+      preferApply = !preferApply;
+
       // Runners claim records atomically; safe if multiple workers or the
       // request process observe the same queued row at the same time.
-      await Promise.all([
-        ...queuedAnalyses.map(({ id }) => runAnalysisJob(id)),
-        ...queuedJobs.map(({ id }) => runApplyJob(id)),
-      ]);
+      await Promise.all(candidates.map(({ kind, id }) =>
+        kind === "analysis" ? runAnalysisJob(id) : runApplyJob(id)
+      ));
     } catch (error) {
       console.error("X-RAY worker loop failed; retrying", error);
       await sleep(pollMs);
