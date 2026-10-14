@@ -88,6 +88,16 @@ describe("workbook parsing safety", () => {
     assert.throws(() => workbookToXlsxBytes(model), /STYLE_METADATA_UNAVAILABLE/);
   });
 
+  it("blocks data validation rules that the serializer cannot preserve", async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Validated");
+    sheet.getCell("A1").value = "Choose";
+    sheet.getCell("A2").dataValidation = { type: "list", formulae: ['"Yes,No"'] };
+    const bytes = await workbook.xlsx.writeBuffer();
+    const model = await parseFile("validation", "validation.xlsx", new Uint8Array(bytes));
+    assert.ok(model.unsupportedFeatures?.includes("data validation rules"));
+  });
+
   it("detects conditional formatting and blocks lossy XLSX reconstruction", async () => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("Data");
