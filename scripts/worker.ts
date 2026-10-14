@@ -1,10 +1,14 @@
 import { db } from "../src/db";
 import { analyses, jobs } from "../src/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { runAnalysisJob, runApplyJob } from "../src/lib/server/jobs";
 
 const pollMs = Math.max(250, Number(process.env.XRAY_WORKER_POLL_MS ?? 1000));
 const batchSize = Math.max(1, Math.min(20, Number(process.env.XRAY_WORKER_BATCH_SIZE ?? 4)));
+const configuredStaleMs = Number(process.env.XRAY_JOB_STALE_MS ?? 300_000);
+const staleMs = Number.isFinite(configuredStaleMs)
+  ? Math.max(60_000, Math.min(3_600_000, configuredStaleMs))
+  : 300_000;
 let stopping = false;
 let preferApply = false;
 
@@ -17,6 +21,37 @@ async function main() {
   console.log(`X-RAY worker online (poll=${pollMs}ms, batch=${batchSize})`);
   while (!stopping) {
     try {
+      // Requeue work abandoned by a crashed request process or worker. A live
+      // runner refreshes heartbeatAt independently while parsing/exporting.
+      const staleBefore = new Date(Date.now() - staleMs);
+      const [recoveredAnalyses, recoveredJobs] = await Promise.all([
+        db.update(analyses)
+          .set({ status: "queued", statusText: "Recovered after stale worker heartbeat", heartbeatAt: null, error: null })
+          .where(and(
+            eq(analyses.status, "processing"),
+            or(
+              lt(analyses.heartbeatAt, staleBefore),
+              and(isNull(analyses.heartbeatAt), lt(analyses.createdAt, staleBefore))
+            )
+          ))
+          .returning({ id: analyses.id }),
+        db.update(jobs)
+          .set({ status: "queued", progress: 0, error: "Recovered after stale worker heartbeat", heartbeatAt: null })
+          .where(and(
+            eq(jobs.status, "running"),
+            or(
+              lt(jobs.heartbeatAt, staleBefore),
+              and(isNull(jobs.heartbeatAt), lt(jobs.createdAt, staleBefore))
+            )
+          ))
+          .returning({ id: jobs.id }),
+      ]);
+      if (recoveredAnalyses.length || recoveredJobs.length) {
+        console.warn("Recovered stale X-RAY work", {
+          analyses: recoveredAnalyses.length,
+          applyJobs: recoveredJobs.length,
+        });
+      }
       const [queuedAnalyses, queuedJobs] = await Promise.all([
         db.select({ id: analyses.id }).from(analyses).where(eq(analyses.status, "queued")).limit(batchSize),
         db.select({ id: jobs.id }).from(jobs).where(eq(jobs.status, "queued")).limit(batchSize),

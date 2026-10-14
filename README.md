@@ -109,7 +109,7 @@ npm start
 npm run worker
 ``
 
-The worker scans queued analyses/exports and claims each job atomically, so a worker and a request-triggered runner cannot both process the same queued record. Set `XRAY_DATA_DIR` to a persistent mounted directory in production; the default `.data` directory is only durable when the host filesystem itself is persistent. Configure upload budgets with `XRAY_MAX_FILE_BYTES`, `XRAY_WORKER_POLL_MS`, and `XRAY_WORKER_BATCH_SIZE`.
+The worker scans queued analyses/exports and claims each job atomically, so a worker and a request-triggered runner cannot both process the same queued record. Active runners refresh database heartbeats; the worker requeues abandoned work after `XRAY_JOB_STALE_MS` (default 5 minutes, bounded to 1–60 minutes). Configure `XRAY_JOB_HEARTBEAT_MS` (default 15 seconds), `XRAY_WORKER_POLL_MS`, and `XRAY_WORKER_BATCH_SIZE`. Set `XRAY_DATA_DIR` to a persistent mounted directory in production; the default `.data` directory is only durable when the host filesystem itself is persistent. Configure upload budgets with `XRAY_MAX_FILE_BYTES`.
 
 ## Tests
 

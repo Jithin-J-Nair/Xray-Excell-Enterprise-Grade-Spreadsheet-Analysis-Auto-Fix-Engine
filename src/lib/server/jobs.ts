@@ -27,12 +27,16 @@ export async function audit(analysisId: string | null, action: string, detail: R
 
 type LogLine = { t: string; msg: string };
 const now = () => new Date().toISOString();
+const configuredHeartbeatMs = Number(process.env.XRAY_JOB_HEARTBEAT_MS ?? 15_000);
+const HEARTBEAT_MS = Number.isFinite(configuredHeartbeatMs)
+  ? Math.max(10_000, Math.min(60_000, configuredHeartbeatMs))
+  : 15_000;
 
 async function pushLog(analysisId: string, log: LogLine[], msg: string, progress: number, statusText: string) {
   log.push({ t: now(), msg });
   await db
     .update(analyses)
-    .set({ log, progress, statusText, status: "processing" })
+    .set({ log, progress, statusText, status: "processing", heartbeatAt: new Date() })
     .where(eq(analyses.id, analysisId));
 }
 
@@ -42,10 +46,17 @@ export async function runAnalysisJob(analysisId: string): Promise<void> {
   // runner can transition a queued analysis into processing.
   const [row] = await db
     .update(analyses)
-    .set({ status: "processing", statusText: "Starting" })
+    .set({ status: "processing", statusText: "Starting", heartbeatAt: new Date() })
     .where(and(eq(analyses.id, analysisId), eq(analyses.status, "queued")))
     .returning();
   if (!row) return;
+  const heartbeat = setInterval(() => {
+    void db.update(analyses)
+      .set({ heartbeatAt: new Date() })
+      .where(and(eq(analyses.id, analysisId), eq(analyses.status, "processing")))
+      .catch((error) => console.error("analysis-heartbeat-failed", error));
+  }, HEARTBEAT_MS);
+  heartbeat.unref?.();
   try {
     await pushLog(analysisId, log, "job: acquired — loading uploaded files", 4, "Loading files");
     const opts = (row.options ?? {}) as { resolveCrossFile?: boolean; language?: "en" | "jp"; name?: string };
@@ -76,7 +87,7 @@ export async function runAnalysisJob(analysisId: string): Promise<void> {
     // strip the heavyweight raw model duplication (keep main + models for preview/apply)
     await db
       .update(analyses)
-      .set({ status: "completed", progress: 100, statusText: "Completed", result, completedAt: new Date() })
+      .set({ status: "completed", progress: 100, statusText: "Completed", result, completedAt: new Date(), heartbeatAt: null })
       .where(eq(analyses.id, analysisId));
     await log2(analysisId, log, "done: analysis complete");
     await audit(analysisId, "analysis.completed", {
@@ -89,9 +100,11 @@ export async function runAnalysisJob(analysisId: string): Promise<void> {
     console.error("analysis-failed", msg);
     await db
       .update(analyses)
-      .set({ status: "failed", error: msg, completedAt: new Date(), statusText: "Failed" })
+      .set({ status: "failed", error: msg, completedAt: new Date(), statusText: "Failed", heartbeatAt: null })
       .where(eq(analyses.id, analysisId));
     await audit(analysisId, "analysis.failed", { error: msg });
+  } finally {
+    clearInterval(heartbeat);
   }
 }
 
@@ -116,10 +129,17 @@ export async function runApplyJob(jobId: string): Promise<void> {
   // worker cannot both generate the same exports.
   const [job] = await db
     .update(jobs)
-    .set({ status: "running", progress: 10 })
+    .set({ status: "running", progress: 10, heartbeatAt: new Date() })
     .where(and(eq(jobs.id, jobId), eq(jobs.status, "queued")))
     .returning();
   if (!job) return;
+  const heartbeat = setInterval(() => {
+    void db.update(jobs)
+      .set({ heartbeatAt: new Date() })
+      .where(and(eq(jobs.id, jobId), eq(jobs.status, "running")))
+      .catch((error) => console.error("apply-heartbeat-failed", error));
+  }, HEARTBEAT_MS);
+  heartbeat.unref?.();
   const analysisId = job.analysisId!;
   try {
     const [arow] = await db.select().from(analyses).where(eq(analyses.id, analysisId)).limit(1);
@@ -256,7 +276,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
 
     await db
       .update(jobs)
-      .set({ status: "completed", progress: 100, outputs, summary: summary as unknown as Record<string, unknown>, completedAt: new Date() })
+      .set({ status: "completed", progress: 100, outputs, summary: summary as unknown as Record<string, unknown>, completedAt: new Date(), heartbeatAt: null })
       .where(eq(jobs.id, jobId));
     await audit(analysisId, "apply.completed", {
       jobId,
@@ -270,7 +290,9 @@ export async function runApplyJob(jobId: string): Promise<void> {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("apply-failed", msg);
-    await db.update(jobs).set({ status: "failed", error: msg, completedAt: new Date() }).where(eq(jobs.id, jobId));
+    await db.update(jobs).set({ status: "failed", error: msg, completedAt: new Date(), heartbeatAt: null }).where(eq(jobs.id, jobId));
     await audit(analysisId, "apply.failed", { jobId, error: msg });
+  } finally {
+    clearInterval(heartbeat);
   }
 }

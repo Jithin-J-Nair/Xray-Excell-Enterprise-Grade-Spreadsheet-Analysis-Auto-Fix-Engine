@@ -37,6 +37,7 @@ export const analyses = pgTable(
     status: text("status").notNull().default("queued"), // queued | processing | completed | failed
     progress: integer("progress").notNull().default(0),
     statusText: text("status_text").notNull().default(""),
+    heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
     log: jsonb("log").notNull().default([]),
     result: jsonb("result"),
     error: text("error"),
@@ -44,7 +45,10 @@ export const analyses = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
-  (t) => [index("analyses_created_idx").on(t.createdAt)]
+  (t) => [
+    index("analyses_created_idx").on(t.createdAt),
+    index("analyses_status_heartbeat_idx").on(t.status, t.heartbeatAt),
+  ]
 );
 
 export const previews = pgTable(
@@ -72,6 +76,7 @@ export const jobs = pgTable(
     kind: text("kind").notNull(), // analysis | apply
     status: text("status").notNull().default("queued"), // queued | running | completed | failed
     progress: integer("progress").notNull().default(0),
+    heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
     formats: jsonb("formats").notNull().default([]),
     outputs: jsonb("outputs").notNull().default([]), // [{format,fileId,name,size}]
     patchFileId: uuid("patch_file_id"),
@@ -82,7 +87,10 @@ export const jobs = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
   },
-  (t) => [index("jobs_analysis_idx").on(t.analysisId)]
+  (t) => [
+    index("jobs_analysis_idx").on(t.analysisId),
+    index("jobs_status_heartbeat_idx").on(t.status, t.heartbeatAt),
+  ]
 );
 
 export const auditLogs = pgTable(
