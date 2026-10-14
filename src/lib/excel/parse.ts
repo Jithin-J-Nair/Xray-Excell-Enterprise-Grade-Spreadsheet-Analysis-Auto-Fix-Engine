@@ -187,16 +187,26 @@ function detectUnsupportedPackageFeatures(wb: XLSX.WorkBook, model: WorkbookMode
     [/<(?:[A-Za-z0-9_]+:)?extLst\b/i, "worksheet extension data"],
     [/<(?:[A-Za-z0-9_]+:)?pane\b/i, "frozen panes"],
   ];
+  const worksheetXmls: string[] = [];
   for (const pathName of paths) {
     if (!/^xl\/worksheets\/sheet\d+\.xml$/i.test(pathName)) continue;
     const xml = rawZipText(raw, pathName);
+    worksheetXmls.push(xml);
     for (const [pattern, feature] of worksheetTags) {
       if (pattern.test(xml)) features.add(feature);
     }
   }
 
   const metadataXml = rawZipText(raw, "xl/metadata.xml");
-  if (/<(?:[A-Za-z0-9_]+:)?dynamicArrayProperties\b|fDynamic=["']1["']/i.test(metadataXml)) {
+  const declaresDynamicArrayMetadata = /<(?:[A-Za-z0-9_]+:)?dynamicArrayProperties\b|fDynamic=["']1["']/i.test(metadataXml);
+  // Some writers include a dormant XLDAPR metadata record even when no cell
+  // references it. Only block when worksheet cells actually use metadata or
+  // array-formula semantics; otherwise ordinary workbooks would be false positives.
+  const usesDynamicArrayMetadata = worksheetXmls.some((xml) =>
+    /<c\b[^>]*\b(?:cm|vm)=["']\d+["']/i.test(xml) ||
+    /<f\b[^>]*\bt=["']array["']/i.test(xml)
+  );
+  if (declaresDynamicArrayMetadata && usesDynamicArrayMetadata) {
     features.add("dynamic-array metadata");
   }
 
