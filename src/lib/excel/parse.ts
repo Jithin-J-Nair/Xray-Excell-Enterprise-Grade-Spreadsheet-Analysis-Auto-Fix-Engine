@@ -519,7 +519,7 @@ export async function parseFile(fileId: string, fileName: string, bytes: Uint8Ar
     const wb = XLSX.read(text, { type: "string", cellDates: true, cellStyles: true });
     return requireCompleteModel(workbookToModel(wb, fileId, fileName, encoding));
   }
-  if (/\\.(xlsx|xlsm|xlsb)$/i.test(fileName)) assertSafeZipContainer(bytes);
+  if (/\.(xlsx|xlsm|xlsb)$/i.test(fileName)) assertSafeZipContainer(bytes);
   const wb = XLSX.read(bytes, { type: "array", cellDates: true, cellNF: true, cellStyles: true, dense: false, bookFiles: true });
   const model = requireCompleteModel(workbookToModel(wb, fileId, fileName, "binary"));
   detectUnsupportedPackageFeatures(wb, model);
