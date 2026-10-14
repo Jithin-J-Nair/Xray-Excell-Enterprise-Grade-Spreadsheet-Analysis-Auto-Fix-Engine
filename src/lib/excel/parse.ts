@@ -265,6 +265,18 @@ async function addStyleMetadata(model: WorkbookModel, bytes: Uint8Array): Promis
     for (const sheetModel of model.sheets) {
       const source = workbook.getWorksheet(sheetModel.name);
       if (!source) continue;
+
+      // This serializer rebuilds worksheets from the reduced model and cannot
+      // write conditional-formatting rules. Detect them and fail closed rather
+      // than silently stripping business-critical visual rules from the export.
+      const conditionalFormattings =
+        (source as unknown as { conditionalFormattings?: unknown[] }).conditionalFormattings;
+      if (conditionalFormattings?.length) {
+        model.unsupportedFeatures = [
+          ...new Set([...(model.unsupportedFeatures ?? []), "conditional formatting"]),
+        ];
+      }
+
       source.eachRow({ includeEmpty: false }, (row) => {
         row.eachCell({ includeEmpty: false }, (cell) => {
           const target = sheetModel.cells[cell.address];
