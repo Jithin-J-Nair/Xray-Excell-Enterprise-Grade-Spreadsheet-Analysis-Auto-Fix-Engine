@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import * as XLSX from "@redoper1/xlsx-js-style";
-import { MAX_MODEL_CELLS, parseFile } from "../src/lib/excel/parse";
+import { MAX_MODEL_CELLS, MAX_MODEL_GRID_CELLS, parseFile } from "../src/lib/excel/parse";
 import { workbookToXlsxBytes } from "../src/lib/excel/serialize";
 import type { WorkbookModel } from "../src/lib/excel/types";
 
@@ -17,6 +17,19 @@ describe("workbook parsing safety", () => {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Large");
     const bytes = xlsxBytes(wb);
     await assert.rejects(() => parseFile("large", "large.xlsx", bytes), /MODEL_TRUNCATED/);
+  });
+
+  it("rejects pathological sparse ranges before dense exports can explode", async () => {
+    const wb = XLSX.utils.book_new();
+    const ws: XLSX.WorkSheet = {
+      A1: { t: "s", v: "start" },
+      XFD1048576: { t: "n", v: 1 },
+      "!ref": "A1:XFD1048576",
+    };
+    XLSX.utils.book_append_sheet(wb, ws, "Sparse");
+    const bytes = xlsxBytes(wb);
+    assert.ok(MAX_MODEL_GRID_CELLS < 17_000_000_000);
+    await assert.rejects(() => parseFile("sparse", "sparse.xlsx", bytes), /MODEL_TRUNCATED/);
   });
 
   it("round-trips basic styles and dimensions through the parser model", async () => {
