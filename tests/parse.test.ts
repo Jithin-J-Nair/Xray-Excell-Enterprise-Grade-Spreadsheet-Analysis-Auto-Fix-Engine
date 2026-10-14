@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import * as XLSX from "@redoper1/xlsx-js-style";
+import ExcelJS from "exceljs";
 import { MAX_MODEL_CELLS, MAX_MODEL_GRID_CELLS, parseFile } from "../src/lib/excel/parse";
 import { workbookToXlsxBytes } from "../src/lib/excel/serialize";
 import type { WorkbookModel } from "../src/lib/excel/types";
@@ -63,6 +64,25 @@ describe("workbook parsing safety", () => {
     assert.equal(style?.font?.bold, true);
     assert.equal(parsed.sheets[0].columnWidths?.[0]?.wch, 26);
     assert.equal(parsed.sheets[0].rowHeights?.[0]?.hpt, 28);
+  });
+
+  it("detects conditional formatting and blocks lossy XLSX reconstruction", async () => {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Data");
+    worksheet.addRow([10]);
+    worksheet.addConditionalFormatting({
+      ref: "A1",
+      rules: [{
+        type: "cellIs",
+        operator: "greaterThan",
+        formulae: ["0"],
+        style: { font: { bold: true } },
+      }],
+    });
+    const raw = await workbook.xlsx.writeBuffer();
+    const model = await parseFile("conditional", "conditional.xlsx", new Uint8Array(raw));
+    assert.ok(model.unsupportedFeatures?.includes("conditional formatting"));
+    assert.throws(() => workbookToXlsxBytes(model), /UNSUPPORTED_WORKBOOK_FEATURES/);
   });
 
   it("marks XLSM inputs and refuses to export them as macro-less XLSX", async () => {
