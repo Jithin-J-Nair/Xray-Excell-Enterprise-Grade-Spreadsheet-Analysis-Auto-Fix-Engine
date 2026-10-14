@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { promises as fs } from "fs";
+import path from "path";
+import { randomUUID } from "crypto";
 import { db } from "@/db";
 import { files, uploads, auditLogs } from "@/db/schema";
-import { MAX_FILE_BYTES, saveBytes, sanitizeFileName, sha256 } from "@/lib/server/storage";
+import { MAX_FILE_BYTES, absOf, saveBytes, sanitizeFileName, sha256 } from "@/lib/server/storage";
 import { isSupportedFile, supportedExtensions } from "@/lib/excel/parse";
 
 export const runtime = "nodejs";
@@ -22,6 +25,20 @@ const MIME_BY_EXT: Record<string, string> = {
 function mimeOf(name: string): string {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
   return MIME_BY_EXT[ext] ?? "application/octet-stream";
+}
+
+function uniqueStoredName(rawName: string, used: Set<string>): string {
+  const name = sanitizeFileName(rawName);
+  const ext = path.extname(name);
+  const stem = name.slice(0, name.length - ext.length);
+  let candidate = name;
+  let suffix = 2;
+  while (used.has(candidate.toLocaleLowerCase("en-US"))) {
+    const tag = ` (${suffix++})`;
+    candidate = `${stem.slice(0, Math.max(1, 120 - ext.length - tag.length))}${tag}${ext}`;
+  }
+  used.add(candidate.toLocaleLowerCase("en-US"));
+  return candidate;
 }
 
 export async function POST(req: NextRequest) {
@@ -60,34 +77,53 @@ export async function POST(req: NextRequest) {
     }
 
     const name = entries.length === 1 ? entries[0].name : `${entries[0].name} +${entries.length - 1}`;
-    const [upload] = await db.insert(uploads).values({ name, fileCount: entries.length }).returning();
+    const uploadId = randomUUID();
+    const usedNames = new Set<string>();
+    const staged: Array<{ file: File; storedName: string; path: string; hash: string }> = [];
 
-    const out: { id: string; name: string; size: number }[] = [];
-    for (const f of entries) {
-      const bytes = new Uint8Array(await f.arrayBuffer());
-      const saved = await saveBytes("uploads", upload.id, sanitizeFileName(f.name), bytes);
-      const [row] = await db
-        .insert(files)
-        .values({
-          uploadId: upload.id,
-          kind: "original",
-          name: f.name,
-          size: f.size,
-          mime: mimeOf(f.name),
-          path: saved.relPath,
-          sha256: sha256(bytes),
-        })
-        .returning();
-      out.push({ id: row.id, name: row.name, size: row.size });
+    try {
+      // Stage all bytes before publishing any database rows. Unique physical
+      // names prevent same-named files in one batch from overwriting each other.
+      for (const file of entries) {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const storedName = uniqueStoredName(file.name, usedNames);
+        const saved = await saveBytes("uploads", uploadId, storedName, bytes);
+        staged.push({ file, storedName, path: saved.relPath, hash: sha256(bytes) });
+      }
+
+      const out: { id: string; name: string; size: number }[] = [];
+      await db.transaction(async (tx) => {
+        await tx.insert(uploads).values({ id: uploadId, name, fileCount: entries.length });
+        for (const item of staged) {
+          const [row] = await tx.insert(files).values({
+            uploadId,
+            kind: "original",
+            name: item.file.name,
+            size: item.file.size,
+            mime: mimeOf(item.file.name),
+            path: item.path,
+            sha256: item.hash,
+          }).returning();
+          out.push({ id: row.id, name: row.name, size: row.size });
+        }
+        await tx.insert(auditLogs).values({
+          analysisId: null,
+          action: "upload.created",
+          detail: { uploadId, files: out.map((o) => o.name) },
+        });
+      });
+
+      return NextResponse.json({ uploadId, files: out, status: "stored" });
+    } catch (error) {
+      // If any disk write or DB transaction fails, remove the whole private
+      // upload directory so no partial batch is left behind.
+      try {
+        await fs.rm(absOf(path.join("uploads", uploadId)), { recursive: true, force: true });
+      } catch (cleanupError) {
+        console.error("upload-rollback-cleanup-failed", uploadId, cleanupError);
+      }
+      throw error;
     }
-
-    await db.insert(auditLogs).values({
-      analysisId: null,
-      action: "upload.created",
-      detail: { uploadId: upload.id, files: out.map((o) => o.name) },
-    });
-
-    return NextResponse.json({ uploadId: upload.id, files: out, status: "stored" });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ errorCode: "UPLOAD_FAILED", message, retryable: true }, { status: 500 });
