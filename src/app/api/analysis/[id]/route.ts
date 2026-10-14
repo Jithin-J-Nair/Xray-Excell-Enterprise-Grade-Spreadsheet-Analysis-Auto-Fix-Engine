@@ -84,7 +84,7 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
       await tx.update(auditLogs)
         .set({
           analysisId: null,
-          detail: sql`${auditLogs.detail} || jsonb_build_object('deletedAnalysisId', ${id})`,
+          detail: sql`${auditLogs.detail} || jsonb_build_object('deletedAnalysisId', ${id}::text)`,
         })
         .where(eq(auditLogs.analysisId, id));
       await tx.delete(analyses).where(eq(analyses.id, id));
