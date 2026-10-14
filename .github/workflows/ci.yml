@@ -70,6 +70,18 @@ jobs:
           done
           cat /tmp/xray-next.log
           exit 1
+      - name: Verify production access gate
+        run: |
+          unauthenticated=$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3000/)
+          if [ "$unauthenticated" != "401" ]; then
+            echo "Expected unauthenticated page request to return 401, got $unauthenticated"
+            exit 1
+          fi
+          authenticated=$(curl --silent --user "$XRAY_BASIC_AUTH_USER:$XRAY_BASIC_AUTH_PASSWORD" --output /dev/null --write-out '%{http_code}' http://127.0.0.1:3000/)
+          if [ "$authenticated" != "200" ]; then
+            echo "Expected authenticated page request to return 200, got $authenticated"
+            exit 1
+          fi
       - name: End-to-end upload → preview → apply → all exports → download
         id: e2e
         run: npm run validate:fixes
