@@ -269,7 +269,11 @@ async function addStyleMetadata(model: WorkbookModel, bytes: Uint8Array): Promis
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
     const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-    await workbook.xlsx.load(data);
+    // SheetJS already extracts defined names into the canonical model. Ignore the
+    // workbook-level definedNames XML during ExcelJS style enrichment so broken
+    // (#REF!) or duplicate names remain analyzable instead of making the style
+    // reader fail before the existing export safety checks can run.
+    await workbook.xlsx.load(data, { ignoreNodes: ["definedNames"] });
     for (const sheetModel of model.sheets) {
       const source = workbook.getWorksheet(sheetModel.name);
       if (!source) continue;
