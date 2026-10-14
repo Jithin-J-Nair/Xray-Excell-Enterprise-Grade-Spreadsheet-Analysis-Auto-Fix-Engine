@@ -150,8 +150,13 @@ export function buildMonster(): Uint8Array {
   );
   XLSX.utils.book_append_sheet(wb, long_, "KPI Engine");
 
-  // 21. Empty sheet
-  XLSX.utils.book_append_sheet(wb, aoa([]), "Empty Sheet");
+  // 21. Empty sheet. Give it a blank A1 placeholder so ExcelJS can load the
+  // worksheet XML reliably; parse.ts drops this valueless placeholder so the
+  // analysis model still correctly treats the sheet as empty.
+  const empty = aoa([[""]]);
+  empty.A1 = { t: "s", v: "" };
+  empty["!ref"] = "A1";
+  XLSX.utils.book_append_sheet(wb, empty, "Empty Sheet");
 
   // defined names incl. a broken one + duplicate, plus visibility flags
   wb.Workbook = {

@@ -111,6 +111,15 @@ function workbookToModel(wb: XLSX.WorkBook, fileId: string, fileName: string, en
       }
       const cell = ws[key] as XLSX.CellObject;
       if (!cell || cell.t === undefined) continue;
+      // Blank string placeholders carry no value. Skip them unless they have
+      // formulas/styles/number formats; this keeps logically empty sheets empty.
+      if (
+        cell.t === "s" &&
+        (cell.v === "" || cell.v === null || cell.v === undefined) &&
+        cell.f == null &&
+        !cell.s &&
+        typeof cell.z !== "string"
+      ) continue;
       let parsed: { r: number; c: number };
       try {
         parsed = XLSX.utils.decode_cell(key);
