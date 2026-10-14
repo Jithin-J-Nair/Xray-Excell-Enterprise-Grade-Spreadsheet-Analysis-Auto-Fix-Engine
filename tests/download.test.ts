@@ -120,6 +120,42 @@ describe("GET /api/outputs/:outputId/download", () => {
   });
 });
 
+describe("browser download validation", () => {
+  it("accepts a non-empty XLSX with matching length, MIME and ZIP signature", async () => {
+    const { validateDownloadBlob } = await import("../src/lib/download");
+    const blob = new Blob([new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2])]);
+    await assert.doesNotReject(() =>
+      validateDownloadBlob(
+        blob,
+        "fixed.xlsx",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "6"
+      )
+    );
+  });
+
+  it("rejects truncated, mislabeled and non-XLSX download bodies", async () => {
+    const { validateDownloadBlob } = await import("../src/lib/download");
+    const blob = new Blob([new Uint8Array([0x50, 0x4b, 0x03, 0x04])]);
+    await assert.rejects(
+      () => validateDownloadBlob(blob, "fixed.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "99"),
+      /DOWNLOAD_LENGTH_MISMATCH/
+    );
+    await assert.rejects(
+      () => validateDownloadBlob(blob, "fixed.xlsx", "application/json", "4"),
+      /DOWNLOAD_MIME_MISMATCH/
+    );
+    await assert.rejects(
+      () => validateDownloadBlob(new Blob(["not an xlsx"]), "fixed.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", null),
+      /INVALID_XLSX/
+    );
+    await assert.rejects(
+      () => validateDownloadBlob(new Blob([]), "report.csv", "text/csv", "0"),
+      /EMPTY_DOWNLOAD/
+    );
+  });
+});
+
 describe("filename parsing (pure, mirrors the browser blob path)", () => {
   it("prefers RFC 5987 filename* then fallback filename", async () => {
     const { filenameFromDisposition } = await import("../src/lib/download");
