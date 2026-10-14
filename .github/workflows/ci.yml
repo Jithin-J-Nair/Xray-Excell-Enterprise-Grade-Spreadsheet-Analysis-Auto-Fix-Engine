@@ -39,7 +39,7 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
       - name: Report dependency advisories
         run: |
           npm audit --json > /tmp/npm-audit.json || true
