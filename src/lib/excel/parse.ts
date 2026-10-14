@@ -32,6 +32,85 @@ function decodeDelimited(bytes: Uint8Array, name: string): { text: string; encod
   }
 }
 
+const MAX_ZIP_ENTRIES = 100_000;
+const MAX_ZIP_ENTRY_BYTES = 256 * 1024 * 1024;
+const MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES = 512 * 1024 * 1024;
+const ZIP_RATIO_GUARD_BYTES = 32 * 1024 * 1024;
+const MAX_ZIP_EXPANSION_RATIO = 100;
+
+/**
+ * Inspect ZIP central-directory metadata before decompression. This does not
+ * replace parsing/model limits; it rejects obvious ZIP bombs and unsupported
+ * ZIP64/multi-disk containers before a parser can allocate expanded contents.
+ */
+export function assertSafeZipContainer(bytes: Uint8Array): void {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const minEocdSize = 22;
+  const searchStart = Math.max(0, bytes.byteLength - 65_557);
+  let eocd = -1;
+  for (let offset = bytes.byteLength - minEocdSize; offset >= searchStart; offset--) {
+    if (view.getUint32(offset, true) === 0x06054b50) {
+      eocd = offset;
+      break;
+    }
+  }
+  if (eocd < 0) throw new Error("INVALID_ZIP_CONTAINER: XLSX file has no ZIP directory footer");
+
+  const diskNumber = view.getUint16(eocd + 4, true);
+  const directoryDisk = view.getUint16(eocd + 6, true);
+  const entriesOnDisk = view.getUint16(eocd + 8, true);
+  const entryCount = view.getUint16(eocd + 10, true);
+  const directorySize = view.getUint32(eocd + 12, true);
+  const directoryOffset = view.getUint32(eocd + 16, true);
+  if (diskNumber !== 0 || directoryDisk !== 0 || entriesOnDisk !== entryCount) {
+    throw new Error("ZIP_CONTAINER_UNSUPPORTED: multi-disk ZIP workbooks are not supported");
+  }
+  if (entryCount === 0xffff || directorySize === 0xffffffff || directoryOffset === 0xffffffff) {
+    throw new Error("ZIP64_UNSUPPORTED: ZIP64 workbooks exceed the configured safe parsing limits");
+  }
+  if (entryCount > MAX_ZIP_ENTRIES || directoryOffset + directorySize > eocd || directoryOffset + directorySize > bytes.byteLength) {
+    throw new Error("INVALID_ZIP_CONTAINER: invalid or oversized ZIP central directory");
+  }
+
+  let cursor = directoryOffset;
+  const directoryEnd = directoryOffset + directorySize;
+  let compressedTotal = 0;
+  let uncompressedTotal = 0;
+  for (let index = 0; index < entryCount; index++) {
+    if (cursor + 46 > directoryEnd || view.getUint32(cursor, true) !== 0x02014b50) {
+      throw new Error("INVALID_ZIP_CONTAINER: malformed ZIP central directory entry");
+    }
+    const flags = view.getUint16(cursor + 8, true);
+    const method = view.getUint16(cursor + 10, true);
+    const compressedSize = view.getUint32(cursor + 20, true);
+    const uncompressedSize = view.getUint32(cursor + 24, true);
+    const nameLength = view.getUint16(cursor + 28, true);
+    const extraLength = view.getUint16(cursor + 30, true);
+    const commentLength = view.getUint16(cursor + 32, true);
+    const entryEnd = cursor + 46 + nameLength + extraLength + commentLength;
+    if (entryEnd > directoryEnd) throw new Error("INVALID_ZIP_CONTAINER: ZIP entry exceeds central directory bounds");
+    if (flags & 0x0001) throw new Error("ENCRYPTED_WORKBOOK_UNSUPPORTED: encrypted ZIP workbooks cannot be inspected");
+    if (method !== 0 && method !== 8) throw new Error("ZIP_COMPRESSION_UNSUPPORTED: workbook uses an unsupported compression method");
+    if (compressedSize === 0xffffffff || uncompressedSize === 0xffffffff) {
+      throw new Error("ZIP64_UNSUPPORTED: ZIP64 entries exceed the configured safe parsing limits");
+    }
+    if (uncompressedSize > MAX_ZIP_ENTRY_BYTES) {
+      throw new Error("ZIP_BOMB_SUSPECTED: a workbook ZIP entry exceeds the safe expanded-size limit");
+    }
+    compressedTotal += compressedSize;
+    uncompressedTotal += uncompressedSize;
+    if (uncompressedTotal > MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES) {
+      throw new Error("ZIP_BOMB_SUSPECTED: workbook expanded contents exceed the safe size limit");
+    }
+    cursor = entryEnd;
+  }
+  if (cursor > directoryEnd) throw new Error("INVALID_ZIP_CONTAINER: ZIP directory bounds are inconsistent");
+  const ratio = compressedTotal > 0 ? uncompressedTotal / compressedTotal : uncompressedTotal > 0 ? Infinity : 1;
+  if (uncompressedTotal > ZIP_RATIO_GUARD_BYTES && ratio > MAX_ZIP_EXPANSION_RATIO) {
+    throw new Error("ZIP_BOMB_SUSPECTED: workbook expansion ratio exceeds the safe limit");
+  }
+}
+
 interface RawZipEntry { content?: unknown }
 interface RawZipWorkbook {
   keys?: string[];
@@ -440,6 +519,7 @@ export async function parseFile(fileId: string, fileName: string, bytes: Uint8Ar
     const wb = XLSX.read(text, { type: "string", cellDates: true, cellStyles: true });
     return requireCompleteModel(workbookToModel(wb, fileId, fileName, encoding));
   }
+  if (/\\.(xlsx|xlsm|xlsb)$/i.test(fileName)) assertSafeZipContainer(bytes);
   const wb = XLSX.read(bytes, { type: "array", cellDates: true, cellNF: true, cellStyles: true, dense: false, bookFiles: true });
   const model = requireCompleteModel(workbookToModel(wb, fileId, fileName, "binary"));
   detectUnsupportedPackageFeatures(wb, model);

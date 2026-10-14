@@ -6,6 +6,7 @@ import { MAX_MODEL_CELLS, MAX_MODEL_GRID_CELLS, parseFile } from "../src/lib/exc
 import { workbookToXlsxBytes } from "../src/lib/excel/serialize";
 import type { WorkbookModel } from "../src/lib/excel/types";
 import { buildMonster } from "../src/lib/excel/samples";
+import { assertSafeZipContainer } from "../src/lib/excel/parse";
 
 function xlsxBytes(workbook: XLSX.WorkBook): Uint8Array {
   const raw = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
@@ -13,6 +14,23 @@ function xlsxBytes(workbook: XLSX.WorkBook): Uint8Array {
 }
 
 describe("workbook parsing safety", () => {
+  it("rejects ZIP expansion bombs before decompression", () => {
+    const bytes = new Uint8Array(68);
+    const view = new DataView(bytes.buffer);
+    view.setUint32(0, 0x02014b50, true);
+    view.setUint32(20, 1, true);
+    view.setUint32(24, 200 * 1024 * 1024, true);
+    view.setUint16(28, 0, true);
+    const eocd = 46;
+    view.setUint32(eocd, 0x06054b50, true);
+    view.setUint16(eocd + 8, 1, true);
+    view.setUint16(eocd + 10, 1, true);
+    view.setUint32(eocd + 12, 46, true);
+    view.setUint32(eocd + 16, 0, true);
+    assert.throws(() => assertSafeZipContainer(bytes), /ZIP_BOMB_SUSPECTED/);
+  });
+
+
   it("loads the complex demo workbook without losing style metadata or blank-sheet semantics", async () => {
     const model = await parseFile("monster", "monster.xlsx", buildMonster());
     assert.equal(model.styleMetadataUnavailable, undefined);
