@@ -166,7 +166,6 @@ function detectUnsupportedPackageFeatures(wb: XLSX.WorkBook, model: WorkbookMode
     [/^xl\/webExtensions\//i, "web extensions"],
     [/^customXml\//i, "custom XML"],
     [/^xl\/vbaProject\.bin$/i, "VBA macros"],
-    [/^xl\/metadata\.xml$/i, "dynamic-array metadata"],
     [/^xl\/printerSettings\//i, "custom printer settings"],
   ];
   for (const pathName of paths) {
@@ -194,6 +193,11 @@ function detectUnsupportedPackageFeatures(wb: XLSX.WorkBook, model: WorkbookMode
     for (const [pattern, feature] of worksheetTags) {
       if (pattern.test(xml)) features.add(feature);
     }
+  }
+
+  const metadataXml = rawZipText(raw, "xl/metadata.xml");
+  if (/<(?:[A-Za-z0-9_]+:)?dynamicArrayProperties\b|fDynamic=["']1["']/i.test(metadataXml)) {
+    features.add("dynamic-array metadata");
   }
 
   const workbookXml = rawZipText(raw, "xl/workbook.xml");
