@@ -278,11 +278,12 @@ async function addStyleMetadata(model: WorkbookModel, bytes: Uint8Array): Promis
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
     const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-    // SheetJS already extracts defined names into the canonical model. Ignore the
-    // workbook-level definedNames XML during ExcelJS style enrichment so broken
-    // (#REF!) or duplicate names remain analyzable instead of making the style
-    // reader fail before the existing export safety checks can run.
-    await workbook.xlsx.load(data, { ignoreNodes: ["definedNames"] });
+    // ExcelJS expects a Node Buffer in its Node reader path. Passing a bare
+    // ArrayBuffer can fail on otherwise valid workbooks, falsely marking all
+    // style metadata unavailable and blocking exports. Keep browser parsing
+    // isomorphic by falling back to the original Uint8Array when Buffer is absent.
+    const excelData = typeof Buffer !== "undefined" ? Buffer.from(bytes) : bytes;
+    await workbook.xlsx.load(excelData as never);
     for (const sheetModel of model.sheets) {
       const source = workbook.getWorksheet(sheetModel.name);
       if (!source) continue;

@@ -13,11 +13,12 @@ function xlsxBytes(workbook: XLSX.WorkBook): Uint8Array {
 }
 
 describe("workbook parsing safety", () => {
-  it("loads the complex demo workbook in the style-metadata reader", async () => {
-    const bytes = buildMonster();
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(Buffer.from(bytes) as never);
-    assert.ok(workbook.getWorksheet("Sales Data"));
+  it("loads the complex demo workbook without losing style metadata or blank-sheet semantics", async () => {
+    const model = await parseFile("monster", "monster.xlsx", buildMonster());
+    assert.equal(model.styleMetadataUnavailable, undefined);
+    const empty = model.sheets.find((sheet) => sheet.name === "Empty Sheet");
+    assert.ok(empty, "empty sheet remains present");
+    assert.equal(Object.keys(empty.cells).length, 0, "blank placeholder must not become a phantom data cell");
   });
 
   it("rejects a workbook that exceeds the model cell budget instead of returning partial data", async () => {
