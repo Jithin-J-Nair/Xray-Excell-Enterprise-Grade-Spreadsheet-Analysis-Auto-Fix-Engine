@@ -25,7 +25,8 @@ export async function downloadOutput(outputId: string, filename?: string): Promi
       blob,
       name,
       response.headers.get("content-type"),
-      response.headers.get("content-length")
+      response.headers.get("content-length"),
+      response.headers.get("content-encoding")
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -40,11 +41,14 @@ export async function validateDownloadBlob(
   blob: Blob,
   filename: string,
   contentType: string | null,
-  contentLength: string | null
+  contentLength: string | null,
+  contentEncoding: string | null = null
 ): Promise<void> {
   if (blob.size === 0) throw new Error("EMPTY_DOWNLOAD: server returned an empty file");
 
-  if (contentLength !== null) {
+  // Content-Length can describe compressed wire bytes while fetch exposes a
+  // decompressed Blob. Only compare lengths when the response is unencoded.
+  if (contentLength !== null && !contentEncoding) {
     const expected = Number(contentLength);
     if (!Number.isSafeInteger(expected) || expected < 0 || expected !== blob.size) {
       throw new Error(
