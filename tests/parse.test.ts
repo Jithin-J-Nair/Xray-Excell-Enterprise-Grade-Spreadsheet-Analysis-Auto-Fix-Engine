@@ -87,6 +87,7 @@ describe("workbook parsing safety", () => {
       ref: "A1",
       rules: [{
         type: "cellIs",
+        priority: 1,
         operator: "greaterThan",
         formulae: ["0"],
         style: { font: { bold: true } },
