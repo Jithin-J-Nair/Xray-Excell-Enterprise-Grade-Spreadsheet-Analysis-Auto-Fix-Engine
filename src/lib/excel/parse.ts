@@ -148,6 +148,7 @@ function detectUnsupportedPackageFeatures(wb: XLSX.WorkBook, model: WorkbookMode
   const partRules: Array<[RegExp, string]> = [
     [/^xl\/charts\//i, "charts"],
     [/^xl\/drawings\//i, "drawings and embedded images"],
+    [/^xl\/media\//i, "embedded images"],
     [/^xl\/pivotTables\//i, "pivot tables"],
     [/^xl\/pivotCache\//i, "pivot caches"],
     [/^xl\/externalLinks\//i, "external workbook link metadata"],
@@ -155,6 +156,7 @@ function detectUnsupportedPackageFeatures(wb: XLSX.WorkBook, model: WorkbookMode
     [/^xl\/queryTables\//i, "query tables"],
     [/^xl\/tables\//i, "Excel tables"],
     [/^xl\/slicers?\//i, "slicers"],
+    [/^xl\/slicerCaches\//i, "slicer caches"],
     [/^xl\/activeX\//i, "ActiveX controls"],
     [/^xl\/embeddings\//i, "embedded objects"],
     [/^xl\/ctrlProps\//i, "form controls"],
