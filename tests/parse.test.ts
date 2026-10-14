@@ -21,14 +21,16 @@ describe("workbook parsing safety", () => {
 
   it("rejects pathological sparse ranges before dense exports can explode", async () => {
     const wb = XLSX.utils.book_new();
+    // Keep the fixture just above the 1M-cell grid cap. A full XFD1048576
+    // range could make the test's XLSX writer itself iterate billions of cells.
     const ws: XLSX.WorkSheet = {
       A1: { t: "s", v: "start" },
-      XFD1048576: { t: "n", v: 1 },
-      "!ref": "A1:XFD1048576",
+      ZZ1500: { t: "n", v: 1 },
+      "!ref": "A1:ZZ1500",
     };
     XLSX.utils.book_append_sheet(wb, ws, "Sparse");
     const bytes = xlsxBytes(wb);
-    assert.ok(MAX_MODEL_GRID_CELLS < 17_000_000_000);
+    assert.equal(MAX_MODEL_GRID_CELLS, 1_000_000);
     await assert.rejects(() => parseFile("sparse", "sparse.xlsx", bytes), /MODEL_TRUNCATED/);
   });
 
