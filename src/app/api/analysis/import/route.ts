@@ -13,6 +13,18 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(req: NextRequest) {
   try {
+    // Bound the declared body before parsing. The parsed result has its own
+    // 30 MiB serialized-model budget below.
+    const declaredLength = req.headers.get("content-length");
+    if (declaredLength !== null) {
+      const requestBytes = Number(declaredLength);
+      if (!Number.isSafeInteger(requestBytes) || requestBytes < 0) {
+        return NextResponse.json({ errorCode: "INVALID_CONTENT_LENGTH", message: "Invalid request size header", retryable: false }, { status: 400 });
+      }
+      if (requestBytes > 31 * 1024 * 1024) {
+        return NextResponse.json({ errorCode: "RESULT_TOO_LARGE", message: "Analysis import request exceeds the 31 MiB request limit", retryable: false }, { status: 413 });
+      }
+    }
     const body = (await req.json()) as { name?: string; language?: "en" | "jp"; result?: AnalysisResult };
     const result = body.result;
     if (!result || !result.metrics || !result.model) {

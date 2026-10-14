@@ -43,8 +43,12 @@ function uniqueStoredName(rawName: string, used: Set<string>): string {
 
 export async function POST(req: NextRequest) {
   try {
-    const contentLength = Number(req.headers.get("content-length") ?? 0);
+    const contentLengthHeader = req.headers.get("content-length");
+    const contentLength = contentLengthHeader === null ? 0 : Number(contentLengthHeader);
     const maxRequestBytes = MAX_FILE_BYTES * 2 + 1024 * 1024;
+    if (contentLengthHeader !== null && (!Number.isSafeInteger(contentLength) || contentLength < 0)) {
+      return NextResponse.json({ errorCode: "INVALID_CONTENT_LENGTH", message: "Invalid upload size header", retryable: false }, { status: 400 });
+    }
     if (contentLength > maxRequestBytes) {
       return NextResponse.json({ errorCode: "BATCH_TOO_LARGE", message: "Combined upload exceeds the 2-file-size batch budget", retryable: false }, { status: 413 });
     }
