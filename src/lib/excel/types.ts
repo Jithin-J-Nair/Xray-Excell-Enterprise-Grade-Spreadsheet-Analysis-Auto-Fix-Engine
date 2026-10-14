@@ -58,6 +58,8 @@ export interface WorkbookModel {
   macroEnabled?: boolean;
   /** XLSX style metadata could not be read; XLSX export must fail closed. */
   styleMetadataUnavailable?: boolean;
+  /** Features the reduced model/serializer cannot safely preserve. */
+  unsupportedFeatures?: string[];
 }
 
 // ── Formula tokens ───────────────────────────────────────────────────────────
