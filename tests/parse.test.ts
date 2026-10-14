@@ -5,6 +5,7 @@ import ExcelJS from "exceljs";
 import { MAX_MODEL_CELLS, MAX_MODEL_GRID_CELLS, parseFile } from "../src/lib/excel/parse";
 import { workbookToXlsxBytes } from "../src/lib/excel/serialize";
 import type { WorkbookModel } from "../src/lib/excel/types";
+import { buildMonster } from "../src/lib/excel/samples";
 
 function xlsxBytes(workbook: XLSX.WorkBook): Uint8Array {
   const raw = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
@@ -12,6 +13,13 @@ function xlsxBytes(workbook: XLSX.WorkBook): Uint8Array {
 }
 
 describe("workbook parsing safety", () => {
+  it("loads the complex demo workbook in the style-metadata reader", async () => {
+    const bytes = buildMonster();
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(Buffer.from(bytes) as never);
+    assert.ok(workbook.getWorksheet("Sales Data"));
+  });
+
   it("rejects a workbook that exceeds the model cell budget instead of returning partial data", async () => {
     const wb = XLSX.utils.book_new();
     const rows = Array.from({ length: MAX_MODEL_CELLS + 1 }, (_, i) => [i + 1]);
