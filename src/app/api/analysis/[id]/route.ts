@@ -53,8 +53,15 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   if (!row) return NextResponse.json({ errorCode: "NOT_FOUND", message: "Analysis not found" }, { status: 404 });
   await db.delete(previews).where(eq(previews.analysisId, id));
   await db.delete(jobs).where(eq(jobs.analysisId, id));
-  await db.insert(auditLogs).values({ analysisId: id, action: "analysis.deleted", detail: {} });
+  // Keep a durable audit record for the deletion itself. The deleted analysis
+  // no longer exists, so detach this event instead of inserting it and then
+  // immediately deleting it with the analysis's previous audit history.
   await db.delete(auditLogs).where(eq(auditLogs.analysisId, id));
   await db.delete(analyses).where(eq(analyses.id, id));
+  await db.insert(auditLogs).values({
+    analysisId: null,
+    action: "analysis.deleted",
+    detail: { deletedAnalysisId: id, name: row.name, uploadId: row.uploadId },
+  });
   return NextResponse.json({ status: "deleted" });
 }
