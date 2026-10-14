@@ -361,6 +361,12 @@ async function addStyleMetadata(model: WorkbookModel, bytes: Uint8Array): Promis
     }
     return;
   }
+  // Local mode runs in the browser. SheetJS has already parsed cell styles and
+  // dimensions, and the OOXML package scan above detects features we cannot
+  // preserve. Do not load the Node-oriented ExcelJS enrichment module in a
+  // browser bundle; doing so can fail on Node-only APIs and wrongly block export.
+  if (typeof window !== "undefined") return;
+
   try {
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
