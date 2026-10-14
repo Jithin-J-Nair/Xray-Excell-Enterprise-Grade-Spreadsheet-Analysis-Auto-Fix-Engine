@@ -256,7 +256,15 @@ function normalizeCellStyle(value: unknown): Record<string, unknown> {
 
 /** Enrich SheetJS cell data with styles/dimensions from ExcelJS. */
 async function addStyleMetadata(model: WorkbookModel, bytes: Uint8Array): Promise<void> {
-  if (!/\.xlsx$/i.test(model.fileName)) return;
+  if (!/\.xlsx$/i.test(model.fileName)) {
+    // The ExcelJS enrichment path is only enabled for OOXML .xlsx files.
+    // Legacy .xls/.xlsb styles are therefore not represented in this model;
+    // block reconstruction rather than silently exporting an unformatted copy.
+    if (/\.(xls|xlsb)$/i.test(model.fileName)) {
+      model.styleMetadataUnavailable = true;
+    }
+    return;
+  }
   try {
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
