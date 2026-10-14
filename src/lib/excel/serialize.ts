@@ -29,6 +29,11 @@ export function modelToWorkbook(model: WorkbookModel): XLSX.WorkBook {
   if (model.styleMetadataUnavailable) {
     throw new Error("STYLE_METADATA_UNAVAILABLE: XLSX style metadata could not be read reliably; XLSX export is blocked to prevent silent formatting loss.");
   }
+  if (model.unsupportedFeatures?.length) {
+    throw new Error(
+      `UNSUPPORTED_WORKBOOK_FEATURES: cannot safely preserve ${model.unsupportedFeatures.join(", ")} in the generated XLSX. Export CSV/JSON for values or remove the unsupported feature in a copy before exporting.`
+    );
+  }
   const wb = XLSX.utils.book_new();
   const used = new Set<string>();
   for (const sheet of model.sheets) {
