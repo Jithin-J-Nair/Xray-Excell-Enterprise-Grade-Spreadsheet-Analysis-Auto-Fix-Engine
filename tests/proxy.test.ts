@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { isValidBasicAuth, productionAuthIsMissing } from "../proxy";
+import { isValidBasicAuth, productionAuthIsMissing } from "../src/proxy";
 
 const basic = (value: string) => `Basic ${Buffer.from(value, "utf8").toString("base64")}`;
 
