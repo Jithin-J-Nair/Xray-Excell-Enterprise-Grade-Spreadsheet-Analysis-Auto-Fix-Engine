@@ -71,8 +71,13 @@ jobs:
           cat /tmp/xray-next.log
           exit 1
       - name: End-to-end upload → preview → apply → all exports → download
+        id: e2e
         run: npm run validate:fixes
       - name: Stop app
         if: always()
         run: |
+          if [ "${{ steps.e2e.outcome }}" = "failure" ]; then
+            echo "=== Next.js server log after failed end-to-end validation ==="
+            cat /tmp/xray-next.log || true
+          fi
           if [ -f /tmp/xray-next.pid ]; then kill "$(cat /tmp/xray-next.pid)" || true; fi

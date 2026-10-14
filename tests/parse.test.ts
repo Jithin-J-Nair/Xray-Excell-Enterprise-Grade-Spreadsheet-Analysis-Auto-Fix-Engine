@@ -102,7 +102,7 @@ describe("workbook parsing safety", () => {
   it("marks XLSM inputs and refuses to export them as macro-less XLSX", async () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["data"]]), "Data");
-    const bytes = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
+    const bytes = xlsxBytes(wb);
     const model = await parseFile("macro", "financial-model.xlsm", bytes);
     assert.equal(model.macroEnabled, true);
     assert.throws(() => workbookToXlsxBytes(model), /MACROS_UNSUPPORTED/);
@@ -113,7 +113,7 @@ describe("workbook parsing safety", () => {
     const ws = XLSX.utils.aoa_to_sheet([[12.5]]);
     ws.A1.z = "#,##0.00";
     XLSX.utils.book_append_sheet(wb, ws, "Data");
-    const bytes = XLSX.write(wb, { type: "array", bookType: "xlsx" }) as Uint8Array;
+    const bytes = xlsxBytes(wb);
     const model = await parseFile("formatted", "formatted.xlsx", bytes);
     assert.equal(model.sheets[0].cells.A1.z, "#,##0.00");
   });
