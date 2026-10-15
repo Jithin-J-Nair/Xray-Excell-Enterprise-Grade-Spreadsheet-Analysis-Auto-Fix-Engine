@@ -47,7 +47,7 @@ async function main() {
           .where(and(staleAnalysis, gte(analyses.attempts, MAX_JOB_ATTEMPTS)))
           .returning({ id: analyses.id }),
         db.update(jobs)
-          .set({ status: "failed", error: "JOB_RETRY_LIMIT_EXCEEDED", heartbeatAt: null, completedAt: new Date() })
+          .set({ status: "failed", error: "JOB_RETRY_LIMIT_EXCEEDED", heartbeatAt: null, leaseToken: null, completedAt: new Date() })
           .where(and(staleJob, gte(jobs.attempts, MAX_JOB_ATTEMPTS)))
           .returning({ id: jobs.id }),
       ]);
