@@ -33,6 +33,17 @@ const FEATURE_TAGS: Array<[RegExp, string[]]> = [
   [/^xl\/externalLinks\/.*\.xml$/i, ["externalLink", "externalBook", "sheetNames", "definedNames", "sheetDataSet", "sheetData", "extLst"]],
   [/^xl\/workbook\.xml$/i, ["definedNames", "definedName", "workbookProtection", "externalReferences", "externalReference", "extLst"]],
 ];
+
+function relationshipSignatures(xml: string): string[] {
+  return [...xml.matchAll(/<Relationship\b[^>]*>/gi)].map(match => {
+    const attributes: Record<string, string> = {};
+    for (const attributeMatch of match[0].matchAll(/([A-Za-z_:][\w:.-]*)\s*=\s*(["'])(.*?)\2/g)) {
+      attributes[attributeMatch[1]] = attributeMatch[3];
+    }
+    return [attributes.Id ?? "", attributes.Type ?? "", attributes.Target ?? "", attributes.TargetMode ?? ""].join("\u0000");
+  }).sort();
+}
+
 function featureMarkerCounts(path: string, xml: string): string[] {
   const rule = FEATURE_TAGS.find(([pattern]) => pattern.test(path));
   if (!rule || !xml) return [];
@@ -53,7 +64,7 @@ export function verifyProtectedPackageParts(sourceBytes: Uint8Array, outputBytes
     const parts = new Set((workbook.keys?.length ? workbook.keys : Object.keys(workbook.files ?? {})).map(name => name.replace(/^\/+/, "")));
     const xml = new Map<string, string>();
     for (const path of parts) {
-      if (path.toLowerCase().endsWith(".xml")) xml.set(path, rawPackageText(workbook.files?.[path] ?? workbook.files?.["/" + path]));
+      if (path.toLowerCase().endsWith(".xml") || path.toLowerCase().endsWith(".rels")) xml.set(path, rawPackageText(workbook.files?.[path] ?? workbook.files?.["/" + path]));
     }
     delete workbook.keys;
     delete workbook.files;
@@ -65,6 +76,12 @@ export function verifyProtectedPackageParts(sourceBytes: Uint8Array, outputBytes
     const missingParts = required.filter(name => !output.parts.has(name)).sort();
     const changedFeatureMarkers: string[] = [];
     for (const [path, sourceXml] of source.xml) {
+      if (/\.rels$/i.test(path)) {
+        const sourceRelationships = relationshipSignatures(sourceXml);
+        const outputRelationships = relationshipSignatures(output.xml.get(path) ?? "");
+        if (stable(sourceRelationships) !== stable(outputRelationships)) changedFeatureMarkers.push(path + ": relationship entries changed");
+        continue;
+      }
       const markers = featureMarkerCounts(path, sourceXml);
       if (!markers.length) continue;
       const outputXml = output.xml.get(path) ?? "";
