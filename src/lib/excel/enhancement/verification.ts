@@ -1,4 +1,4 @@
-import type { CellModel, WorkbookModel } from "../types";
+import type { WorkbookModel } from "../types";
 import { parseFile } from "../parse";
 import { workbookToXlsxBytes } from "../serialize";
 
@@ -10,10 +10,6 @@ export interface VerificationReport {
 }
 const cells = (model: WorkbookModel) => model.sheets.reduce((n, s) => n + Object.keys(s.cells).length, 0);
 const formulas = (model: WorkbookModel) => model.sheets.reduce((n, s) => n + Object.values(s.cells).filter(c => !!c.f).length, 0);
-function cellSignature(c: CellModel | undefined): string {
-  if (!c) return "<missing>";
-  return JSON.stringify({ t: c.t, v: c.v, f: c.f, z: c.z, s: c.s });
-}
 /** Serialize and reopen locally; fails closed when the reduced model cannot preserve known OOXML features. */
 export async function verifyWorkbookExport(model: WorkbookModel, exportedBytes?: Uint8Array): Promise<VerificationReport> {
   const issues: VerificationIssue[] = [];
