@@ -9,6 +9,7 @@ import { Panel, PanelTitle, Switch, fmtBytes } from "@/components/ui";
 interface Picked {
   file: File;
   id: string;
+  relativePath?: string;
 }
 
 export default function AnalyzePage() {
