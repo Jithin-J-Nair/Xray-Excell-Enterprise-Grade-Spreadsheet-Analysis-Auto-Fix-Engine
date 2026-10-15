@@ -4,7 +4,7 @@ import type { WorkbookModel } from "../src/lib/excel/types";
 import { inspectNumberFormats, repairNumberFormats } from "../src/lib/excel/enhancement/format-repair";
 import { createRecoverySnapshot, sealRecoverySnapshot, undoWorkbook, serializeRecoverySnapshot, parseRecoverySnapshot } from "../src/lib/excel/enhancement/recovery";
 import { processWorkbookBatch } from "../src/lib/excel/enhancement/batch";
-import { verifyWorkbookExport } from "../src/lib/excel/enhancement/verification";
+import { verifyWorkbookExport, verifyRecalculatedWorkbook } from "../src/lib/excel/enhancement/verification";
 import { proposeFormulaRepairs } from "../src/lib/excel/enhancement/formula-repair";
 import { processWorkbookDirectory } from "../src/lib/excel/enhancement/batch-directory";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -101,6 +101,27 @@ describe("offline export verification", () => {
     assert.equal(report.originalFormulaCount, 1);
     assert.equal(report.reopenedFormulaCount, 1);
     assert.equal(report.ok, true, JSON.stringify(report.issues));
+  });
+});
+
+describe("recalculation structure verification", () => {
+  it("allows formula cached values to recalculate but rejects literal-cell changes", () => {
+    const before = fixture();
+    before.sheets[0].cells.C3.f = "B2/500";
+    const after = structuredClone(before);
+    after.sheets[0].cells.C3.v = 2.501;
+    assert.equal(verifyRecalculatedWorkbook(before, after).ok, true);
+    after.sheets[0].cells.B2.v = 99;
+    const report = verifyRecalculatedWorkbook(before, after);
+    assert.equal(report.ok, false);
+    assert.ok(report.issues.some(issue => issue.code === "CELL_CONTENT_MISMATCH" && issue.cell === "B2"));
+  });
+  it("fails closed when a workbook has unsupported OOXML features", async () => {
+    const model = fixture();
+    model.unsupportedFeatures = ["charts"];
+    const report = await verifyWorkbookExport(model);
+    assert.equal(report.ok, false);
+    assert.ok(report.issues.some(issue => issue.code === "EXPORT_BLOCKED"));
   });
 });
 
