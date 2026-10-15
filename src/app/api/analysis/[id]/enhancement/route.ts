@@ -13,7 +13,9 @@ import { inspectNumberFormats, repairNumberFormats, type FormatRepairOptions } f
 import { profileWorkbookQuality } from "@/lib/excel/enhancement/data-quality";
 import { proposeFormulaRepairs, type FormulaRepairOptions } from "@/lib/excel/enhancement/formula-repair";
 import { createRecoverySnapshot, sealRecoverySnapshot, undoWorkbook, parseRecoverySnapshot, fingerprintWorkbook, type RecoverySnapshot } from "@/lib/excel/enhancement/recovery";
-import { verifyWorkbookExport } from "@/lib/excel/enhancement/verification";\nimport { recalculateWithLibreOffice } from "@/lib/excel/enhancement/recalculation";\nimport { recalculateWithMicrosoftExcel } from "@/lib/excel/enhancement/excel-com-recalculation";
+import { verifyWorkbookExport } from "@/lib/excel/enhancement/verification";
+import { recalculateWithLibreOffice } from "@/lib/excel/enhancement/recalculation";
+import { recalculateWithMicrosoftExcel } from "@/lib/excel/enhancement/excel-com-recalculation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -178,7 +180,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     if (action === "recalculate") {
       if (raw.engine !== "excel" && raw.engine !== "libreoffice") return NextResponse.json({ errorCode: "BAD_ENGINE", message: "engine must be excel or libreoffice.", retryable: false }, { status: 400 });
-      return await runRecalculation(id, analysis, result, models, raw.engine);
+      return await runRecalculation(id, models, raw.engine);
     }
     const features = selectFeatures(raw.features);
     const initialFingerprints = new Map(models.map(model => [model.fileId, fingerprintWorkbook(model)]));
@@ -301,7 +303,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
 }
 
-async function runRecalculation(analysisId: string, result: AnalysisResult, models: WorkbookModel[], engine: "excel" | "libreoffice") {
+async function runRecalculation(analysisId: string, models: WorkbookModel[], engine: "excel" | "libreoffice") {
   let jobId: string | undefined;
   try {
     const expected = new Map(models.map(model => [model.fileId, fingerprintWorkbook(model)]));
