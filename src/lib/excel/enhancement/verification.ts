@@ -195,6 +195,9 @@ export async function verifyWorkbookExport(model: WorkbookModel, exportedBytes?:
         issues.push({ code: "CELL_CONTENT_MISMATCH", message: "Cell value or type changed during export/reopen.", sheet: before.name, cell: cell.a });
       }
     }
+    for (const cell of Object.values(after.cells)) {
+      if (!before.cells[cell.a]) issues.push({ code: "UNEXPECTED_CELL", message: "A new cell appeared during export/reopen.", sheet: before.name, cell: cell.a });
+    }
   }
   if (formulas(model) !== formulas(reopened)) issues.push({ code: "FORMULA_COUNT_MISMATCH", message: "Formula count changed during export/reopen." });
   if (stable([...(model.unsupportedFeatures ?? [])].sort()) !== stable([...(reopened.unsupportedFeatures ?? [])].sort())) issues.push({ code: "FEATURE_MARKERS_CHANGED", message: "Unsupported OOXML feature markers changed during export/reopen." });
