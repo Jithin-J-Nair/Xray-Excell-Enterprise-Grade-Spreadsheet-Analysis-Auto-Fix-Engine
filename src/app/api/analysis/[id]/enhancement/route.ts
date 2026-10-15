@@ -36,7 +36,7 @@ function validateOptions(value: unknown): {
   const input = (value ?? {}) as Record<string, unknown>;
   if (input.theme !== undefined && input.theme !== "report" && input.theme !== "financial") throw new Error("BAD_OPTIONS: theme must be report or financial.");
   if (input.currencyCode !== undefined && !["USD", "EUR", "GBP", "JPY", "CAD", "AUD"].includes(String(input.currencyCode))) throw new Error("BAD_OPTIONS: unsupported currencyCode.");
-  for (const key of ["minColumnWidth", "maxColumnWidth", "minConfidence"] as const) {
+  for (const key of ["minColumnWidth", "maxColumnWidth", "minConfidence", "numberFormatMinConfidence", "formulaMinConfidence"] as const) {
     if (input[key] !== undefined && (typeof input[key] !== "number" || !Number.isFinite(input[key]))) throw new Error("BAD_OPTIONS: " + key + " must be a finite number.");
   }
   for (const key of ["headerRow", "neighborRadius", "minSupportingFormulas"] as const) {
@@ -47,7 +47,11 @@ function validateOptions(value: unknown): {
   for (const key of ["preserveExistingStyles", "preserveExistingColumnWidths", "bandedRows", "overwriteExisting"] as const) {
     if (input[key] !== undefined && typeof input[key] !== "boolean") throw new Error("BAD_OPTIONS: " + key + " must be boolean.");
   }
-  if (input.minConfidence !== undefined && (Number(input.minConfidence) < 0 || Number(input.minConfidence) > 1)) throw new Error("BAD_OPTIONS: minConfidence must be between 0 and 1.");
+  for (const key of ["minConfidence", "numberFormatMinConfidence", "formulaMinConfidence"] as const) {
+    if (input[key] !== undefined && (Number(input[key]) < 0 || Number(input[key]) > 1)) throw new Error("BAD_OPTIONS: " + key + " must be between 0 and 1.");
+  }
+  if (input.minColumnWidth !== undefined && Number(input.minColumnWidth) < 1) throw new Error("BAD_OPTIONS: minColumnWidth must be at least 1.");
+  if (input.maxColumnWidth !== undefined && Number(input.maxColumnWidth) < Number(input.minColumnWidth ?? 10)) throw new Error("BAD_OPTIONS: maxColumnWidth must be greater than or equal to minColumnWidth.");
   return {
     formatting: {
       theme: input.theme as FormattingOptions["theme"],
