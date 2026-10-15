@@ -6,7 +6,7 @@ import {profileWorkbookQuality} from "../src/lib/excel/enhancement/data-quality"
 function fixture():WorkbookModel{return {fileId:"f",fileName:"fixture.xlsx",names:[],sheets:[{name:"Sales",visibility:"visible",rows:4,cols:3,merges:[],cells:{
 A1:{a:"A1",r:0,c:0,t:"s",v:"Item"},B1:{a:"B1",r:0,c:1,t:"s",v:"Quantity"},C1:{a:"C1",r:0,c:2,t:"s",v:"Date"},
 A2:{a:"A2",r:1,c:0,t:"s",v:"Widget",s:{font:{bold:true,color:{rgb:"FF00FF00"}}}},B2:{a:"B2",r:1,c:1,t:"s",v:"12"},C2:{a:"C2",r:1,c:2,t:"s",v:"2024-03-01"},
-A3:{a:"A3",r:2,c:0,t:"s",v:"Gadget"},B3:{a:"B3",r:2,c:1,t:"n",v:-2},C3:{a:"C3",r:2,c:2,t:"s",v:"1899-01-01"},
+A3:{a:"A3",r:2,c:0,t:"n",v:5},B3:{a:"B3",r:2,c:1,t:"n",v:-2},C3:{a:"C3",r:2,c:2,t:"s",v:"1899-01-01"},
 A4:{a:"A4",r:3,c:0,t:"s",v:"Widget"},B4:{a:"B4",r:3,c:1,t:"s",v:"12"},C4:{a:"C4",r:3,c:2,t:"s",v:"2024-03-01"}
 }}]};}
 describe("enhancement formatting engine",()=>{
