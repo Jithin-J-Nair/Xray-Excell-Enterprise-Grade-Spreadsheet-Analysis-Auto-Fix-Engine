@@ -37,7 +37,7 @@ export async function recalculateWithMicrosoftExcel(model: WorkbookModel, source
   if ((model.unsupportedFeatures ?? []).some(feature => /external data connections|query tables/i.test(feature))) {
     throw new Error("EXTERNAL_REFRESH_BLOCKED: workbook contains external data connections or query tables; refresh behavior cannot be safely guaranteed.");
   }
-  if ((model.unsupportedFeatures ?? []).some(feature => /digital signatures/i.test(feature)) {
+  if ((model.unsupportedFeatures ?? []).some(feature => /digital signatures/i.test(feature))) {
     throw new Error("SIGNED_WORKBOOK_BLOCKED: recalculation can invalidate digital signatures.");
   }
   const root = await mkdtemp(join(tmpdir(), "xray-excel-com-"));
