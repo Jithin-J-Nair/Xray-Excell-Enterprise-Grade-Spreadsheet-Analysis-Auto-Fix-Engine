@@ -190,7 +190,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json({ action, features, files: previews, note: "Preview only; no workbook, database result, or source file was changed." });
     }
 
-    assertSerializable(models);
+    const preflight = models.map(model => {
+      try { assertSerializable([model]); return null; }
+      catch (error) { return error instanceof Error ? error.message : String(error); }
+    });
+    if (preflight.every(reason => reason !== null)) {
+      throw new Error("UNSUPPORTED_WORKBOOK_FEATURES: no workbook in this batch can be safely rewritten. " + preflight.filter(Boolean).join(" | "));
+    }
     const [created] = await db.transaction(async tx => {
       const [locked] = await tx.select().from(analyses).where(eq(analyses.id, id)).for("update").limit(1);
       if (!locked || locked.status !== "completed" || !locked.result) throw new Error("ANALYSIS_STATE_CHANGED: refresh the analysis and retry.");
@@ -255,9 +261,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         status: "completed", progress: 100, completedAt: new Date(), heartbeatAt: null, patchFileId: snapshotRow.id,
         outputs, summary: {
           action: "apply", features, fileCount: savedOutputs.length,
-          changes: reports.map(item => ({ fileName: item.model.fileName, ...item.changes })),
+          changes: transformed.map(item => ({ fileName: item.model.fileName, ...item.changes, blockedReason: item.blockedReason })),
           verification: reports.map(item => ({ fileName: item.model.fileName, ok: item.report.ok, issues: item.report.issues.length })),
-          recoverySnapshotFileId: snapshotRow.id,
+          skippedFiles: transformed.filter(item => item.blockedReason).map(item => ({ fileName: item.model.fileName, reason: item.blockedReason })),\n          recoverySnapshotFileId: snapshotRow.id,
         },
       }).where(eq(jobs.id, jobId!));
       await tx.insert(auditLogs).values({
@@ -268,7 +274,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({
       action: "apply", jobId, status: "completed", features,
       outputs: outputRecords.map(output => ({ ...output, downloadUrl: "/api/outputs/" + output.fileId + "/download" })),
-      message: "Enhanced copies were created and verified; original uploads remain unchanged.",
+      skippedFiles: transformed.filter(item => item.blockedReason).map(item => ({ fileName: item.model.fileName, reason: item.blockedReason })),\n      message: "Enhanced copies were created and verified where supported; unsupported files were left unchanged and original uploads remain unchanged.",
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
