@@ -50,6 +50,18 @@ export async function saveBytes(
   return { relPath: path.join(bucket, id, fname), absPath };
 }
 
+/**
+ * Remove files created by a worker lease that failed or lost ownership. Each lease writes into
+ * its own directory, so cleanup cannot delete a successor worker's outputs.
+ */
+export async function removeLeaseExportDirectory(jobId: string, leaseToken: string): Promise<void> {
+  if (!/^[0-9a-f-]{36}$/i.test(jobId) || !/^[0-9a-f-]{36}$/i.test(leaseToken)) {
+    throw new Error("INVALID_LEASE_EXPORT_PATH");
+  }
+  const dir = absOf(path.join("exports", jobId + "-" + leaseToken));
+  await fs.rm(dir, { recursive: true, force: true });
+}
+
 /** Resolve a stored relative key and reject paths that escape the storage root. */
 export function absOf(relPath: string): string {
   const resolved = path.resolve(ROOT, relPath);
