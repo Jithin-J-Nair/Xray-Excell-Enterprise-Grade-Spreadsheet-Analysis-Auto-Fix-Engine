@@ -1,7 +1,7 @@
 import type { CellModel, WorkbookModel } from "../types";
 
 export type FormattingTheme = "report" | "financial";
-export interface FormattingOptions { theme?: FormattingTheme; headerRow?: number; preserveExistingStyles?: boolean; bandedRows?: boolean; minColumnWidth?: number; maxColumnWidth?: number }
+export interface FormattingOptions { theme?: FormattingTheme; headerRow?: number; preserveExistingStyles?: boolean; preserveExistingColumnWidths?: boolean; bandedRows?: boolean; minColumnWidth?: number; maxColumnWidth?: number }
 export interface FormattingChange { sheet: string; target: string; kind: "style" | "column-width"; before: unknown; after: unknown; reason: string }
 export interface FormattingResult { model: WorkbookModel; changes: FormattingChange[] }
 
@@ -39,7 +39,7 @@ function widthOf(c: CellModel): number { const s = c.f ? "=" + c.f : c.v == null
 /** Applies a deterministic theme to the reduced workbook model; existing styles win by default. */
 export function applyFormattingTheme(model: WorkbookModel, options: FormattingOptions = {}): FormattingResult {
   if (model.truncated) throw new Error("MODEL_TRUNCATED: formatting requires the complete workbook model.");
-  const theme = THEMES[options.theme ?? "report"], preserve = options.preserveExistingStyles ?? true;
+  const theme = THEMES[options.theme ?? "report"], preserve = options.preserveExistingStyles ?? true, preserveWidths = options.preserveExistingColumnWidths ?? true;
   const min = options.minColumnWidth ?? 10, max = options.maxColumnWidth ?? 42;
   if (!Number.isFinite(min) || !Number.isFinite(max) || min < 1 || max < min) throw new Error("INVALID_WIDTH_BOUNDS: expected 1 <= minColumnWidth <= maxColumnWidth.");
   const result = clone(model), changes: FormattingChange[] = [];
