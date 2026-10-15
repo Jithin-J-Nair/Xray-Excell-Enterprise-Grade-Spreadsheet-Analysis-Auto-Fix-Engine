@@ -86,7 +86,7 @@ function currentModels(result: AnalysisResult): WorkbookModel[] {
 }
 function refreshAnalysisResult(previous: AnalysisResult, models: WorkbookModel[], resolveCrossFile: boolean): AnalysisResult {
   const metas = models.map(model => {
-    const existing = previous.files.find(file => file.id === model.fileId || file.name === model.fileName);
+    const existing = previous.files.find(file => file.id === model.fileId) ?? previous.files.find(file => file.name === model.fileName);
     return { id: model.fileId, name: model.fileName, size: existing?.size ?? 0, encoding: model.encoding };
   });
   return analyzeAll(models, metas, { language: previous.language, resolveCrossFile, name: previous.name });
