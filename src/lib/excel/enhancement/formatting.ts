@@ -51,7 +51,11 @@ export function applyFormattingTheme(model: WorkbookModel, options: FormattingOp
       lengths.set(cell.c, Math.max(lengths.get(cell.c) ?? min, widthOf(cell)+2));
       const header = hasHeader && cell.r===headerRow;
       const band = (options.bandedRows ?? true) && !header && cell.r>headerRow && cell.r%2===0;
-      const patch: Record<string,unknown> = header ? clone(theme.header) as unknown as Record<string,unknown> : {font:clone(theme.font)};
+      const alignment = cell.t === "n" ? "right" : cell.t === "d" ? "center" : "left";
+      const patch: Record<string,unknown> = header
+        ? clone(theme.header) as unknown as Record<string,unknown>
+        : { font: clone(theme.font), alignment: { horizontal: alignment, vertical: "center" },
+            border: { bottom: { style: "hair", color: { rgb: "FFD9E2F3" } } } };
       if (band) patch.fill = clone(theme.band.fill);
       const before=clone(cell.s), after=mergeStyle(cell.s,patch,preserve);
       if (JSON.stringify(before ?? {})!==JSON.stringify(after)) {
