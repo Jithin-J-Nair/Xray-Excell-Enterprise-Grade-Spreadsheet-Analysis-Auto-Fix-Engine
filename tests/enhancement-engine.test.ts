@@ -4,7 +4,7 @@ import type { WorkbookModel } from "../src/lib/excel/types";
 import { inspectNumberFormats, repairNumberFormats } from "../src/lib/excel/enhancement/format-repair";
 import { createRecoverySnapshot, sealRecoverySnapshot, undoWorkbook, serializeRecoverySnapshot, parseRecoverySnapshot } from "../src/lib/excel/enhancement/recovery";
 import { processWorkbookBatch } from "../src/lib/excel/enhancement/batch";
-import { verifyWorkbookExport, verifyRecalculatedWorkbook } from "../src/lib/excel/enhancement/verification";
+import { verifyWorkbookExport, verifyRecalculatedWorkbook, verifyProtectedPackageParts } from "../src/lib/excel/enhancement/verification";\nimport { workbookToXlsxBytes } from "../src/lib/excel/serialize";
 import { proposeFormulaRepairs } from "../src/lib/excel/enhancement/formula-repair";
 import { processWorkbookDirectory } from "../src/lib/excel/enhancement/batch-directory";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -122,6 +122,11 @@ describe("recalculation structure verification", () => {
     const report = await verifyWorkbookExport(model);
     assert.equal(report.ok, false);
     assert.ok(report.issues.some(issue => issue.code === "EXPORT_BLOCKED"));
+  });
+  it("checks the OOXML package parts without false positives on a basic workbook", () => {
+    const bytes = workbookToXlsxBytes(fixture());
+    const report = verifyProtectedPackageParts(bytes, bytes);
+    assert.equal(report.ok, true, report.error ?? report.missingParts.join(", "));
   });
 });
 
