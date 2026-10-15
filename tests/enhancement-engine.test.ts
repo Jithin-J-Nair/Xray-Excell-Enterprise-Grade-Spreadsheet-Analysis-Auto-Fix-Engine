@@ -292,3 +292,19 @@ it("detects a real hyperlink feature lost between OOXML workbook packages", () =
   assert.equal(report.ok, false, "a native-engine save that drops a hyperlink must fail fidelity verification");
   assert.ok(report.changedFeatureMarkers?.some(marker => marker.includes("hyperlink")), JSON.stringify(report));
 });
+
+
+it("rejects changed OOXML relationship targets even when hyperlink markers remain", () => {
+  const makeWorkbook = (target: string) => {
+    const workbook = XLSX.utils.book_new();
+    const sheet = XLSX.utils.aoa_to_sheet([["Open details"]]);
+    sheet.A1.l = { Target: target, Tooltip: "Open report" };
+    XLSX.utils.book_append_sheet(workbook, sheet, "Report");
+    return new Uint8Array(XLSX.write(workbook, { type: "array", bookType: "xlsx" }));
+  };
+  const sourceBytes = makeWorkbook("https://example.com/original");
+  const outputBytes = makeWorkbook("https://example.com/changed");
+  const report = verifyProtectedPackageParts(sourceBytes, outputBytes);
+  assert.equal(report.ok, false, "relationship target changes must fail fidelity verification");
+  assert.ok(report.changedFeatureMarkers?.some(marker => marker.includes(".rels") && marker.includes("relationship entries changed")), JSON.stringify(report));
+});
