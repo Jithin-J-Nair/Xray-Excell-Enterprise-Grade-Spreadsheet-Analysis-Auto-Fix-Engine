@@ -9,6 +9,7 @@ import { Panel, PanelTitle, Switch, fmtBytes } from "@/components/ui";
 interface Picked {
   file: File;
   id: string;
+  relativePath?: string;
 }
 
 export default function AnalyzePage() {
@@ -21,15 +22,29 @@ export default function AnalyzePage() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   const addFiles = useCallback((list: FileList | null) => {
-    if (!list) return;
-    const next: Picked[] = [];
-    for (const f of Array.from(list)) {
-      next.push({ file: f, id: `${f.name}-${f.size}-${crypto.randomUUID().slice(0, 8)}` });
+    if (!list || list.length === 0) return;
+    const selected = Array.from(list);
+    const incoming = selected.filter(file => /\.(xlsx|xlsm|xlsb|xls|csv|tsv|json|ndjson|txt)$/i.test(file.name));
+    if (incoming.length === 0) {
+      setErr("No supported spreadsheet or data files were found in that selection.");
+      return;
     }
-    setFiles((prev) => [...prev, ...next].slice(0, 12));
-  }, []);
+    if (files.length + incoming.length > 12) {
+      setErr("A batch can contain at most 12 supported files. Choose a smaller folder or remove files before adding more.");
+      return;
+    }
+    const skipped = selected.length - incoming.length;
+    const next: Picked[] = incoming.map((file) => ({
+      file,
+      relativePath: file.webkitRelativePath || undefined,
+      id: `${file.webkitRelativePath || file.name}-${file.size}-${crypto.randomUUID().slice(0, 8)}`,
+    }));
+    setErr(skipped ? "Skipped " + skipped + " unsupported file(s) from the selection." : null);
+    setFiles((prev) => [...prev, ...next]);
+  }, [files.length]);
 
   const genSample = async (kind: string) => {
     setBusy(true);
@@ -133,6 +148,21 @@ export default function AnalyzePage() {
             <div className="font-semibold mb-1.5">{t("up.drop.title")}</div>
             <div className="text-xs text-dim max-w-md mx-auto">{t("up.drop.sub")}</div>
           </div>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <input
+              ref={folderInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              accept=".xlsx,.xlsm,.xlsb,.xls,.csv,.tsv,.json,.ndjson,.txt"
+              {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
+              onChange={(e) => { addFiles(e.target.files); e.currentTarget.value = ""; }}
+            />
+            <button type="button" className="btn btn-ghost text-xs" onClick={() => folderInputRef.current?.click()}>
+              <FileSpreadsheet size={14} /> {t("up.folder")}
+            </button>
+            <span className="text-[11px] text-dim">Folder selection keeps nested paths visible in the file list; batches are limited to 12 files.</span>
+          </div>
 
           {/* file list */}
           {files.length > 0 && (
@@ -142,7 +172,7 @@ export default function AnalyzePage() {
                 <div key={p.id} className="panel px-3 py-2.5 flex items-center gap-3">
                   <FileSpreadsheet size={16} className="text-accent shrink-0" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm truncate">{p.file.name}</div>
+                    <div className="text-sm truncate">{p.relativePath ?? p.file.name}</div>
                     <div className="text-[11px] text-dim mono">{fmtBytes(p.file.size)}</div>
                   </div>
                   <button

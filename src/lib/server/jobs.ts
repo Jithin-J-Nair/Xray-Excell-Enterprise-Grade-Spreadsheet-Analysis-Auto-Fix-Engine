@@ -1,7 +1,8 @@
 // ── Server job runners: analysis pipeline & apply/export pipeline ────────────
+import { randomUUID } from "node:crypto";
 import { db } from "@/db";
 import { analyses, auditLogs, files, jobs, previews } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { AnalysisResult, WorkbookModel } from "@/lib/excel/types";
 import { parseFile } from "@/lib/excel/parse";
 import { allModels, analyzeAll, rescoreModel } from "@/lib/excel/analyze";
@@ -13,7 +14,7 @@ import {
   sheetToCsv,
   workbookToXlsxBytes,
 } from "@/lib/excel/serialize";
-import { readBytes, saveBytes, sha256, stamp } from "./storage";
+import { readBytes, saveBytes, sha256, stamp, removeLeaseExportDirectory } from "./storage";
 
 const enc = new TextEncoder();
 
@@ -32,33 +33,36 @@ const HEARTBEAT_MS = Number.isFinite(configuredHeartbeatMs)
   ? Math.max(10_000, Math.min(60_000, configuredHeartbeatMs))
   : 15_000;
 
-async function pushLog(analysisId: string, log: LogLine[], msg: string, progress: number, statusText: string) {
+async function pushLog(analysisId: string, leaseToken: string, log: LogLine[], msg: string, progress: number, statusText: string) {
   log.push({ t: now(), msg });
-  await db
+  const [owned] = await db
     .update(analyses)
     .set({ log, progress, statusText, status: "processing", heartbeatAt: new Date() })
-    .where(eq(analyses.id, analysisId));
+    .where(and(eq(analyses.id, analysisId), eq(analyses.leaseToken, leaseToken), eq(analyses.status, "processing")))
+    .returning({ id: analyses.id });
+  if (!owned) throw new Error("JOB_LEASE_LOST: analysis worker no longer owns the lease.");
 }
 
 export async function runAnalysisJob(analysisId: string): Promise<void> {
   const log: LogLine[] = [];
+  const leaseToken = randomUUID();
   // Atomic claim: the HTTP handler and durable worker may race, but only one
   // runner can transition a queued analysis into processing.
   const [row] = await db
     .update(analyses)
-    .set({ status: "processing", statusText: "Starting", heartbeatAt: new Date() })
+    .set({ status: "processing", statusText: "Starting", heartbeatAt: new Date(), leaseToken, attempts: sql`${analyses.attempts} + 1` })
     .where(and(eq(analyses.id, analysisId), eq(analyses.status, "queued")))
     .returning();
   if (!row) return;
   const heartbeat = setInterval(() => {
     void db.update(analyses)
       .set({ heartbeatAt: new Date() })
-      .where(and(eq(analyses.id, analysisId), eq(analyses.status, "processing")))
-      .catch((error) => console.error("analysis-heartbeat-failed", error));
+      .where(and(eq(analyses.id, analysisId), eq(analyses.status, "processing"), eq(analyses.leaseToken, leaseToken)))
+      .catch(() => console.error("analysis-heartbeat-failed"));
   }, HEARTBEAT_MS);
   heartbeat.unref?.();
   try {
-    await pushLog(analysisId, log, "job: acquired — loading uploaded files", 4, "Loading files");
+    await pushLog(analysisId, leaseToken, log, "job: acquired — loading uploaded files", 4, "Loading files");
     const opts = (row.options ?? {}) as { resolveCrossFile?: boolean; language?: "en" | "jp"; name?: string };
     const fileRows = await db.select().from(files).where(eq(files.uploadId, row.uploadId!));
     if (!fileRows.length) throw new Error("NO_FILES: upload contains no files");
@@ -67,29 +71,31 @@ export async function runAnalysisJob(analysisId: string): Promise<void> {
     let i = 0;
     for (const fr of fileRows) {
       i++;
-      await pushLog(analysisId, log, `parse: ${fr.name} (${(fr.size / 1024).toFixed(1)} KB)`, 6 + i * 6, `Parsing ${fr.name}`);
+      await pushLog(analysisId, leaseToken, log, `parse: input ${i}/${fileRows.length} (${(fr.size / 1024).toFixed(1)} KB)`, 6 + i * 6, `Parsing file ${i} of ${fileRows.length}`);
       const bytes = await readBytes(fr.path);
       const model = await parseFile(fr.id, fr.name, new Uint8Array(bytes));
       models.push(model);
       metas.push({ id: fr.id, name: fr.name, size: fr.size, encoding: model.encoding });
     }
-    await pushLog(analysisId, log, "extract: tokenizing formulas & building tables", 32, "Extracting formulas");
+    await pushLog(analysisId, leaseToken, log, "extract: tokenizing formulas & building tables", 32, "Extracting formulas");
     await new Promise((r) => setImmediate(r));
     const result = analyzeAll(models, metas, {
       language: opts.language ?? "en",
       resolveCrossFile: opts.resolveCrossFile !== false,
       name: opts.name ?? row.name,
     });
-    await pushLog(analysisId, log, `graph: ${result.graph.nodes.length} nodes / ${result.graph.edges.length} edges`, 58, "Building dependency graph");
+    await pushLog(analysisId, leaseToken, log, `graph: ${result.graph.nodes.length} nodes / ${result.graph.edges.length} edges`, 58, "Building dependency graph");
     await new Promise((r) => setImmediate(r));
-    await pushLog(analysisId, log, `scan: ${result.risks.length} findings (${result.metrics.risksBySeverity.critical} critical)`, 76, "Detecting risks");
-    await pushLog(analysisId, log, `score: risk=${result.metrics.riskScore} health=${result.metrics.healthScore}`, 90, "Scoring workbook health");
+    await pushLog(analysisId, leaseToken, log, `scan: ${result.risks.length} findings (${result.metrics.risksBySeverity.critical} critical)`, 76, "Detecting risks");
+    await pushLog(analysisId, leaseToken, log, `score: risk=${result.metrics.riskScore} health=${result.metrics.healthScore}`, 90, "Scoring workbook health");
     // strip the heavyweight raw model duplication (keep main + models for preview/apply)
-    await db
+    log.push({ t: now(), msg: "done: analysis complete" });
+    const [published] = await db
       .update(analyses)
-      .set({ status: "completed", progress: 100, statusText: "Completed", result, completedAt: new Date(), heartbeatAt: null })
-      .where(eq(analyses.id, analysisId));
-    await log2(analysisId, log, "done: analysis complete");
+      .set({ status: "completed", progress: 100, statusText: "Completed", result, log, completedAt: new Date(), heartbeatAt: null, leaseToken: null })
+      .where(and(eq(analyses.id, analysisId), eq(analyses.status, "processing"), eq(analyses.leaseToken, leaseToken)))
+      .returning({ id: analyses.id });
+    if (!published) throw new Error("JOB_LEASE_LOST: analysis result was not published because this worker no longer owns the lease.");
     await audit(analysisId, "analysis.completed", {
       files: metas.length,
       risks: result.risks.length,
@@ -97,20 +103,16 @@ export async function runAnalysisJob(analysisId: string): Promise<void> {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("analysis-failed", msg);
+    if (msg.startsWith("JOB_LEASE_LOST")) return;
+    console.error("analysis-failed", { code: safeJobErrorCode(msg) });
     await db
       .update(analyses)
-      .set({ status: "failed", error: msg, completedAt: new Date(), statusText: "Failed", heartbeatAt: null })
-      .where(eq(analyses.id, analysisId));
-    await audit(analysisId, "analysis.failed", { error: msg });
+      .set({ status: "failed", error: safeJobErrorCode(msg), completedAt: new Date(), statusText: "Failed", heartbeatAt: null, leaseToken: null })
+      .where(and(eq(analyses.id, analysisId), eq(analyses.leaseToken, leaseToken), eq(analyses.status, "processing")));
+    await audit(analysisId, "analysis.failed", { error: safeJobErrorCode(msg) });
   } finally {
     clearInterval(heartbeat);
   }
-}
-
-async function log2(analysisId: string, log: LogLine[], msg: string) {
-  log.push({ t: now(), msg });
-  await db.update(analyses).set({ log }).where(eq(analyses.id, analysisId));
 }
 
 // ── apply / export ───────────────────────────────────────────────────────────
@@ -124,20 +126,38 @@ const MIME: Record<string, string> = {
   patch: "application/json; charset=utf-8",
 };
 
+
+function safeJobErrorCode(message: string): string {
+  const candidate = message.split(":")[0] || "";
+  return /^[A-Z][A-Z0-9_]{0,79}$/.test(candidate) ? candidate : "JOB_FAILED";
+}
+
+async function insertFileForLease(jobId: string, leaseToken: string, values: typeof files.$inferInsert) {
+  return db.transaction(async tx => {
+    const [owned] = await tx.select({ id: jobs.id }).from(jobs).where(and(
+      eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)
+    )).for("update").limit(1);
+    if (!owned) throw new Error("JOB_LEASE_LOST: this worker no longer owns the job lease.");
+    const [row] = await tx.insert(files).values(values).returning();
+    return [row];
+  });
+}
+
 export async function runApplyJob(jobId: string): Promise<void> {
+  const leaseToken = randomUUID();
   // Claim queued jobs atomically so a request-triggered runner and the durable
-  // worker cannot both generate the same exports.
+  // worker cannot both generate the same exports. The token fences all later writes.
   const [job] = await db
     .update(jobs)
-    .set({ status: "running", progress: 10, heartbeatAt: new Date() })
+    .set({ status: "running", progress: 10, heartbeatAt: new Date(), leaseToken, attempts: sql`${jobs.attempts} + 1` })
     .where(and(eq(jobs.id, jobId), eq(jobs.status, "queued")))
     .returning();
   if (!job) return;
   const heartbeat = setInterval(() => {
     void db.update(jobs)
       .set({ heartbeatAt: new Date() })
-      .where(and(eq(jobs.id, jobId), eq(jobs.status, "running")))
-      .catch((error) => console.error("apply-heartbeat-failed", error));
+      .where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)))
+      .catch(() => console.error("apply-heartbeat-failed"));
   }, HEARTBEAT_MS);
   heartbeat.unref?.();
   const analysisId = job.analysisId!;
@@ -169,7 +189,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
     const options = (preview?.options ?? {}) as { minOccurrences?: number };
     const language = (result.language ?? "en") as "en" | "jp";
 
-    await db.update(jobs).set({ progress: 25 }).where(eq(jobs.id, jobId));
+    await db.update(jobs).set({ progress: 25 }).where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)));
     const before = models[0] ? rescoreModel(models[0], { language }) : 0;
     const { models: patched, diffs, summary } = applyTransforms(models, tools, options);
     const after = patched[0] ? rescoreModel(patched[0], { language }) : 0;
@@ -177,7 +197,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
     summary.riskScoreAfter = after;
     summary.risksResolved = Math.max(0, before - after);
 
-    await db.update(jobs).set({ progress: 45 }).where(eq(jobs.id, jobId));
+    await db.update(jobs).set({ progress: 45 }).where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)));
     const outputs: { format: string; fileId: string; name: string; size: number }[] = [];
     const main = patched[0];
     const baseName = (result.files[0]?.name ?? "workbook").replace(/\.[^.]+$/, "");
@@ -200,23 +220,17 @@ export async function runApplyJob(jobId: string): Promise<void> {
       2
     );
     const patchName = `patch_${baseName}_${ts}.json`;
-    const ps = await saveBytes("exports", jobId, patchName, enc.encode(patchDoc));
-    const [patchRow] = await db
-      .insert(files)
-      .values({ jobId, analysisId, kind: "patch", name: patchName, size: enc.encode(patchDoc).byteLength, mime: MIME.patch, path: ps.relPath, sha256: sha256(enc.encode(patchDoc)) })
-      .returning();
-    await db.update(jobs).set({ patchFileId: patchRow.id, progress: 55 }).where(eq(jobs.id, jobId));
+    const ps = await saveBytes("exports", jobId + "-" + leaseToken, patchName, enc.encode(patchDoc));
+    const [patchRow] = await insertFileForLease(jobId, leaseToken, { jobId, analysisId, kind: "patch", name: patchName, size: enc.encode(patchDoc).byteLength, mime: MIME.patch, path: ps.relPath, sha256: sha256(enc.encode(patchDoc)) });
+    await db.update(jobs).set({ patchFileId: patchRow.id, progress: 55 }).where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)));
 
     for (const model of patched) {
       const targetBase = (model.fileName || baseName).replace(/\.[^.]+$/, "");
       if (formats.includes("xlsx")) {
         const bytes = workbookToXlsxBytes(model);
         const name = `fixed_${targetBase}_${ts}.xlsx`;
-        const saved = await saveBytes("exports", jobId, name, bytes);
-        const [row2] = await db
-          .insert(files)
-          .values({ jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.xlsx, path: saved.relPath, sha256: sha256(bytes), meta: { format: "xlsx" } })
-          .returning();
+        const saved = await saveBytes("exports", jobId + "-" + leaseToken, name, bytes);
+        const [row2] = await insertFileForLease(jobId, leaseToken, { jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.xlsx, path: saved.relPath, sha256: sha256(bytes), meta: { format: "xlsx" } });
         outputs.push({ format: "xlsx", fileId: row2.id, name, size: bytes.length });
       }
     }
@@ -226,33 +240,24 @@ export async function runApplyJob(jobId: string): Promise<void> {
       const csv = sheetToCsv(sheet);
       const bytes = enc.encode(csv);
       const name = `${baseName}_${sheet.name}_${ts}.csv`.slice(0, 150);
-      const saved = await saveBytes("exports", jobId, name, bytes);
-      const [row2] = await db
-        .insert(files)
-        .values({ jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.csv, path: saved.relPath, sha256: sha256(bytes), meta: { format: "csv", sheet: sheet.name, bom: true } })
-        .returning();
+      const saved = await saveBytes("exports", jobId + "-" + leaseToken, name, bytes);
+      const [row2] = await insertFileForLease(jobId, leaseToken, { jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.csv, path: saved.relPath, sha256: sha256(bytes), meta: { format: "csv", sheet: sheet.name, bom: true } });
       outputs.push({ format: "csv", fileId: row2.id, name, size: bytes.length });
     }
     if (formats.includes("json")) {
       const json = modelToJson(main, undefined, true);
       const bytes = enc.encode(json);
       const name = `${baseName}_${ts}.json`;
-      const saved = await saveBytes("exports", jobId, name, bytes);
-      const [row2] = await db
-        .insert(files)
-        .values({ jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.json, path: saved.relPath, sha256: sha256(bytes), meta: { format: "json" } })
-        .returning();
+      const saved = await saveBytes("exports", jobId + "-" + leaseToken, name, bytes);
+      const [row2] = await insertFileForLease(jobId, leaseToken, { jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.json, path: saved.relPath, sha256: sha256(bytes), meta: { format: "json" } });
       outputs.push({ format: "json", fileId: row2.id, name, size: bytes.length });
     }
     if (formats.includes("ndjson")) {
       const nd = modelToNdjson(main);
       const bytes = enc.encode(nd);
       const name = `${baseName}_${ts}.ndjson`;
-      const saved = await saveBytes("exports", jobId, name, bytes);
-      const [row2] = await db
-        .insert(files)
-        .values({ jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.ndjson, path: saved.relPath, sha256: sha256(bytes), meta: { format: "ndjson" } })
-        .returning();
+      const saved = await saveBytes("exports", jobId + "-" + leaseToken, name, bytes);
+      const [row2] = await insertFileForLease(jobId, leaseToken, { jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.ndjson, path: saved.relPath, sha256: sha256(bytes), meta: { format: "ndjson" } });
       outputs.push({ format: "ndjson", fileId: row2.id, name, size: bytes.length });
     }
     if (formats.includes("md")) {
@@ -266,18 +271,17 @@ export async function runApplyJob(jobId: string): Promise<void> {
       });
       const bytes = enc.encode(md);
       const name = `report_${baseName}_${ts}.md`;
-      const saved = await saveBytes("exports", jobId, name, bytes);
-      const [row2] = await db
-        .insert(files)
-        .values({ jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.md, path: saved.relPath, sha256: sha256(bytes), meta: { format: "md" } })
-        .returning();
+      const saved = await saveBytes("exports", jobId + "-" + leaseToken, name, bytes);
+      const [row2] = await insertFileForLease(jobId, leaseToken, { jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.md, path: saved.relPath, sha256: sha256(bytes), meta: { format: "md" } });
       outputs.push({ format: "md", fileId: row2.id, name, size: bytes.length });
     }
 
-    await db
+    const [published] = await db
       .update(jobs)
-      .set({ status: "completed", progress: 100, outputs, summary: summary as unknown as Record<string, unknown>, completedAt: new Date(), heartbeatAt: null })
-      .where(eq(jobs.id, jobId));
+      .set({ status: "completed", progress: 100, outputs, summary: summary as unknown as Record<string, unknown>, completedAt: new Date(), heartbeatAt: null, leaseToken: null })
+      .where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)))
+      .returning({ id: jobs.id });
+    if (!published) throw new Error("JOB_LEASE_LOST: output publication was rejected because this worker no longer owns the lease.");
     await audit(analysisId, "apply.completed", {
       jobId,
       tools,
@@ -289,9 +293,12 @@ export async function runApplyJob(jobId: string): Promise<void> {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("apply-failed", msg);
-    await db.update(jobs).set({ status: "failed", error: msg, completedAt: new Date(), heartbeatAt: null }).where(eq(jobs.id, jobId));
-    await audit(analysisId, "apply.failed", { jobId, error: msg });
+    await db.delete(files).where(and(eq(files.jobId, jobId), sql`${files.path} like ${"%" + jobId + "-" + leaseToken + "%"}`)).catch(() => undefined);
+    await removeLeaseExportDirectory(jobId, leaseToken).catch(() => undefined);
+    if (msg.startsWith("JOB_LEASE_LOST")) return;
+    console.error("apply-failed", { jobId, code: safeJobErrorCode(msg) });
+    await db.update(jobs).set({ status: "failed", error: safeJobErrorCode(msg), completedAt: new Date(), heartbeatAt: null, leaseToken: null }).where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)));
+    await audit(analysisId, "apply.failed", { jobId, error: safeJobErrorCode(msg) });
   } finally {
     clearInterval(heartbeat);
   }

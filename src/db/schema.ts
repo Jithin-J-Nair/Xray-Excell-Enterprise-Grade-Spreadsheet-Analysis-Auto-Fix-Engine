@@ -38,6 +38,8 @@ export const analyses = pgTable(
     progress: integer("progress").notNull().default(0),
     statusText: text("status_text").notNull().default(""),
     heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
+    leaseToken: text("lease_token"),
+    attempts: integer("attempts").notNull().default(0),
     log: jsonb("log").notNull().default([]),
     result: jsonb("result"),
     error: text("error"),
@@ -77,6 +79,8 @@ export const jobs = pgTable(
     status: text("status").notNull().default("queued"), // queued | running | completed | failed
     progress: integer("progress").notNull().default(0),
     heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }),
+    leaseToken: text("lease_token"),
+    attempts: integer("attempts").notNull().default(0),
     formats: jsonb("formats").notNull().default([]),
     outputs: jsonb("outputs").notNull().default([]), // [{format,fileId,name,size}]
     patchFileId: uuid("patch_file_id"),

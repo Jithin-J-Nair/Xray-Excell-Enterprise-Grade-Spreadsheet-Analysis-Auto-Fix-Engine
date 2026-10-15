@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { LayoutDashboard, GitFork, AlertOctagon, Grid3X3, Wrench, PackageCheck, RefreshCw, Trash2, ArrowLeft, Terminal } from "lucide-react";
+import { LayoutDashboard, GitFork, AlertOctagon, Grid3X3, Wrench, PackageCheck, RefreshCw, Trash2, ArrowLeft, Terminal, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useI18n } from "@/components/i18n";
 import { ProgressBar, StatusChip, fmtNum } from "@/components/ui";
@@ -13,6 +13,7 @@ import { RisksTab } from "@/components/analysis/risks-tab";
 import { SheetsTab } from "@/components/analysis/sheets-tab";
 import { WorkbenchTab } from "@/components/analysis/workbench-tab";
 import { ExportTab } from "@/components/analysis/export-tab";
+import { EnhancementTab } from "@/components/analysis/enhancement-tab";
 
 const TABS = [
   { key: "overview", icon: LayoutDashboard, labelKey: "an.tabs.overview" },
@@ -21,6 +22,7 @@ const TABS = [
   { key: "sheets", icon: Grid3X3, labelKey: "an.tabs.sheets" },
   { key: "workbench", icon: Wrench, labelKey: "an.tabs.workbench" },
   { key: "export", icon: PackageCheck, labelKey: "an.tabs.export" },
+  { key: "enhancement", icon: Sparkles, labelKey: "an.tabs.enhancement" },
 ] as const;
 
 export default function AnalysisPage() {
@@ -231,6 +233,7 @@ export default function AnalysisPage() {
           {tab === "sheets" && <SheetsTab detail={detail} />}
           {tab === "workbench" && <WorkbenchTab detail={detail} reload={reload} />}
           {tab === "export" && <ExportTab detail={detail} reload={reload} />}
+          {tab === "enhancement" && <EnhancementTab detail={detail} reload={reload} />}
         </motion.div>
       </AnimatePresence>
     </div>
