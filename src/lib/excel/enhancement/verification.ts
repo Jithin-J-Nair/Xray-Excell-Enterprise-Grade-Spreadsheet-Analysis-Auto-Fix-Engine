@@ -3,6 +3,64 @@ import { parseFile } from "../parse";
 import { workbookToXlsxBytes } from "../serialize";
 
 export interface VerificationIssue { code: string; message: string; sheet?: string; cell?: string }
+export interface RecalculationVerificationReport {
+  ok: boolean;
+  engine: "recalculation-structure-comparison";
+  issues: VerificationIssue[];
+  originalFormulaCount: number;
+  recalculatedFormulaCount: number;
+}
+const stable = (value: unknown): string => {
+  if (Array.isArray(value)) return "[" + value.map(stable).join(",") + "]";
+  if (value && typeof value === "object") {
+    const objectValue = value as Record<string, unknown>;
+    return "{" + Object.keys(objectValue).sort().map(key => JSON.stringify(key) + ":" + stable(objectValue[key])).join(",") + "}";
+  }
+  return JSON.stringify(value);
+};
+/**
+ * Compare an engine output against the source model. Formula cached results may change, but
+ * formula locations, formulas, literal cells, styles, number formats, merges, names and feature
+ * markers must remain stable. This does not prove that formula results are Excel-equivalent.
+ */
+export function verifyRecalculatedWorkbook(before: WorkbookModel, after: WorkbookModel): RecalculationVerificationReport {
+  const issues: VerificationIssue[] = [];
+  const formulaEntries = (model: WorkbookModel) => model.sheets.flatMap(sheet =>
+    Object.values(sheet.cells).filter(cell => !!cell.f).map(cell => ({ key: sheet.name + "!" + cell.a, formula: cell.f! }))
+  ).sort((a, b) => a.key.localeCompare(b.key));
+  const beforeFormulas = formulaEntries(before), afterFormulas = formulaEntries(after);
+  if (before.sheets.length !== after.sheets.length) issues.push({ code: "SHEET_COUNT_MISMATCH", message: "Worksheet count changed during recalculation." });
+  const maxSheets = Math.max(before.sheets.length, after.sheets.length);
+  for (let index = 0; index < maxSheets; index++) {
+    const source = before.sheets[index], output = after.sheets[index];
+    if (!source || !output) continue;
+    if (source.name !== output.name) issues.push({ code: "SHEET_NAME_MISMATCH", message: "Worksheet order or name changed.", sheet: source.name });
+    if (source.visibility !== output.visibility) issues.push({ code: "SHEET_VISIBILITY_MISMATCH", message: "Worksheet visibility changed.", sheet: source.name });
+    const mergeKey = (m: { r1: number; c1: number; r2: number; c2: number }) => [m.r1, m.c1, m.r2, m.c2].join(":");
+    if (stable(source.merges.map(mergeKey).sort()) !== stable(output.merges.map(mergeKey).sort())) issues.push({ code: "MERGE_MISMATCH", message: "Merged ranges changed during recalculation.", sheet: source.name });
+    for (const cell of Object.values(source.cells)) {
+      const actual = output.cells[cell.a];
+      if (!actual) { issues.push({ code: "CELL_MISSING", message: "Cell disappeared during recalculation.", sheet: source.name, cell: cell.a }); continue; }
+      if (cell.f) {
+        if (actual.f !== cell.f) issues.push({ code: "FORMULA_CHANGED", message: "Formula text changed during recalculation.", sheet: source.name, cell: cell.a });
+      } else if (cell.t !== actual.t || stable(cell.v) !== stable(actual.v)) {
+        issues.push({ code: "CELL_CONTENT_MISMATCH", message: "A non-formula cell value or type changed during recalculation.", sheet: source.name, cell: cell.a });
+      }
+      if (cell.s && stable(cell.s) !== stable(actual.s ?? null)) issues.push({ code: "STYLE_MISMATCH", message: "Explicit cell style changed during recalculation.", sheet: source.name, cell: cell.a });
+      if (cell.z && cell.z.toLowerCase() !== "general" && cell.z !== actual.z) issues.push({ code: "NUMBER_FORMAT_MISMATCH", message: "Explicit number format changed during recalculation.", sheet: source.name, cell: cell.a });
+    }
+  }
+  if (stable(beforeFormulas.map(item => item.key)) !== stable(afterFormulas.map(item => item.key))) issues.push({ code: "FORMULA_LOCATION_MISMATCH", message: "Formula locations changed during recalculation." });
+  const changedFormula = beforeFormulas.find(item => afterFormulas.find(candidate => candidate.key === item.key)?.formula !== item.formula);
+  if (changedFormula && !issues.some(issue => issue.code === "FORMULA_CHANGED" && issue.cell === changedFormula.key.split("!").pop())) {
+    issues.push({ code: "FORMULA_CHANGED", message: "Formula text changed during recalculation.", cell: changedFormula.key });
+  }
+  const names = (model: WorkbookModel) => (model.names ?? []).filter(name => !name.broken).map(name => [name.name, name.ref, name.sheet ?? null]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  if (stable(names(before)) !== stable(names(after))) issues.push({ code: "DEFINED_NAMES_MISMATCH", message: "Defined names changed during recalculation." });
+  if (stable([...(before.unsupportedFeatures ?? [])].sort()) !== stable([...(after.unsupportedFeatures ?? [])].sort())) issues.push({ code: "FEATURE_MARKERS_CHANGED", message: "Unsupported OOXML feature markers changed during recalculation." });
+  return { ok: issues.length === 0, engine: "recalculation-structure-comparison", issues, originalFormulaCount: beforeFormulas.length, recalculatedFormulaCount: afterFormulas.length };
+}
+
 export interface VerificationReport {
   ok: boolean; engine: "local-parser-roundtrip"; checkedAt: string; bytes: number;
   originalSheets: number; reopenedSheets: number; originalFormulaCount: number; reopenedFormulaCount: number;
@@ -59,6 +117,7 @@ export async function verifyWorkbookExport(model: WorkbookModel, exportedBytes?:
     }
   }
   if (formulas(model) !== formulas(reopened)) issues.push({ code: "FORMULA_COUNT_MISMATCH", message: "Formula count changed during export/reopen." });
+  if (stable([...(model.unsupportedFeatures ?? [])].sort()) !== stable([...(reopened.unsupportedFeatures ?? [])].sort())) issues.push({ code: "FEATURE_MARKERS_CHANGED", message: "Unsupported OOXML feature markers changed during export/reopen." });
   return { ok: issues.length === 0, engine: "local-parser-roundtrip", checkedAt: new Date().toISOString(), bytes: bytes.byteLength,
     originalSheets: model.sheets.length, reopenedSheets: reopened.sheets.length, originalFormulaCount: formulas(model), reopenedFormulaCount: formulas(reopened), issues };
 }
