@@ -30,7 +30,8 @@ const FEATURE_LABELS: Record<Feature, string> = {
 export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; reload: () => Promise<unknown> }) {
   const [features, setFeatures] = useState<Feature[]>(["formatting", "numberFormats"]);
   const [theme, setTheme] = useState<"report" | "financial">("report");
-  const [currencyCode, setCurrencyCode] = useState<"JPY" | "USD" | "EUR" | "GBP" | "CAD" | "AUD">("JPY");\n  const [engine, setEngine] = useState<"excel" | "libreoffice">("excel");
+  const [currencyCode, setCurrencyCode] = useState<"JPY" | "USD" | "EUR" | "GBP" | "CAD" | "AUD">("JPY");
+  const [engine, setEngine = useState<"excel" | "libreoffice">("excel");
   const [refitWidths, setRefitWidths] = useState(true);
   const [confirmFormulaRepairs, setConfirmFormulaRepairs] = useState(false);
   const [busy, setBusy] = useState<Action | null>(null);
