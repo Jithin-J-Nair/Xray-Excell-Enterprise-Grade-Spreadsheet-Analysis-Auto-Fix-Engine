@@ -100,11 +100,17 @@ export function verifyRecalculatedWorkbook(before: WorkbookModel, after: Workboo
       if (!actual) { issues.push({ code: "CELL_MISSING", message: "Cell disappeared during recalculation.", sheet: source.name, cell: cell.a }); continue; }
       if (cell.f) {
         if (actual.f !== cell.f) issues.push({ code: "FORMULA_CHANGED", message: "Formula text changed during recalculation.", sheet: source.name, cell: cell.a });
+        const wasError = cell.t === "e" || (typeof cell.v === "string" && /^#(?:REF!|DIV\\/0!|VALUE!|NAME\\?|N\\/A|NUM!|NULL!|SPILL!|CALC!|FIELD!|BLOCKED!)/i.test(cell.v));
+        const isError = actual.t === "e" || (typeof actual.v === "string" && /^#(?:REF!|DIV\\/0!|VALUE!|NAME\\?|N\\/A|NUM!|NULL!|SPILL!|CALC!|FIELD!|BLOCKED!)/i.test(actual.v));
+        if (isError && !wasError) issues.push({ code: "NEW_FORMULA_ERROR", message: "Recalculation introduced a formula error result.", sheet: source.name, cell: cell.a });
       } else if (cell.t !== actual.t || stable(cell.v) !== stable(actual.v)) {
         issues.push({ code: "CELL_CONTENT_MISMATCH", message: "A non-formula cell value or type changed during recalculation.", sheet: source.name, cell: cell.a });
       }
       if (cell.s && !containsExpected(actual.s ?? null, cell.s)) issues.push({ code: "STYLE_MISMATCH", message: "Explicit cell style properties changed during recalculation.", sheet: source.name, cell: cell.a });
       if (cell.z && cell.z.toLowerCase() !== "general" && cell.z !== actual.z) issues.push({ code: "NUMBER_FORMAT_MISMATCH", message: "Explicit number format changed during recalculation.", sheet: source.name, cell: cell.a });
+    }
+    for (const cell of Object.values(output.cells)) {
+      if (!source.cells[cell.a]) issues.push({ code: "UNEXPECTED_CELL", message: "A new cell appeared during recalculation.", sheet: source.name, cell: cell.a });
     }
   }
   if (stable(beforeFormulas.map(item => item.key)) !== stable(afterFormulas.map(item => item.key))) issues.push({ code: "FORMULA_LOCATION_MISMATCH", message: "Formula locations changed during recalculation." });
@@ -112,7 +118,7 @@ export function verifyRecalculatedWorkbook(before: WorkbookModel, after: Workboo
   if (changedFormula && !issues.some(issue => issue.code === "FORMULA_CHANGED" && issue.cell === changedFormula.key.split("!").pop())) {
     issues.push({ code: "FORMULA_CHANGED", message: "Formula text changed during recalculation.", cell: changedFormula.key });
   }
-  const names = (model: WorkbookModel) => (model.names ?? []).filter(name => !name.broken).map(name => [name.name, name.ref, name.sheet ?? null]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  const names = (model: WorkbookModel) => (model.names ?? []).map(name => [name.name, name.ref, name.sheet ?? null, name.broken]).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
   if (stable(names(before)) !== stable(names(after))) issues.push({ code: "DEFINED_NAMES_MISMATCH", message: "Defined names changed during recalculation." });
   if (stable([...(before.unsupportedFeatures ?? [])].sort()) !== stable([...(after.unsupportedFeatures ?? [])].sort())) issues.push({ code: "FEATURE_MARKERS_CHANGED", message: "Unsupported OOXML feature markers changed during recalculation." });
   return { ok: issues.length === 0, engine: "recalculation-structure-comparison", issues, originalFormulaCount: beforeFormulas.length, recalculatedFormulaCount: afterFormulas.length };
