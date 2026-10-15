@@ -5,5 +5,3 @@ export * from "./formula-repair";
 export * from "./recovery";
 export * from "./batch";
 export * from "./verification";
-export * from "./recalculation";
-export * from "./excel-com-recalculation";
