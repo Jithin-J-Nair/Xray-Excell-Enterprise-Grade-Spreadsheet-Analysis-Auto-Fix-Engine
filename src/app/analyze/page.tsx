@@ -42,7 +42,7 @@ export default function AnalyzePage() {
       relativePath: file.webkitRelativePath || undefined,
       id: `${file.webkitRelativePath || file.name}-${file.size}-${crypto.randomUUID().slice(0, 8)}`,
     }));
-    setErr(null);
+    setErr(skipped ? "Skipped " + skipped + " unsupported file(s) from the selection." : null);
     setFiles((prev) => [...prev, ...next]);
   }, [files.length]);
 
