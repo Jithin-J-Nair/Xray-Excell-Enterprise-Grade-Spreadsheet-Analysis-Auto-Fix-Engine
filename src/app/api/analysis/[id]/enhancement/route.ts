@@ -222,7 +222,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       const saved = await saveBytes("exports", jobId, name, bytes);
       savedOutputs.push({ model, name, bytes, path: saved.relPath });
     }
-    const analysisOptions = (analysis.options ?? {}) as { resolveCrossFile?: boolean };\n    const updatedResult = refreshAnalysisResult(result, transformed.map(item => item.model), analysisOptions.resolveCrossFile !== false);
+    const analysisOptions = (analysis.options ?? {}) as { resolveCrossFile?: boolean };
+    const updatedResult = refreshAnalysisResult(result, transformed.map(item => item.model), analysisOptions.resolveCrossFile !== false);
     await db.transaction(async tx => {
       const [snapshotRow] = await tx.insert(files).values({
         jobId, analysisId: id, kind: "patch", name: "enhancement-recovery.json", size: snapshotBytes.byteLength,
@@ -322,7 +323,9 @@ async function undoEnhancement(analysisId: string, jobId: string) {
       const saved = await saveBytes("exports", jobId + "-undo", name, bytes);
       savedOutputs.push({ model, name, bytes, path: saved.relPath });
     }
-    const previousResult = analysis.result as unknown as AnalysisResult;\n    const analysisOptions = (analysis.options ?? {}) as { resolveCrossFile?: boolean };\n    const updatedResult = refreshAnalysisResult(previousResult, restored, analysisOptions.resolveCrossFile !== false);
+    const previousResult = analysis.result as unknown as AnalysisResult;
+    const analysisOptions = (analysis.options ?? {}) as { resolveCrossFile?: boolean };
+    const updatedResult = refreshAnalysisResult(previousResult, restored, analysisOptions.resolveCrossFile !== false);
     const outputIds: string[] = [];
     await db.transaction(async tx => {
       for (const output of savedOutputs) {
