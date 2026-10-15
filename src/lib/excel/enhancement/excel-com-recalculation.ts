@@ -8,7 +8,7 @@ import { parseFile } from "../parse";
 export interface ExcelComOptions { powershell?: string; timeoutMs?: number }
 export interface ExcelComResult {
   bytes: Uint8Array; engine: "Microsoft Excel COM"; formulasBefore: number; formulasAfter: number;
-  verified: true; preservedFeatures: string[];
+  verifiedStructure: true; preservedFeatures: string[];
 }
 const formulaAddresses = (model: WorkbookModel) => model.sheets.flatMap(s => Object.values(s.cells).filter(c => !!c.f).map(c => s.name + "!" + c.a)).sort();
 function runPowerShell(command: string, args: string[], timeoutMs: number): Promise<{ code: number | null; stdout: string; stderr: string }> {
@@ -81,14 +81,16 @@ export async function recalculateWithMicrosoftExcel(model: WorkbookModel, source
     const reopened = await parseFile(model.fileId, fileName, bytes);
     const before = formulaAddresses(model), after = formulaAddresses(reopened);
     const missing = before.filter(address => !after.includes(address));
-    if (model.sheets.length !== reopened.sheets.length || missing.length || before.length !== after.length) {
-      throw new Error("EXCEL_RECALCULATION_STRUCTURE_MISMATCH: sheet count or formula locations changed.");
+    const changedSheets = model.sheets.some((sheet, index) =>
+      reopened.sheets[index]?.name !== sheet.name || reopened.sheets[index]?.visibility !== sheet.visibility);
+    if (model.sheets.length !== reopened.sheets.length || changedSheets || missing.length || before.length !== after.length) {
+      throw new Error("EXCEL_RECALCULATION_STRUCTURE_MISMATCH: sheet names/visibility or formula locations changed.");
     }
     const oldFeatures = new Set(model.unsupportedFeatures ?? []);
     const newFeatures = new Set(reopened.unsupportedFeatures ?? []);
     const lostFeatures = [...oldFeatures].filter(feature => !newFeatures.has(feature));
     if (lostFeatures.length) throw new Error("EXCEL_RECALCULATION_FEATURE_MISMATCH: feature markers disappeared after save: " + lostFeatures.join(", "));
     return { bytes, engine: "Microsoft Excel COM", formulasBefore: before.length, formulasAfter: after.length,
-      verified: true, preservedFeatures: [...newFeatures] };
+      verifiedStructure: true, preservedFeatures: [...newFeatures] };
   } finally { await rm(root, { recursive: true, force: true }); }
 }
