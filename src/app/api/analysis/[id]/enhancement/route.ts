@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { basename, extname, join } from "node:path";
 import { rm } from "node:fs/promises";
 import { db } from "@/db";
@@ -269,9 +269,17 @@ async function undoEnhancement(analysisId: string, jobId: string) {
   if (!existing.patchFileId) return NextResponse.json({ errorCode: "RECOVERY_SNAPSHOT_MISSING", message: "No recovery snapshot was persisted for this enhancement.", retryable: false }, { status: 410 });
 
   // Atomically claim the undo so duplicate requests cannot create multiple restore outputs.
-  const [job] = await db.update(jobs).set({ status: "running", progress: 10, heartbeatAt: new Date() })
-    .where(and(eq(jobs.id, jobId), eq(jobs.analysisId, analysisId), eq(jobs.kind, "enhancement"), eq(jobs.status, "completed"), eq(jobs.reverted, false)))
-    .returning();
+  const [job] = await db.transaction(async tx => {
+    const [lockedAnalysis] = await tx.select({ id: analyses.id }).from(analyses).where(eq(analyses.id, analysisId)).for("update").limit(1);
+    if (!lockedAnalysis) return [];
+    const [otherActive] = await tx.select({ id: jobs.id }).from(jobs).where(and(
+      eq(jobs.analysisId, analysisId), eq(jobs.kind, "enhancement"), eq(jobs.status, "running"), ne(jobs.id, jobId)
+    )).limit(1);
+    if (otherActive) return [];
+    return tx.update(jobs).set({ status: "running", progress: 10, heartbeatAt: new Date() })
+      .where(and(eq(jobs.id, jobId), eq(jobs.analysisId, analysisId), eq(jobs.kind, "enhancement"), eq(jobs.status, "completed"), eq(jobs.reverted, false)))
+      .returning();
+  });
   if (!job) {
     const [latest] = await db.select().from(jobs).where(eq(jobs.id, jobId)).limit(1);
     if (latest?.reverted) return NextResponse.json({ errorCode: "ALREADY_REVERTED", message: "This enhancement has already been undone.", retryable: false }, { status: 409 });
