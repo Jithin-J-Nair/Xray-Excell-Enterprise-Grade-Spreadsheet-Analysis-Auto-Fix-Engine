@@ -5,7 +5,7 @@ import { basename, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { WorkbookModel } from "../types";
 import { parseFile } from "../parse";
-import { verifyWorkbookExport } from "./verification";
+import { verifyWorkbookExport, verifyRecalculatedWorkbook } from "./verification";
 
 export interface RecalculationOptions { executable?: string; timeoutMs?: number; verify?: boolean }
 export interface RecalculationResult {
@@ -53,16 +53,16 @@ export async function recalculateWithLibreOffice(model: WorkbookModel, sourceByt
     try { bytes = new Uint8Array(await readFile(outputPath)); }
     catch { throw new Error("RECALCULATION_OUTPUT_MISSING: LibreOffice did not create a recalculated workbook."); }
     const reopened = await parseFile(model.fileId, fileName, bytes);
-    const expected = new Set(model.sheets.flatMap(s=>Object.values(s.cells).filter(c=>!!c.f).map(c=>s.name+"!"+c.a)));
-    const actual = new Set(reopened.sheets.flatMap(s=>Object.values(s.cells).filter(c=>!!c.f).map(c=>s.name+"!"+c.a)));
-    const missing = [...expected].filter(a=>!actual.has(a));
-    if (missing.length) throw new Error("RECALCULATION_FORMULAS_LOST: " + missing.slice(0, 20).join(", "));
+    const structure = verifyRecalculatedWorkbook(model, reopened);
+    if (!structure.ok) throw new Error("RECALCULATION_STRUCTURE_MISMATCH: " + structure.issues.slice(0, 20).map(issue => issue.code + " " + issue.message).join("; "));
     const warnings: string[] = ["Calculated by LibreOffice Calc; results may differ from Microsoft Excel for unsupported or proprietary functions."];
     let verified = false;
     if (options.verify ?? true) {
       const report = await verifyWorkbookExport(reopened, bytes);
       verified = report.ok;
-      if (!report.ok) warnings.push("Round-trip verification reported " + report.issues.length + " issue(s).");
+      if (!report.ok) throw new Error("RECALCULATION_ROUNDTRIP_VERIFICATION_FAILED: " + report.issues.slice(0, 20).map(issue => issue.code).join(", "));
+    } else {
+      warnings.push("Local export/reopen verification was disabled by the caller.");
     }
     return { bytes, engine: "LibreOffice Calc", formulasBefore: formulaCount(model), formulasAfter: formulaCount(reopened), verified, warnings };
   } finally { await rm(root, { recursive: true, force: true }); }
