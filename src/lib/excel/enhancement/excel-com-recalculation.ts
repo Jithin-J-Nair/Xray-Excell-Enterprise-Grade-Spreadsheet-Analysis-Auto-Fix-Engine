@@ -2,7 +2,6 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { pathToFileURL } from "node:url";
 import type { WorkbookModel } from "../types";
 import { parseFile } from "../parse";
 
