@@ -35,6 +35,11 @@ export async function recalculateWithLibreOffice(model: WorkbookModel, sourceByt
   if (model.unsupportedFeatures?.length) throw new Error("UNSUPPORTED_WORKBOOK_FEATURES: recalculation blocked to avoid silently damaging " + model.unsupportedFeatures.join(", "));
   if (model.styleMetadataUnavailable) throw new Error("STYLE_METADATA_UNAVAILABLE: refusing recalculation when style fidelity is uncertain.");
   if (!/\.xlsx$/i.test(model.fileName)) throw new Error("RECALCULATION_FORMAT_UNSUPPORTED: only .xlsx workbooks are accepted.");
+  const cells = model.sheets.flatMap(sheet => Object.values(sheet.cells));
+  if (cells.some(cell => cell.f && /\[[^\]]+\][^!]*!/.test(cell.f))) throw new Error("EXTERNAL_LINKS_BLOCKED: LibreOffice recalculation is disabled for formulas referencing external workbooks.");
+  if (cells.some(cell => cell.f && /\b(?:WEBSERVICE|RTD|STOCKHISTORY|FILTERXML|CUBE[A-Z0-9_.]*)\s*\(/i.test(cell.f))) {
+    throw new Error("EXTERNAL_DATA_FUNCTION_BLOCKED: workbook contains a formula that may access external services or data providers.");
+  }
   const root = await mkdtemp(join(tmpdir(), "xray-recalc-"));
   const inputDir = join(root, "in"), outputDir = join(root, "out"), profileDir = join(root, "profile");
   const { mkdir } = await import("node:fs/promises");
