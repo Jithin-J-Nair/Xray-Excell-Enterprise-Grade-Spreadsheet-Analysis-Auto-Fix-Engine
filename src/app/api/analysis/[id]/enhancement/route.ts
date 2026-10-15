@@ -218,7 +218,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       if (lockedModels.length !== initialFingerprints.size || lockedModels.some(model => initialFingerprints.get(model.fileId) !== fingerprintWorkbook(model))) {
         throw new Error("ANALYSIS_STATE_CHANGED: workbook models changed while this request was being prepared; preview again before applying.");
       }
-      const [active] = await tx.select({ id: jobs.id }).from(jobs).where(and(eq(jobs.analysisId, id), eq(jobs.kind, "enhancement"), eq(jobs.status, "running"))).limit(1);
+      const [active] = await tx.select({ id: jobs.id }).from(jobs).where(and(eq(jobs.analysisId, id), inArray(jobs.kind, ["enhancement", "recalculation"]), eq(jobs.status, "running"))).limit(1);
       if (active) throw new Error("ENHANCEMENT_ALREADY_RUNNING");
       const [createdJob] = await tx.insert(jobs).values({
         analysisId: id, kind: "enhancement", status: "running", progress: 5, formats: ["xlsx"],
