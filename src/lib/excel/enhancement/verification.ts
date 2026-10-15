@@ -45,8 +45,12 @@ export async function verifyWorkbookExport(model: WorkbookModel, exportedBytes?:
     for (const cell of Object.values(before.cells)) {
       const actual = after.cells[cell.a];
       if (!actual) { issues.push({ code: "CELL_MISSING", message: "Cell missing after export/reopen.", sheet: before.name, cell: cell.a }); continue; }
-      if (JSON.stringify(cell.s ?? null) !== JSON.stringify(actual.s ?? null)) issues.push({ code: "STYLE_MISMATCH", message: "Cell style changed during export/reopen.", sheet: before.name, cell: cell.a });
-      if ((cell.z ?? null) !== (actual.z ?? null)) issues.push({ code: "NUMBER_FORMAT_MISMATCH", message: "Cell number format changed during export/reopen.", sheet: before.name, cell: cell.a });
+      // Readers may materialize default Excel styles ("General", empty fill/font records) for unstyled cells.
+      // Only compare style metadata that was explicitly present in the source model.
+      if (cell.s && JSON.stringify(cell.s) !== JSON.stringify(actual.s ?? null)) issues.push({ code: "STYLE_MISMATCH", message: "Explicit cell style changed during export/reopen.", sheet: before.name, cell: cell.a });
+      const expectedFormat = cell.z && cell.z.toLowerCase() !== "general" ? cell.z : null;
+      const actualFormat = actual.z && actual.z.toLowerCase() !== "general" ? actual.z : null;
+      if (expectedFormat !== actualFormat) issues.push({ code: "NUMBER_FORMAT_MISMATCH", message: "Explicit cell number format changed during export/reopen.", sheet: before.name, cell: cell.a });
       if (!cell.f && (cell.v !== null || cell.t !== "z") && (cell.t !== actual.t || JSON.stringify(cell.v) !== JSON.stringify(actual.v))) {
         issues.push({ code: "CELL_CONTENT_MISMATCH", message: "Cell value or type changed during export/reopen.", sheet: before.name, cell: cell.a });
       }
