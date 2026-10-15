@@ -5,7 +5,8 @@ export interface OoxmlPackageEntry {
 
 const PART_RULES: Array<[RegExp, string]> = [
   [/^_xmlsignatures\//i, "digital signatures"],
-  [/^xl\/vbaProject(?:Signature)?\.bin$/i, (path => /signature/i.test(path) ? "digital signatures" : "VBA macros") as unknown as string],
+  [/^xl\/vbaProjectSignature\.bin$/i, "digital signatures"],
+  [/^xl\/vbaProject\.bin$/i, "VBA macros"],
   [/^xl\/charts\//i, "charts"],
   [/^xl\/pivotTables\//i, "pivot tables"],
   [/^xl\/pivotCache\//i, "pivot caches"],
