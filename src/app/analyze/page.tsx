@@ -27,7 +27,7 @@ export default function AnalyzePage() {
   const addFiles = useCallback((list: FileList | null) => {
     if (!list || list.length === 0) return;
     const selected = Array.from(list);
-    const incoming = selected.filter(file => /\\.(xlsx|xlsm|xlsb|xls|csv|tsv|json|ndjson|txt)$/i.test(file.name));
+    const incoming = selected.filter(file => /\.(xlsx|xlsm|xlsb|xls|csv|tsv|json|ndjson|txt)$/i.test(file.name));
     if (incoming.length === 0) {
       setErr("No supported spreadsheet or data files were found in that selection.");
       return;
