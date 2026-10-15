@@ -2,7 +2,7 @@ import type { CellModel, WorkbookModel } from "../types";
 
 export type InferredColumnType = "empty" | "text" | "number" | "date" | "boolean" | "mixed";
 export interface QualityFinding {
-  code: "MIXED_TYPES" | "NUMBER_AS_TEXT" | "DATE_AS_TEXT" | "INVALID_DATE_TEXT" | "SUSPICIOUS_NEGATIVE" | "POSSIBLE_DUPLICATE_ROW" | "MISSING_KEY";
+  code: "MIXED_TYPES" | "NUMBER_AS_TEXT" | "DATE_AS_TEXT" | "INVALID_DATE_TEXT" | "TEXT_WHITESPACE" | "FULLWIDTH_TEXT" | "FORMULA_ERROR" | "SUSPICIOUS_NEGATIVE" | "POSSIBLE_DUPLICATE_ROW" | "MISSING_KEY";
   severity: "info" | "warning" | "error";
   sheet: string;
   cell?: string;
@@ -83,6 +83,21 @@ export function profileWorkbookQuality(model: WorkbookModel, options: QualityOpt
 
       for (const cell of cells) {
         const type = typeOf(cell);
+        if (typeof cell.v === "string" && cell.v !== cell.v.trim()) findings.push({
+          code: "TEXT_WHITESPACE", severity: "warning", sheet: sheet.name, cell: cell.a, column,
+          message: "Text contains leading or trailing whitespace; review before trimming because whitespace can be meaningful.",
+          evidence: { value: cell.v, suggestedValue: cell.v.trim(), header }, repairable: false
+        });
+        if (typeof cell.v === "string" && /[\\uFF01-\\uFF5E\\u3000]/u.test(cell.v)) findings.push({
+          code: "FULLWIDTH_TEXT", severity: "info", sheet: sheet.name, cell: cell.a, column,
+          message: "Text contains full-width compatibility characters; normalization may change identifiers or user-entered text.",
+          evidence: { value: cell.v, suggestedValue: cell.v.normalize("NFKC"), header }, repairable: false
+        });
+        if (cell.t === "e" || (typeof cell.v === "string" && /^#(?:REF!|DIV\\/0!|VALUE!|NAME\\?|N\\/A|NUM!|NULL!|SPILL!|CALC!|FIELD!|BLOCKED!)/i.test(cell.v))) findings.push({
+          code: "FORMULA_ERROR", severity: "error", sheet: sheet.name, cell: cell.a, column,
+          message: "Cell contains an Excel error value; inspect the formula, references and input data.",
+          evidence: { value: typeof cell.v === "string" ? cell.v : null, formula: cell.f ?? null, header }, repairable: false
+        });
         if (type === "numeric-text") findings.push({
           code: "NUMBER_AS_TEXT", severity: "info", sheet: sheet.name, cell: cell.a, column,
           message: "Numeric-looking text may need normalization; locale and identifier semantics require review.",
