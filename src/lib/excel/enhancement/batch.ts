@@ -13,6 +13,8 @@ export async function processWorkbookBatch<T>(files: readonly BatchInput[], proc
   const concurrency = options.concurrency ?? 2, maxFiles = options.maxFiles ?? 50;
   const maxBytes = options.maxBytesPerFile ?? 50 * 1024 * 1024, maxTotal = options.maxTotalBytes ?? 200 * 1024 * 1024;
   if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 8) throw new Error("INVALID_BATCH_CONCURRENCY: expected an integer from 1 to 8.");
+  if (!Number.isInteger(maxFiles) || maxFiles < 1) throw new Error("INVALID_BATCH_FILE_LIMIT: maxFiles must be a positive integer.");
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || !Number.isSafeInteger(maxTotal) || maxTotal < 1) throw new Error("INVALID_BATCH_BYTE_LIMIT: byte limits must be positive safe integers.");
   if (files.length > maxFiles) throw new Error("BATCH_FILE_LIMIT_EXCEEDED");
   const names = new Set<string>();
   let total = 0;
@@ -20,7 +22,7 @@ export async function processWorkbookBatch<T>(files: readonly BatchInput[], proc
     const safeName = file.name.replace(/\\/g, "/");
     const parts = safeName.split("/");
     if (!safeName || safeName.startsWith("/") || /^[A-Za-z]:/.test(safeName) ||
-        parts.some(part => !part || part === "." || part === ".." || part.includes("\\0"))) {
+        parts.some(part => !part || part === "." || part === ".." || part.includes("\0"))) {
       throw new Error("UNSAFE_BATCH_FILENAME");
     }
     if (names.has(safeName.toLocaleLowerCase())) throw new Error("DUPLICATE_BATCH_FILENAME: " + safeName);
