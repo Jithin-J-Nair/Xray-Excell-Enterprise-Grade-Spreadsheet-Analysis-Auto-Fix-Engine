@@ -23,7 +23,12 @@ function validDateText(value: string): boolean {
   const match = western ?? japanese;
   if (!match) return false;
   const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
-  const date = new Date(Date.UTC(year, month - 1, day));
+  // Date.UTC remaps years 0–99 to 1900–1999. Build from an epoch and set the
+  // full year explicitly so valid early years are not misclassified as impossible dates.
+  if (year < 1) return false;
+  const date = new Date(0);
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCFullYear(year, month - 1, day);
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
 }
 function typeOf(cell: CellModel): string {
