@@ -36,6 +36,23 @@ export function verifyRecalculatedWorkbook(before: WorkbookModel, after: Workboo
     if (!source || !output) continue;
     if (source.name !== output.name) issues.push({ code: "SHEET_NAME_MISMATCH", message: "Worksheet order or name changed.", sheet: source.name });
     if (source.visibility !== output.visibility) issues.push({ code: "SHEET_VISIBILITY_MISMATCH", message: "Worksheet visibility changed.", sheet: source.name });
+    if (source.rows !== output.rows || source.cols !== output.cols) issues.push({ code: "SHEET_DIMENSION_MISMATCH", message: "Worksheet used dimensions changed.", sheet: source.name });
+    for (let column = 0; column < (source.columnWidths?.length ?? 0); column++) {
+      const expected = source.columnWidths?.[column], actual = output.columnWidths?.[column];
+      if (!expected) continue;
+      if (expected.hidden !== undefined && expected.hidden !== actual?.hidden) issues.push({ code: "COLUMN_VISIBILITY_MISMATCH", message: "Explicit column hidden state changed.", sheet: source.name, cell: String(column + 1) });
+      const expectedWidth = expected.wch ?? (expected.wpx === undefined ? undefined : expected.wpx / 7);
+      const actualWidth = actual?.wch ?? (actual?.wpx === undefined ? undefined : actual.wpx / 7);
+      if (expectedWidth !== undefined && (actualWidth === undefined || Math.abs(expectedWidth - actualWidth) > 1.5)) issues.push({ code: "COLUMN_WIDTH_MISMATCH", message: "Explicit column width changed.", sheet: source.name, cell: String(column + 1) });
+    }
+    for (let row = 0; row < (source.rowHeights?.length ?? 0); row++) {
+      const expected = source.rowHeights?.[row], actual = output.rowHeights?.[row];
+      if (!expected) continue;
+      if (expected.hidden !== undefined && expected.hidden !== actual?.hidden) issues.push({ code: "ROW_VISIBILITY_MISMATCH", message: "Explicit row hidden state changed.", sheet: source.name, cell: String(row + 1) });
+      const expectedHeight = expected.hpt ?? (expected.hpx === undefined ? undefined : expected.hpx * 0.75);
+      const actualHeight = actual?.hpt ?? (actual?.hpx === undefined ? undefined : actual.hpx * 0.75);
+      if (expectedHeight !== undefined && (actualHeight === undefined || Math.abs(expectedHeight - actualHeight) > 1.0)) issues.push({ code: "ROW_HEIGHT_MISMATCH", message: "Explicit row height changed.", sheet: source.name, cell: String(row + 1) });
+    }
     const mergeKey = (m: { r1: number; c1: number; r2: number; c2: number }) => [m.r1, m.c1, m.r2, m.c2].join(":");
     if (stable(source.merges.map(mergeKey).sort()) !== stable(output.merges.map(mergeKey).sort())) issues.push({ code: "MERGE_MISMATCH", message: "Merged ranges changed during recalculation.", sheet: source.name });
     for (const cell of Object.values(source.cells)) {
