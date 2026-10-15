@@ -78,15 +78,23 @@ export function inspectNumberFormats(model: WorkbookModel, options: FormatRepair
         confidence = Math.min(confidence, 0.49);
         reason += " Existing number format differs and may be intentional.";
       }
-      const applied = options.apply === true && confidence >= (options.minConfidence ?? 0.9) && (!cell.z || options.overwriteExisting === true);
-      if (applied) cell.z = proposed;
-      findings.push({ sheet: sheet.name, cell: cell.a, kind, currentFormat: cell.z === proposed && applied ? null : cell.z ?? null, proposedFormat: proposed, confidence, reason, applied });
+      // Inspection is always read-only. Applying changes is a separate explicit operation.
+      findings.push({ sheet: sheet.name, cell: cell.a, kind, currentFormat: cell.z ?? null, proposedFormat: proposed, confidence, reason, applied: false });
     }
   }
   return findings;
 }
 export function repairNumberFormats(model: WorkbookModel, options: FormatRepairOptions = {}): { model: WorkbookModel; findings: FormatFinding[] } {
   const copy = clone(model);
-  const findings = inspectNumberFormats(copy, { ...options, apply: options.apply ?? true });
-  return { model: copy, findings };
+  const findings = inspectNumberFormats(copy, options);
+  const minConfidence = options.minConfidence ?? 0.9;
+  const applied = findings.map(finding => {
+    const sheet = copy.sheets.find(s => s.name === finding.sheet);
+    const cell = sheet?.cells[finding.cell];
+    const allowed = (options.apply ?? true) && finding.confidence >= minConfidence &&
+      (!finding.currentFormat || options.overwriteExisting === true);
+    if (allowed && cell) cell.z = finding.proposedFormat;
+    return { ...finding, applied: !!(allowed && cell) };
+  });
+  return { model: copy, findings: applied };
 }
