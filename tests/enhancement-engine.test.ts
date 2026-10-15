@@ -9,6 +9,7 @@ import { workbookToXlsxBytes } from "../src/lib/excel/serialize";
 import * as XLSX from "@redoper1/xlsx-js-style";
 import { proposeFormulaRepairs } from "../src/lib/excel/enhancement/formula-repair";
 import { processWorkbookDirectory } from "../src/lib/excel/enhancement/batch-directory";
+import { recalculateWithLibreOffice } from "../src/lib/excel/enhancement/recalculation";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -307,4 +308,14 @@ it("rejects changed OOXML relationship targets even when hyperlink markers remai
   const report = verifyProtectedPackageParts(sourceBytes, outputBytes);
   assert.equal(report.ok, false, "relationship target changes must fail fidelity verification");
   assert.ok(report.changedFeatureMarkers?.some(marker => marker.includes(".rels") && marker.includes("relationship entries changed")), JSON.stringify(report));
+});
+
+
+it("reports a missing LibreOffice installation with a stable safe error code", async () => {
+  const model = fixture();
+  const bytes = workbookToXlsxBytes(model);
+  await assert.rejects(
+    () => recalculateWithLibreOffice(model, bytes, { executable: "xray-test-missing-soffice-binary", timeoutMs: 1000 }),
+    /RECALCULATION_ENGINE_UNAVAILABLE/
+  );
 });
