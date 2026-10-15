@@ -67,7 +67,7 @@ export function inspectNumberFormats(model: WorkbookModel, options: FormatRepair
           reason = "Header suggests a rate and values are within [0,1]; verify the workbook's unit convention before applying.";
         }
       } else if (CURRENCY_HEADER.test(header)) {
-        kind = "currency"; proposed = CURRENCY_FORMAT[currency]; confidence = options.currencyCode ? 0.86 : 0.62;
+        kind = "currency"; proposed = CURRENCY_FORMAT[currency]; confidence = options.currencyCode ? 0.91 : 0.62;
         reason = options.currencyCode ? "Currency explicitly configured by caller." : "Header suggests currency, but currency cannot be inferred reliably.";
       } else if (INTEGER_HEADER.test(header) && Number.isInteger(cell.v)) {
         kind = "integer"; proposed = "#,##0;[Red](#,##0)"; confidence = 0.88;
