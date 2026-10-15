@@ -59,7 +59,7 @@ export async function recalculateWithLibreOffice(model: WorkbookModel, sourceByt
     catch { throw new Error("RECALCULATION_OUTPUT_MISSING: LibreOffice did not create a recalculated workbook."); }
     const reopened = await parseFile(model.fileId, fileName, bytes);
     const structure = verifyRecalculatedWorkbook(model, reopened);
-    if (!structure.ok) throw new Error("RECALCULATION_STRUCTURE_MISMATCH: " + structure.issues.slice(0, 20).map(issue => issue.code + " " + issue.message).join("; "));
+    if (!structure.ok) throw new Error("RECALCULATION_STRUCTURE_MISMATCH: " + structure.issues.slice(0, 20).map(issue => [issue.code, issue.sheet ? "sheet=" + issue.sheet : "", issue.cell ? "cell=" + issue.cell : ""].filter(Boolean).join(" ")).join("; "));
     const warnings: string[] = ["Calculated by LibreOffice Calc; results may differ from Microsoft Excel for unsupported or proprietary functions."];
     let verified = false;
     if (options.verify ?? true) {
