@@ -55,7 +55,7 @@ const RELATIONSHIP_RULES: Array<[RegExp, string]> = [
 
 function attribute(tag: string, name: string): string | undefined {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return tag.match(new RegExp("(?:^|\\s)" + escaped + "\\s*=\\s*([\\"'])(.*?)\\1", "i"))?.[2];
+  return tag.match(new RegExp("(?:^|\\s)" + escaped + "\\s*=\\s*(['\"])(.*?)\\1", "i"))?.[2];
 }
 
 /**
@@ -67,7 +67,7 @@ function attribute(tag: string, name: string): string | undefined {
 export function detectOoxmlUnsupportedFeatures(entries: OoxmlPackageEntry[]): string[] {
   const features = new Set<string>();
   const normalized = entries.map(entry => ({ ...entry, path: entry.path.replace(/^\/+/, "") }));
-  const byPath = new Map(normalized.map(entry => [entry.path.toLowerCase(), entry]));
+  const byPath = new Map(normalized.map(entry => [entry.path.toLowerCase(), entry] as const));
   for (const entry of normalized) {
     for (const [pattern, feature] of PART_RULES) {
       if (pattern.test(entry.path)) {
