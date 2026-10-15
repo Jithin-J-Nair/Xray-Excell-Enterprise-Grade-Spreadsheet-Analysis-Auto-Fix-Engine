@@ -3,7 +3,8 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import type { WorkbookModel } from "../types";
-import { parseFile } from "../parse";\nimport { verifyRecalculatedWorkbook, verifyProtectedPackageParts } from "./verification";
+import { parseFile } from "../parse";
+import { verifyRecalculatedWorkbook, verifyProtectedPackageParts } from "./verification";
 
 export interface ExcelComOptions { powershell?: string; timeoutMs?: number }
 export interface ExcelComResult {
