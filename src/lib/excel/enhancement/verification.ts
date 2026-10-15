@@ -43,13 +43,16 @@ export async function verifyWorkbookExport(model: WorkbookModel, exportedBytes?:
       if (!actual?.f) issues.push({ code: "FORMULA_LOST", message: "Formula missing after export/reopen.", sheet: before.name, cell: cell.a });
       else if (actual.f !== cell.f) issues.push({ code: "FORMULA_CHANGED", message: "Formula text changed during export/reopen.", sheet: before.name, cell: cell.a });
     }
-    if (before.merges.length !== after.merges.length) issues.push({ code: "MERGE_MISMATCH", message: "Merged-range count changed.", sheet: before.name });
+    const mergeKey = (m: { r1: number; c1: number; r2: number; c2: number }) => [m.r1,m.c1,m.r2,m.c2].join(":");
+    const beforeMerges = before.merges.map(mergeKey).sort(), afterMerges = after.merges.map(mergeKey).sort();
+    if (JSON.stringify(beforeMerges) !== JSON.stringify(afterMerges)) issues.push({ code: "MERGE_MISMATCH", message: "Merged-range coordinates changed.", sheet: before.name });
     for (const cell of Object.values(before.cells)) {
       const actual = after.cells[cell.a];
       if (!actual) { issues.push({ code: "CELL_MISSING", message: "Cell missing after export/reopen.", sheet: before.name, cell: cell.a }); continue; }
-      if (cell.v !== null && cellSignature(cell) !== cellSignature(actual)) {
-        // Formula caches can be normalized by readers; formula presence/text is checked separately.
-        if (!(cell.f && actual.f === cell.f)) issues.push({ code: "CELL_CONTENT_MISMATCH", message: "Cell value/type/style/number format changed.", sheet: before.name, cell: cell.a });
+      if (JSON.stringify(cell.s ?? null) !== JSON.stringify(actual.s ?? null)) issues.push({ code: "STYLE_MISMATCH", message: "Cell style changed during export/reopen.", sheet: before.name, cell: cell.a });
+      if ((cell.z ?? null) !== (actual.z ?? null)) issues.push({ code: "NUMBER_FORMAT_MISMATCH", message: "Cell number format changed during export/reopen.", sheet: before.name, cell: cell.a });
+      if (!cell.f && (cell.v !== null || cell.t !== "z") && (cell.t !== actual.t || JSON.stringify(cell.v) !== JSON.stringify(actual.v))) {
+        issues.push({ code: "CELL_CONTENT_MISMATCH", message: "Cell value or type changed during export/reopen.", sheet: before.name, cell: cell.a });
       }
     }
   }
