@@ -12,7 +12,8 @@ import { GraphTab } from "@/components/analysis/graph-tab";
 import { RisksTab } from "@/components/analysis/risks-tab";
 import { SheetsTab } from "@/components/analysis/sheets-tab";
 import { WorkbenchTab } from "@/components/analysis/workbench-tab";
-import { ExportTab } from "@/components/analysis/export-tab";\nimport { EnhancementTab } from "@/components/analysis/enhancement-tab";
+import { ExportTab } from "@/components/analysis/export-tab";
+import { EnhancementTab } from "@/components/analysis/enhancement-tab";
 
 const TABS = [
   { key: "overview", icon: LayoutDashboard, labelKey: "an.tabs.overview" },
@@ -20,7 +21,8 @@ const TABS = [
   { key: "risks", icon: AlertOctagon, labelKey: "an.tabs.risks" },
   { key: "sheets", icon: Grid3X3, labelKey: "an.tabs.sheets" },
   { key: "workbench", icon: Wrench, labelKey: "an.tabs.workbench" },
-  { key: "export", icon: PackageCheck, labelKey: "an.tabs.export" },\n  { key: "enhancement", icon: Sparkles, labelKey: "an.tabs.enhancement" },
+  { key: "export", icon: PackageCheck, labelKey: "an.tabs.export" },
+  { key: "enhancement", icon: Sparkles, labelKey: "an.tabs.enhancement" },
 ] as const;
 
 export default function AnalysisPage() {
