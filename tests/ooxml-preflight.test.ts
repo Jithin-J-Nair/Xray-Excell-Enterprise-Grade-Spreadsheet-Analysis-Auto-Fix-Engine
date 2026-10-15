@@ -1,6 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { detectOoxmlUnsupportedFeatures } from "../src/lib/excel/ooxml-preflight";
+import ExcelJS from "exceljs";
+import { parseFile } from "../src/lib/excel/parse";
 
 describe("relationship-aware OOXML preflight", () => {
   it("detects workbook features from relationship types even when target names are nonstandard", () => {
@@ -37,5 +39,21 @@ describe("relationship-aware OOXML preflight", () => {
       { path: "xl/odd-cache.xml", text: "<pivotCacheDefinition/>" }
     ]);
     assert.ok(features.includes("pivot caches"), features.join(", "));
+  });
+
+  it("blocks features in an actual generated XLSX package, not only synthetic XML snippets", async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Business report");
+    sheet.getCell("A1").value = { text: "Open report", hyperlink: "https://example.com/report" };
+    sheet.getCell("B2").dataValidation = { type: "list", formulae: ['"Open,Closed"'] };
+    sheet.addConditionalFormatting({
+      ref: "C2:C10",
+      rules: [{ type: "cellIs", operator: "greaterThan", formulae: [100], style: { font: { bold: true } } }],
+    });
+    const bytes = new Uint8Array(await workbook.xlsx.writeBuffer());
+    const model = await parseFile("ooxml-fixture", "business-report.xlsx", bytes);
+    for (const feature of ["hyperlinks", "data validation rules", "conditional formatting"]) {
+      assert.ok(model.unsupportedFeatures?.includes(feature), "feature should fail closed: " + feature + "; detected: " + (model.unsupportedFeatures ?? []).join(", "));
+    }
   });
 });
