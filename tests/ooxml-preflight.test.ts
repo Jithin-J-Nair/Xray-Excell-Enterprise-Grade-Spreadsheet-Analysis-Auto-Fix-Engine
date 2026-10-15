@@ -48,7 +48,7 @@ describe("relationship-aware OOXML preflight", () => {
     sheet.getCell("B2").dataValidation = { type: "list", formulae: ['"Open,Closed"'] };
     sheet.addConditionalFormatting({
       ref: "C2:C10",
-      rules: [{ type: "cellIs", operator: "greaterThan", formulae: [100], style: { font: { bold: true } } }],
+      rules: [{ type: "cellIs", priority: 1, operator: "greaterThan", formulae: [100], style: { font: { bold: true } } }],
     });
     const bytes = new Uint8Array(await workbook.xlsx.writeBuffer());
     const model = await parseFile("ooxml-fixture", "business-report.xlsx", bytes);
