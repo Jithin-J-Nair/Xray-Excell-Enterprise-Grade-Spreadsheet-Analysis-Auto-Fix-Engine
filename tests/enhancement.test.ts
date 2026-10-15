@@ -2,7 +2,8 @@ import {describe,it} from "node:test";
 import assert from "node:assert/strict";
 import type {WorkbookModel} from "../src/lib/excel/types";
 import {applyFormattingTheme,inspectStyleConsistency} from "../src/lib/excel/enhancement/formatting";
-import {profileWorkbookQuality} from "../src/lib/excel/enhancement/data-quality";\nimport {verifyWorkbookExport} from "../src/lib/excel/enhancement/verification";
+import {profileWorkbookQuality} from "../src/lib/excel/enhancement/data-quality";
+import {verifyWorkbookExport} from "../src/lib/excel/enhancement/verification";
 function fixture():WorkbookModel{return {fileId:"f",fileName:"fixture.xlsx",names:[],sheets:[{name:"Sales",visibility:"visible",rows:4,cols:3,merges:[],cells:{
 A1:{a:"A1",r:0,c:0,t:"s",v:"Item"},B1:{a:"B1",r:0,c:1,t:"s",v:"Quantity"},C1:{a:"C1",r:0,c:2,t:"s",v:"Date"},
 A2:{a:"A2",r:1,c:0,t:"s",v:"Widget",s:{font:{bold:true,color:{rgb:"FF00FF00"}}}},B2:{a:"B2",r:1,c:1,t:"s",v:"12"},C2:{a:"C2",r:1,c:2,t:"s",v:"2024-03-01"},
