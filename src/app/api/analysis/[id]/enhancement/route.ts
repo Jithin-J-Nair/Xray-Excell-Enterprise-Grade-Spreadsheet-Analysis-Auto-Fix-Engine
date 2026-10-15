@@ -215,7 +215,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
     jobId = created.id;
 
-    const snapshots = models.map(model => createRecoverySnapshot(model));
+    const snapshots = models.map((model, index) => preflight[index] ? null : createRecoverySnapshot(model));
     const transformed: Array<{ model: WorkbookModel; changes: { formatting: number; numberFormats: number; formulaRepairs: number }; blockedReason: string | null }> = models.map((model, index) => {
       const blockedReason = preflight[index];
       if (blockedReason) return { model, changes: { formatting: 0, numberFormats: 0, formulaRepairs: 0 }, blockedReason };
@@ -224,7 +224,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const reports = await Promise.all(transformed.filter(item => !item.blockedReason).map(async item => ({ model: item.model, changes: item.changes, report: await verifyWorkbookExport(item.model) })));
     const failed = reports.find(item => !item.report.ok);
     if (failed) throw new Error("ENHANCEMENT_VERIFICATION_FAILED: " + failed.model.fileName + ": " + failed.report.issues.slice(0, 8).map(issue => issue.code + " " + issue.message).join("; "));
-    const sealedSnapshots = snapshots.map((snapshot, index) => sealRecoverySnapshot(snapshot, transformed[index].model));
+    const sealedSnapshots = snapshots.flatMap((snapshot, index) => snapshot ? [sealRecoverySnapshot(snapshot, transformed[index].model)] : []);
     const snapshotJson = JSON.stringify({ schemaVersion: 1, snapshots: sealedSnapshots });
     const snapshotBytes = new TextEncoder().encode(snapshotJson);
     const savedSnapshot = await saveBytes("patches", jobId, "enhancement-recovery.json", snapshotBytes);
@@ -331,6 +331,8 @@ async function undoEnhancement(analysisId: string, jobId: string) {
       if (!match) throw new Error("RECOVERY_CONFLICT: current workbook is missing from analysis state.");
       return undoWorkbook(snapshot, match);
     });
+    const restoredById = new Map(restored.map(model => [model.fileId, model]));
+    const allRestored = current.map(model => restoredById.get(model.fileId) ?? model);
     for (const model of restored) {
       const report = await verifyWorkbookExport(model);
       if (!report.ok) throw new Error("RECOVERY_VERIFICATION_FAILED: " + model.fileName + ": " + report.issues.slice(0, 5).map(issue => issue.code).join(", "));
@@ -343,7 +345,7 @@ async function undoEnhancement(analysisId: string, jobId: string) {
     }
     const previousResult = analysis.result as unknown as AnalysisResult;
     const analysisOptions = (analysis.options ?? {}) as { resolveCrossFile?: boolean };
-    const updatedResult = refreshAnalysisResult(previousResult, restored, analysisOptions.resolveCrossFile !== false);
+    const updatedResult = refreshAnalysisResult(previousResult, allRestored, analysisOptions.resolveCrossFile !== false);
     const outputIds: string[] = [];
     await db.transaction(async tx => {
       for (const output of savedOutputs) {
