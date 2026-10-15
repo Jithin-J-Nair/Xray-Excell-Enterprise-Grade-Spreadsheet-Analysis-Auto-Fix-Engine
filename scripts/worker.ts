@@ -52,6 +52,12 @@ async function cleanupUnreferencedLeaseDirectories(): Promise<void> {
     let modifiedAt = 0;
     try { modifiedAt = (await stat(directory)).mtimeMs; } catch { continue; }
     if (Date.now() - modifiedAt < staleMs) continue;
+    const jobId = entry.name.slice(0, 36);
+    const leaseToken = entry.name.slice(37);
+    const [activeLease] = await db.select({ id: jobs.id }).from(jobs).where(and(
+      eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)
+    )).limit(1);
+    if (activeLease) continue;
     const [referenced] = await db.select({ id: files.id }).from(files).where(like(files.path, "%" + entry.name + "%")).limit(1);
     if (!referenced) await rm(directory, { recursive: true, force: true }).catch(() => undefined);
   }
