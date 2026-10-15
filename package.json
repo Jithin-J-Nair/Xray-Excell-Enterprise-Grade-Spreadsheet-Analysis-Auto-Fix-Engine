@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "test:unit": "node --import tsx --test tests/formula.test.ts tests/graph-state.test.ts tests/serialize.test.ts tests/storage.test.ts tests/parse.test.ts tests/transform.test.ts tests/proxy.test.ts tests/request-limits.test.ts tests/enhancement.test.ts tests/enhancement-engine.test.ts tests/job-policy.test.ts tests/ooxml-preflight.test.ts",
     "test:integration": "node --import tsx --test tests/download.test.ts tests/delete-analysis.test.ts tests/upload.test.ts",
-    "validate:fixes": "node --import tsx scripts/validate-fixes.mjs"
+    "validate:fixes": "node --import tsx scripts/validate-fixes.mjs",
+    "verify:libreoffice": "node --import tsx scripts/verify-libreoffice.ts",
+    "verify:excel-com": "node --import tsx scripts/verify-excel-com.ts"
   },
   "dependencies": {
     "@types/dagre": "^0.7.54",
