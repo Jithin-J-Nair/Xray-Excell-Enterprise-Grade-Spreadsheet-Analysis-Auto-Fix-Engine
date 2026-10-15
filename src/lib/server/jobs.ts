@@ -104,9 +104,9 @@ export async function runAnalysisJob(analysisId: string): Promise<void> {
     console.error("analysis-failed", { code: msg.split(":")[0].slice(0, 80) });
     await db
       .update(analyses)
-      .set({ status: "failed", error: msg, completedAt: new Date(), statusText: "Failed", heartbeatAt: null })
+      .set({ status: "failed", error: safeJobErrorCode(msg), completedAt: new Date(), statusText: "Failed", heartbeatAt: null, leaseToken: null })
       .where(and(eq(analyses.id, analysisId), eq(analyses.leaseToken, leaseToken), eq(analyses.status, "processing")));
-    await audit(analysisId, "analysis.failed", { error: msg });
+    await audit(analysisId, "analysis.failed", { error: safeJobErrorCode(msg) });
   } finally {
     clearInterval(heartbeat);
   }
@@ -289,7 +289,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("apply-failed", { jobId, code: msg.split(":")[0].slice(0, 80) });
     await db.update(jobs).set({ status: "failed", error: safeJobErrorCode(msg), completedAt: new Date(), heartbeatAt: null, leaseToken: null }).where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)));
-    await audit(analysisId, "apply.failed", { jobId, error: msg });
+    await audit(analysisId, "apply.failed", { jobId, error: safeJobErrorCode(msg) });
   } finally {
     clearInterval(heartbeat);
   }
