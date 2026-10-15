@@ -18,3 +18,11 @@ describe("read-only data-quality profiler",()=>{
  it("detects mixed types, numeric text, suspicious date, negative quantity and duplicates",()=>{const r=profileWorkbookQuality(fixture(),{keyColumns:{Sales:[0]}}),codes=new Set<string>(r.findings.map(f=>f.code));for(const code of ["MIXED_TYPES","NUMBER_AS_TEXT","DATE_AS_TEXT","SUSPICIOUS_NEGATIVE","POSSIBLE_DUPLICATE_ROW"])assert.ok(codes.has(code),"missing "+code);assert.ok(r.findings.every(f=>!f.repairable));assert.ok(r.columns.some(c=>c.header==="Quantity"));});
  it("flags missing required keys",()=>{const m=fixture();m.sheets[0].cells.A2.v="";const r=profileWorkbookQuality(m,{keyColumns:{Sales:[0]},duplicateRowScan:false});assert.ok(r.findings.some(f=>f.code==="MISSING_KEY"));});
 });
+describe("invalid calendar date detection",()=>{
+ it("flags impossible date-shaped text without mutating the workbook",()=>{
+  const m=fixture();m.sheets[0].rows=5;m.sheets[0].cells.A5={a:"A5",r:4,c:0,t:"s",v:"2024-02-30"};
+  const before=JSON.stringify(m),result=profileWorkbookQuality(m,{duplicateRowScan:false});
+  assert.ok(result.findings.some(f=>f.code==="INVALID_DATE_TEXT"&&f.cell==="A5"));
+  assert.equal(JSON.stringify(m),before);
+ });
+});
