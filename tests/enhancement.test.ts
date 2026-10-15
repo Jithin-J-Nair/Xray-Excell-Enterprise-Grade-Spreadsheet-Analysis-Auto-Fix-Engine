@@ -2,7 +2,7 @@ import {describe,it} from "node:test";
 import assert from "node:assert/strict";
 import type {WorkbookModel} from "../src/lib/excel/types";
 import {applyFormattingTheme,inspectStyleConsistency} from "../src/lib/excel/enhancement/formatting";
-import {profileWorkbookQuality} from "../src/lib/excel/enhancement/data-quality";
+import {profileWorkbookQuality} from "../src/lib/excel/enhancement/data-quality";\nimport {verifyWorkbookExport} from "../src/lib/excel/enhancement/verification";
 function fixture():WorkbookModel{return {fileId:"f",fileName:"fixture.xlsx",names:[],sheets:[{name:"Sales",visibility:"visible",rows:4,cols:3,merges:[],cells:{
 A1:{a:"A1",r:0,c:0,t:"s",v:"Item"},B1:{a:"B1",r:0,c:1,t:"s",v:"Quantity"},C1:{a:"C1",r:0,c:2,t:"s",v:"Date"},
 A2:{a:"A2",r:1,c:0,t:"s",v:"Widget",s:{font:{bold:true,color:{rgb:"FF00FF00"}}}},B2:{a:"B2",r:1,c:1,t:"s",v:"12"},C2:{a:"C2",r:1,c:2,t:"s",v:"2024-03-01"},
@@ -18,6 +18,11 @@ describe("enhancement formatting engine",()=>{
   assert.equal(preserved.model.sheets[0].columnWidths?.[3].wch,8);
   const refit=applyFormattingTheme(m,{minColumnWidth:1,maxColumnWidth:20,preserveExistingColumnWidths:false});
   assert.ok((refit.model.sheets[0].columnWidths?.[0].wch??0)>4);
+ });
+ it("exports and reopens a professionally formatted workbook without losing explicit styles",async()=>{
+  const formatted=applyFormattingTheme(fixture(),{minColumnWidth:8,maxColumnWidth:30,preserveExistingColumnWidths:false}).model;
+  const report=await verifyWorkbookExport(formatted);
+  assert.equal(report.ok,true,JSON.stringify(report.issues));
  });
  it("rejects invalid width bounds",()=>assert.throws(()=>applyFormattingTheme(fixture(),{minColumnWidth:20,maxColumnWidth:10}),/INVALID_WIDTH_BOUNDS/));
  it("inspects styles without mutation",()=>{const s=fixture().sheets[0],before=JSON.stringify(s),r=inspectStyleConsistency(s);assert.equal(r.styledCells,1);assert.equal(r.distinctStyles,1);assert.equal(JSON.stringify(s),before);});
