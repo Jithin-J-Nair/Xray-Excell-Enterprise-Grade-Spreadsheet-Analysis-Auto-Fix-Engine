@@ -1,8 +1,11 @@
 import { db } from "../src/db";
-import { analyses, jobs } from "../src/db/schema";
-import { and, eq, gte, isNull, lt, or } from "drizzle-orm";
+import { readdir, rm, stat } from "node:fs/promises";
+import path from "node:path";
+import { analyses, files, jobs } from "../src/db/schema";
+import { and, eq, gte, isNull, like, lt, or } from "drizzle-orm";
 import { runAnalysisJob, runApplyJob } from "../src/lib/server/jobs";
 import { MAX_JOB_ATTEMPTS } from "../src/lib/server/job-policy";
+import { absOf } from "../src/lib/server/storage";
 
 const pollMs = Math.max(250, Number(process.env.XRAY_WORKER_POLL_MS ?? 1000));
 const batchSize = Math.max(1, Math.min(20, Number(process.env.XRAY_WORKER_BATCH_SIZE ?? 4)));
@@ -12,11 +15,49 @@ const staleMs = Number.isFinite(configuredStaleMs)
   : 300_000;
 let stopping = false;
 let preferApply = false;
+let lastArtifactSweep = 0;
 
 process.on("SIGINT", () => { stopping = true; });
 process.on("SIGTERM", () => { stopping = true; });
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function cleanupStaleJobArtifacts(jobId: string): Promise<void> {
+  const rows = await db.select({ path: files.path }).from(files).where(eq(files.jobId, jobId));
+  await db.delete(files).where(eq(files.jobId, jobId));
+  const exportRoot = absOf("exports");
+  for (const row of rows) {
+    try {
+      const absolute = absOf(row.path);
+      await rm(absolute, { force: true });
+      const parent = path.dirname(absolute);
+      const relativeParent = path.relative(exportRoot, parent);
+      if (relativeParent && relativeParent !== ".." && !relativeParent.startsWith(".." + path.sep) && !path.isAbsolute(relativeParent)) {
+        await rm(parent, { recursive: true, force: true });
+      }
+    } catch {
+      // The DB row has been revoked; a later sweep removes any remaining unreferenced lease directory.
+    }
+  }
+}
+
+async function cleanupUnreferencedLeaseDirectories(): Promise<void> {
+  const exportRoot = absOf("exports");
+  let entries;
+  try { entries = await readdir(exportRoot, { withFileTypes: true }); }
+  catch { return; }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !/^[0-9a-f-]{36}-[0-9a-f-]{36}$/i.test(entry.name)) continue;
+    const directory = path.join(exportRoot, entry.name);
+    let modifiedAt = 0;
+    try { modifiedAt = (await stat(directory)).mtimeMs; } catch { continue; }
+    if (Date.now() - modifiedAt < staleMs) continue;
+    const [referenced] = await db.select({ id: files.id }).from(files).where(like(files.path, "%" + entry.name + "%")).limit(1);
+    if (!referenced) await rm(directory, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+
 
 async function main() {
   console.log(`X-RAY worker online (poll=${pollMs}ms, batch=${batchSize})`);
@@ -24,6 +65,10 @@ async function main() {
     try {
       // Requeue work abandoned by a crashed request process or worker. A live
       // runner refreshes heartbeatAt independently while parsing/exporting.
+      if (Date.now() - lastArtifactSweep >= Math.max(60_000, staleMs)) {
+        await cleanupUnreferencedLeaseDirectories();
+        lastArtifactSweep = Date.now();
+      }
       const staleBefore = new Date(Date.now() - staleMs);
       const staleAnalysis = and(
         eq(analyses.status, "processing"),
@@ -51,6 +96,7 @@ async function main() {
           .where(and(staleJob, gte(jobs.attempts, MAX_JOB_ATTEMPTS)))
           .returning({ id: jobs.id }),
       ]);
+      for (const stale of [...recoveredJobs, ...failedJobs]) await cleanupStaleJobArtifacts(stale.id).catch(() => undefined);
       if (recoveredAnalyses.length || recoveredJobs.length || failedAnalyses.length || failedJobs.length) {
         console.warn("Recovered stale X-RAY work", {
           analyses: recoveredAnalyses.length,
