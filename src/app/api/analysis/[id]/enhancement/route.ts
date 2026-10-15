@@ -5,7 +5,7 @@ import { rm } from "node:fs/promises";
 import { db } from "@/db";
 import { analyses, auditLogs, files, jobs } from "@/db/schema";
 import type { AnalysisResult, WorkbookModel } from "@/lib/excel/types";
-import { allModels } from "@/lib/excel/analyze";
+import { allModels, analyzeAll } from "@/lib/excel/analyze";
 import { workbookToXlsxBytes } from "@/lib/excel/serialize";
 import { readBytes, saveBytes, sha256, absOf } from "@/lib/server/storage";
 import { applyFormattingTheme, type FormattingOptions } from "@/lib/excel/enhancement/formatting";
@@ -84,8 +84,12 @@ function selectFeatures(value: unknown): Feature[] {
 function currentModels(result: AnalysisResult): WorkbookModel[] {
   return allModels(result);
 }
-function withModels(result: AnalysisResult, models: WorkbookModel[]): AnalysisResult {
-  return { ...result, model: models[0] ?? result.model, models } as AnalysisResult;
+function refreshAnalysisResult(previous: AnalysisResult, models: WorkbookModel[], resolveCrossFile: boolean): AnalysisResult {
+  const metas = models.map(model => {
+    const existing = previous.files.find(file => file.id === model.fileId || file.name === model.fileName);
+    return { id: model.fileId, name: model.fileName, size: existing?.size ?? 0, encoding: model.encoding };
+  });
+  return analyzeAll(models, metas, { language: previous.language, resolveCrossFile, name: previous.name });
 }
 function profile(model: WorkbookModel, options: ReturnType<typeof validateOptions>) {
   const quality = profileWorkbookQuality(model);
@@ -218,7 +222,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       const saved = await saveBytes("exports", jobId, name, bytes);
       savedOutputs.push({ model, name, bytes, path: saved.relPath });
     }
-    const updatedResult = withModels(result, transformed.map(item => item.model));
+    const analysisOptions = (analysis.options ?? {}) as { resolveCrossFile?: boolean };\n    const updatedResult = refreshAnalysisResult(result, transformed.map(item => item.model), analysisOptions.resolveCrossFile !== false);
     await db.transaction(async tx => {
       const [snapshotRow] = await tx.insert(files).values({
         jobId, analysisId: id, kind: "patch", name: "enhancement-recovery.json", size: snapshotBytes.byteLength,
@@ -318,7 +322,7 @@ async function undoEnhancement(analysisId: string, jobId: string) {
       const saved = await saveBytes("exports", jobId + "-undo", name, bytes);
       savedOutputs.push({ model, name, bytes, path: saved.relPath });
     }
-    const updatedResult = withModels(analysis.result as unknown as AnalysisResult, restored);
+    const previousResult = analysis.result as unknown as AnalysisResult;\n    const analysisOptions = (analysis.options ?? {}) as { resolveCrossFile?: boolean };\n    const updatedResult = refreshAnalysisResult(previousResult, restored, analysisOptions.resolveCrossFile !== false);
     const outputIds: string[] = [];
     await db.transaction(async tx => {
       for (const output of savedOutputs) {
