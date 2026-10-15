@@ -9,6 +9,7 @@ const PROTECTED_PART = /^(?:_xmlsignatures\/|xl\/(?:charts\/|drawings\/|media\/|
 /** Checks that OOXML package parts carrying advanced features are still present after a native engine save. */
 export function verifyProtectedPackageParts(sourceBytes: Uint8Array, outputBytes: Uint8Array): PackagePartVerificationReport {
   const readParts = (bytes: Uint8Array): Set<string> => {
+    assertSafeZipContainer(bytes);
     const workbook = XLSX.read(bytes, { type: "array", bookFiles: true }) as unknown as { keys?: string[]; files?: Record<string, unknown> };
     const parts = new Set((workbook.keys?.length ? workbook.keys : Object.keys(workbook.files ?? {})).map(name => name.replace(/^\/+/, "")));
     delete workbook.keys;
