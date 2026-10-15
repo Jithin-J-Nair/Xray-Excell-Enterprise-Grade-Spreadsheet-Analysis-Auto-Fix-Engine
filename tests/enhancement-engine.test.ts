@@ -54,6 +54,22 @@ it("treats General as unformatted and applies explicit high-confidence formats",
     assert.ok(result.findings.some(f => f.cell === "B2" && f.applied));
   });
   
+it("does not infer date, percentage, or currency from accidental header substrings", () => {
+    const model = fixture();
+    const sheet = model.sheets[0];
+    sheet.cols = 6;
+    sheet.cells.D1 = { a: "D1", r: 0, c: 3, t: "s", v: "Candidate" };
+    sheet.cells.D2 = { a: "D2", r: 1, c: 3, t: "n", v: 12 };
+    sheet.cells.E1 = { a: "E1", r: 0, c: 4, t: "s", v: "Corporate" };
+    sheet.cells.E2 = { a: "E2", r: 1, c: 4, t: "n", v: 0.4 };
+    sheet.cells.F1 = { a: "F1", r: 0, c: 5, t: "s", v: "Total Count" };
+    sheet.cells.F2 = { a: "F2", r: 1, c: 5, t: "n", v: 20 };
+    const findings = inspectNumberFormats(model, { currencyCode: "JPY" });
+    assert.ok(!findings.some(f => f.cell === "D2" && f.kind === "date"));
+    assert.ok(!findings.some(f => f.cell === "E2" && f.kind === "percentage"));
+    assert.ok(!findings.some(f => f.cell === "F2" && f.kind === "currency"));
+  });
+
 describe("guarded recovery snapshots", () => {
   it("restores all original cell data and formatting after a sealed change", () => {
     const original = fixture(), snapshot = createRecoverySnapshot(original, "2026-01-01T00:00:00.000Z");
