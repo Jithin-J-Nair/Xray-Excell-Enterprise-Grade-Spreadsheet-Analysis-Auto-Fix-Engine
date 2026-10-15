@@ -58,7 +58,8 @@ export function profileWorkbookQuality(model: WorkbookModel, options: QualityOpt
     let maxColumnCount = Math.max(0, sheet.cols), maxRowCount = Math.max(0, sheet.rows);
 
     for (const cell of Object.values(sheet.cells)) {
-      maxColumnCount = Math.max(maxColumnCount, cell.c + 1);\n      maxRowCount = Math.max(maxRowCount, cell.r + 1);
+      maxColumnCount = Math.max(maxColumnCount, cell.c + 1);
+      maxRowCount = Math.max(maxRowCount, cell.r + 1);
       const column = byColumn.get(cell.c) ?? [];
       column.push(cell); byColumn.set(cell.c, column);
       const row = byRow.get(cell.r) ?? [];
