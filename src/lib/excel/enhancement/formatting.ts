@@ -63,11 +63,16 @@ export function applyFormattingTheme(model: WorkbookModel, options: FormattingOp
       }
     }
     const widths=[...(sheet.columnWidths ?? [])];
-    for(let c=0;c<Math.max(0,sheet.cols);c++){
+    const columnCount = Object.values(sheet.cells).reduce((count, cell) => Math.max(count, cell.c + 1), Math.max(0, sheet.cols));
+    for(let c=0;c<columnCount;c++){
       if(widths[c]?.hidden) continue;
-      const suggested=Math.max(min,Math.min(max,lengths.get(c) ?? min)), old=widths[c]?.wch;
-      if(old===undefined || (!preserve && Math.abs(old-suggested)>0.5)){
-        widths[c]={...(widths[c] ?? {}),wch:suggested};
+      const suggested=Math.max(min,Math.min(max,lengths.get(c) ?? min));
+      const old=widths[c]?.wch ?? (widths[c]?.wpx === undefined ? undefined : widths[c]!.wpx! / 7);
+      if(old===undefined || (!preserveWidths && Math.abs(old-suggested)>0.5)){
+        const next={...(widths[c] ?? {})};
+        delete next.wpx;
+        next.wch=suggested;
+        widths[c]=next;
         changes.push({sheet:sheet.name,target:colName(c)+":"+colName(c),kind:"column-width",before:old ?? null,after:suggested,reason:"Bounded content-based column width"});
       }
     }
