@@ -52,3 +52,19 @@ describe("sparse duplicate-row detection",()=>{
   assert.throws(()=>profileWorkbookQuality(m),/MODEL_TRUNCATED/);
  });
 });
+
+describe("additional data-quality findings", () => {
+ it("flags whitespace, full-width compatibility text, and Excel error cells without mutation", () => {
+  const m=fixture();
+  m.sheets[0].cells.A2.v="  Widget  ";
+  m.sheets[0].cells.A3.v="ＡＢＣ　１２３";
+  m.sheets[0].cells.B4={a:"B4",r:3,c:1,t:"e",v:"#DIV/0!",f:"1/0"};
+  const before=JSON.stringify(m);
+  const result=profileWorkbookQuality(m,{duplicateRowScan:false});
+  assert.ok(result.findings.some(f=>f.code==="TEXT_WHITESPACE"&&f.cell==="A2"));
+  assert.ok(result.findings.some(f=>f.code==="FULLWIDTH_TEXT"&&f.cell==="A3"));
+  assert.ok(result.findings.some(f=>f.code==="FORMULA_ERROR"&&f.cell==="B4"));
+  assert.ok(result.findings.every(f=>!f.repairable));
+  assert.equal(JSON.stringify(m),before);
+ });
+});
