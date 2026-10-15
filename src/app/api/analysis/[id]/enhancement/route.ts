@@ -210,8 +210,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     jobId = created.id;
 
     const snapshots = models.map(model => createRecoverySnapshot(model));
-    const transformed = models.map(model => applyFeatures(model, features, options, confirmFormulaRepairs));
-    const reports = await Promise.all(transformed.map(async item => ({ model: item.model, changes: item.changes, report: await verifyWorkbookExport(item.model) })));
+    const transformed: Array<{ model: WorkbookModel; changes: { formatting: number; numberFormats: number; formulaRepairs: number }; blockedReason: string | null }> = models.map((model, index) => {
+      const blockedReason = preflight[index];
+      if (blockedReason) return { model, changes: { formatting: 0, numberFormats: 0, formulaRepairs: 0 }, blockedReason };
+      return { ...applyFeatures(model, features, options, confirmFormulaRepairs), blockedReason: null };
+    });
+    const reports = await Promise.all(transformed.filter(item => !item.blockedReason).map(async item => ({ model: item.model, changes: item.changes, report: await verifyWorkbookExport(item.model) })));
     const failed = reports.find(item => !item.report.ok);
     if (failed) throw new Error("ENHANCEMENT_VERIFICATION_FAILED: " + failed.model.fileName + ": " + failed.report.issues.slice(0, 8).map(issue => issue.code + " " + issue.message).join("; "));
     const sealedSnapshots = snapshots.map((snapshot, index) => sealRecoverySnapshot(snapshot, transformed[index].model));
@@ -221,6 +225,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const savedOutputs: Array<{ model: WorkbookModel; name: string; bytes: Uint8Array; path: string }> = [];
     const outputRecords: Array<{ fileId: string; name: string; size: number }> = [];
     for (let index = 0; index < transformed.length; index++) {
+      if (transformed[index].blockedReason) continue;
       const model = transformed[index].model;
       const bytes = workbookToXlsxBytes(model);
       const name = outputName(model, index, "enhanced");
