@@ -1,7 +1,7 @@
 // ── Server job runners: analysis pipeline & apply/export pipeline ────────────
 import { db } from "@/db";
 import { analyses, auditLogs, files, jobs, previews } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { AnalysisResult, WorkbookModel } from "@/lib/excel/types";
 import { parseFile } from "@/lib/excel/parse";
 import { allModels, analyzeAll, rescoreModel } from "@/lib/excel/analyze";
@@ -46,7 +46,7 @@ export async function runAnalysisJob(analysisId: string): Promise<void> {
   // runner can transition a queued analysis into processing.
   const [row] = await db
     .update(analyses)
-    .set({ status: "processing", statusText: "Starting", heartbeatAt: new Date() })
+    .set({ status: "processing", statusText: "Starting", heartbeatAt: new Date(), attempts: sql`${analyses.attempts} + 1` })
     .where(and(eq(analyses.id, analysisId), eq(analyses.status, "queued")))
     .returning();
   if (!row) return;
@@ -129,7 +129,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
   // worker cannot both generate the same exports.
   const [job] = await db
     .update(jobs)
-    .set({ status: "running", progress: 10, heartbeatAt: new Date() })
+    .set({ status: "running", progress: 10, heartbeatAt: new Date(), attempts: sql`${jobs.attempts} + 1` })
     .where(and(eq(jobs.id, jobId), eq(jobs.status, "queued")))
     .returning();
   if (!job) return;
