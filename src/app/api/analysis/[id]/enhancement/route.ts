@@ -184,8 +184,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     if (action === "preview") {
       const previews = models.map(model => {
-        const changed = applyFeatures(model, features, options, false);
-        return { fileName: model.fileName, changes: changed.changes, profile: features.includes("formulaRepairs") ? profile(model, options).formulaRepairs : undefined };
+        let blockedReason: string | null = null;
+        try { assertSerializable([model]); } catch (error) { blockedReason = error instanceof Error ? error.message : String(error); }
+        const changed = blockedReason
+          ? { changes: { formatting: 0, numberFormats: 0, formulaRepairs: 0 } }
+          : applyFeatures(model, features, options, false);
+        return {
+          fileName: model.fileName, changes: changed.changes, blockedReason,
+          profile: features.includes("formulaRepairs") && !blockedReason ? profile(model, options).formulaRepairs : undefined,
+        };
       });
       return NextResponse.json({ action, features, files: previews, note: "Preview only; no workbook, database result, or source file was changed." });
     }
