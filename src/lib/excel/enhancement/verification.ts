@@ -26,6 +26,85 @@ export function verifyProtectedPackageParts(sourceBytes: Uint8Array, outputBytes
   }
 }
 
+export interface PackagePartVerificationReport {
+  ok: boolean;
+  checkedParts: number;
+  missingParts: string[];
+  changedFeatureMarkers?: string[];
+  error?: string;
+}
+const PROTECTED_PART = /^(?:_xmlsignatures\/|xl\/(?:charts\/|drawings\/|media\/|pivotTables\/|pivotCache\/|externalLinks\/|connections\.xml$|queryTables\/|tables\/|slicers?\/|slicerCaches\/|activeX\/|embeddings\/|ctrlProps\/|threadedComments\/|comments\d*\.xml$|persons\/|webExtensions\/|vbaProject(?:Signature)?\.bin$|printerSettings\/)|customXml\/)/i;
+
+type RawPackage = { keys?: string[]; files?: Record<string, { content?: unknown }> };
+function rawPackageText(entry: { content?: unknown } | undefined): string {
+  const content = entry?.content;
+  if (typeof content === "string") return content;
+  if (content instanceof ArrayBuffer) return new TextDecoder().decode(new Uint8Array(content));
+  if (ArrayBuffer.isView(content)) {
+    return new TextDecoder().decode(new Uint8Array(content.buffer, content.byteOffset, content.byteLength));
+  }
+  return "";
+}
+const FEATURE_TAGS: Array<[RegExp, string[]]> = [
+  [/^xl\/worksheets\/.*\.xml$/i, ["conditionalFormatting", "dataValidations", "dataValidation", "hyperlinks", "hyperlink", "autoFilter", "tableParts", "tablePart", "drawing", "legacyDrawing", "oleObjects", "oleObject", "controls", "control", "extLst", "sheetProtection", "pane"]],
+  [/^xl\/drawings\/.*\.xml$/i, ["twoCellAnchor", "oneCellAnchor", "absoluteAnchor", "pic", "graphicFrame", "sp", "cxnSp", "extLst"]],
+  [/^xl\/charts\/.*\.xml$/i, ["chart", "plotArea", "ser", "cat", "val", "tx", "externalData", "extLst"]],
+  [/^xl\/pivotTables\/.*\.xml$/i, ["pivotTableDefinition", "pivotFields", "pivotField", "rowFields", "rowField", "colFields", "colField", "dataFields", "dataField", "pageFields", "pageField", "extLst"]],
+  [/^xl\/pivotCache\/.*\.xml$/i, ["pivotCacheDefinition", "cacheSource", "worksheetSource", "cacheFields", "cacheField", "sharedItems", "pivotCacheRecords", "recordCount"]],
+  [/^xl\/connections\.xml$/i, ["connections", "connection", "dbPr", "olapPr", "webPr", "textPr", "extLst"]],
+  [/^xl\/externalLinks\/.*\.xml$/i, ["externalLink", "externalBook", "sheetNames", "definedNames", "sheetDataSet", "sheetData", "extLst"]],
+  [/^xl\/workbook\.xml$/i, ["definedNames", "definedName", "workbookProtection", "externalReferences", "externalReference", "extLst"]],
+];
+function featureMarkerCounts(path: string, xml: string): string[] {
+  const rule = FEATURE_TAGS.find(([pattern]) => pattern.test(path));
+  if (!rule || !xml) return [];
+  return rule[1].map(tag => {
+    const escaped = tag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const count = [...xml.matchAll(new RegExp("<(?:[A-Za-z0-9_]+:)?" + escaped + "\\b", "gi"))].length;
+    return tag + "=" + count;
+  });
+}
+/**
+ * Verify that advanced OOXML parts and their structural feature markers survive a native-engine save.
+ * This is a conservative structural guard, not a visual or semantic fidelity proof.
+ */
+export function verifyProtectedPackageParts(sourceBytes: Uint8Array, outputBytes: Uint8Array): PackagePartVerificationReport {
+  const readPackage = (bytes: Uint8Array): { parts: Set<string>; xml: Map<string, string> } => {
+    assertSafeZipContainer(bytes);
+    const workbook = XLSX.read(bytes, { type: "array", bookFiles: true }) as unknown as RawPackage;
+    const parts = new Set((workbook.keys?.length ? workbook.keys : Object.keys(workbook.files ?? {})).map(name => name.replace(/^\/+/, "")));
+    const xml = new Map<string, string>();
+    for (const path of parts) {
+      if (path.toLowerCase().endsWith(".xml")) xml.set(path, rawPackageText(workbook.files?.[path] ?? workbook.files?.["/" + path]));
+    }
+    delete workbook.keys;
+    delete workbook.files;
+    return { parts, xml };
+  };
+  try {
+    const source = readPackage(sourceBytes), output = readPackage(outputBytes);
+    const required = [...source.parts].filter(name => PROTECTED_PART.test(name));
+    const missingParts = required.filter(name => !output.parts.has(name)).sort();
+    const changedFeatureMarkers: string[] = [];
+    for (const [path, sourceXml] of source.xml) {
+      const markers = featureMarkerCounts(path, sourceXml);
+      if (!markers.length) continue;
+      const outputXml = output.xml.get(path) ?? "";
+      const expected = new Map(markers.map(marker => {
+        const split = marker.lastIndexOf("=");
+        return [marker.slice(0, split), marker.slice(split + 1)] as const;
+      }));
+      for (const [tag, count] of expected) {
+        const actual = featureMarkerCounts(path, outputXml).find(marker => marker.startsWith(tag + "="))?.split("=").pop() ?? "0";
+        if (Number(count) > 0 && actual !== count) changedFeatureMarkers.push(path + ":" + tag + " (" + count + " → " + actual + ")");
+      }
+    }
+    return { ok: missingParts.length === 0 && changedFeatureMarkers.length === 0, checkedParts: required.length, missingParts, changedFeatureMarkers };
+  } catch (error) {
+    return { ok: false, checkedParts: 0, missingParts: [], changedFeatureMarkers: [], error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 export interface RecalculationVerificationReport {
   ok: boolean;
   engine: "recalculation-structure-comparison";
