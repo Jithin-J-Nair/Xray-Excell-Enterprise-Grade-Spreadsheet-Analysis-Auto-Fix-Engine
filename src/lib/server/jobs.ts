@@ -1,4 +1,5 @@
 // ── Server job runners: analysis pipeline & apply/export pipeline ────────────
+import { randomUUID } from "node:crypto";
 import { db } from "@/db";
 import { analyses, auditLogs, files, jobs, previews } from "@/db/schema";
 import { and, eq, sql } from "drizzle-orm";
@@ -32,33 +33,34 @@ const HEARTBEAT_MS = Number.isFinite(configuredHeartbeatMs)
   ? Math.max(10_000, Math.min(60_000, configuredHeartbeatMs))
   : 15_000;
 
-async function pushLog(analysisId: string, log: LogLine[], msg: string, progress: number, statusText: string) {
+async function pushLog(analysisId: string, leaseToken: string, log: LogLine[], msg: string, progress: number, statusText: string) {
   log.push({ t: now(), msg });
   await db
     .update(analyses)
     .set({ log, progress, statusText, status: "processing", heartbeatAt: new Date() })
-    .where(eq(analyses.id, analysisId));
+    .where(and(eq(analyses.id, analysisId), eq(analyses.leaseToken, leaseToken), eq(analyses.status, "processing")));
 }
 
 export async function runAnalysisJob(analysisId: string): Promise<void> {
   const log: LogLine[] = [];
+  const leaseToken = randomUUID();
   // Atomic claim: the HTTP handler and durable worker may race, but only one
   // runner can transition a queued analysis into processing.
   const [row] = await db
     .update(analyses)
-    .set({ status: "processing", statusText: "Starting", heartbeatAt: new Date(), attempts: sql`${analyses.attempts} + 1` })
+    .set({ status: "processing", statusText: "Starting", heartbeatAt: new Date(), leaseToken, attempts: sql`${analyses.attempts} + 1` })
     .where(and(eq(analyses.id, analysisId), eq(analyses.status, "queued")))
     .returning();
   if (!row) return;
   const heartbeat = setInterval(() => {
     void db.update(analyses)
       .set({ heartbeatAt: new Date() })
-      .where(and(eq(analyses.id, analysisId), eq(analyses.status, "processing")))
-      .catch((error) => console.error("analysis-heartbeat-failed", error));
+      .where(and(eq(analyses.id, analysisId), eq(analyses.status, "processing"), eq(analyses.leaseToken, leaseToken)))
+      .catch(() => console.error("analysis-heartbeat-failed"));
   }, HEARTBEAT_MS);
   heartbeat.unref?.();
   try {
-    await pushLog(analysisId, log, "job: acquired — loading uploaded files", 4, "Loading files");
+    await pushLog(analysisId, leaseToken, log, "job: acquired — loading uploaded files", 4, "Loading files");
     const opts = (row.options ?? {}) as { resolveCrossFile?: boolean; language?: "en" | "jp"; name?: string };
     const fileRows = await db.select().from(files).where(eq(files.uploadId, row.uploadId!));
     if (!fileRows.length) throw new Error("NO_FILES: upload contains no files");
@@ -67,29 +69,31 @@ export async function runAnalysisJob(analysisId: string): Promise<void> {
     let i = 0;
     for (const fr of fileRows) {
       i++;
-      await pushLog(analysisId, log, `parse: ${fr.name} (${(fr.size / 1024).toFixed(1)} KB)`, 6 + i * 6, `Parsing ${fr.name}`);
+      await pushLog(analysisId, leaseToken, log, `parse: ${fr.name} (${(fr.size / 1024).toFixed(1)} KB)`, 6 + i * 6, `Parsing ${fr.name}`);
       const bytes = await readBytes(fr.path);
       const model = await parseFile(fr.id, fr.name, new Uint8Array(bytes));
       models.push(model);
       metas.push({ id: fr.id, name: fr.name, size: fr.size, encoding: model.encoding });
     }
-    await pushLog(analysisId, log, "extract: tokenizing formulas & building tables", 32, "Extracting formulas");
+    await pushLog(analysisId, leaseToken, log, "extract: tokenizing formulas & building tables", 32, "Extracting formulas");
     await new Promise((r) => setImmediate(r));
     const result = analyzeAll(models, metas, {
       language: opts.language ?? "en",
       resolveCrossFile: opts.resolveCrossFile !== false,
       name: opts.name ?? row.name,
     });
-    await pushLog(analysisId, log, `graph: ${result.graph.nodes.length} nodes / ${result.graph.edges.length} edges`, 58, "Building dependency graph");
+    await pushLog(analysisId, leaseToken, log, `graph: ${result.graph.nodes.length} nodes / ${result.graph.edges.length} edges`, 58, "Building dependency graph");
     await new Promise((r) => setImmediate(r));
-    await pushLog(analysisId, log, `scan: ${result.risks.length} findings (${result.metrics.risksBySeverity.critical} critical)`, 76, "Detecting risks");
-    await pushLog(analysisId, log, `score: risk=${result.metrics.riskScore} health=${result.metrics.healthScore}`, 90, "Scoring workbook health");
+    await pushLog(analysisId, leaseToken, log, `scan: ${result.risks.length} findings (${result.metrics.risksBySeverity.critical} critical)`, 76, "Detecting risks");
+    await pushLog(analysisId, leaseToken, log, `score: risk=${result.metrics.riskScore} health=${result.metrics.healthScore}`, 90, "Scoring workbook health");
     // strip the heavyweight raw model duplication (keep main + models for preview/apply)
-    await db
+    log.push({ t: now(), msg: "done: analysis complete" });
+    const [published] = await db
       .update(analyses)
-      .set({ status: "completed", progress: 100, statusText: "Completed", result, completedAt: new Date(), heartbeatAt: null })
-      .where(eq(analyses.id, analysisId));
-    await log2(analysisId, log, "done: analysis complete");
+      .set({ status: "completed", progress: 100, statusText: "Completed", result, log, completedAt: new Date(), heartbeatAt: null, leaseToken: null })
+      .where(and(eq(analyses.id, analysisId), eq(analyses.status, "processing"), eq(analyses.leaseToken, leaseToken)))
+      .returning({ id: analyses.id });
+    if (!published) throw new Error("JOB_LEASE_LOST: analysis result was not published because this worker no longer owns the lease.");
     await audit(analysisId, "analysis.completed", {
       files: metas.length,
       risks: result.risks.length,
@@ -97,20 +101,15 @@ export async function runAnalysisJob(analysisId: string): Promise<void> {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("analysis-failed", msg);
+    console.error("analysis-failed", { code: msg.split(":")[0].slice(0, 80) });
     await db
       .update(analyses)
       .set({ status: "failed", error: msg, completedAt: new Date(), statusText: "Failed", heartbeatAt: null })
-      .where(eq(analyses.id, analysisId));
+      .where(and(eq(analyses.id, analysisId), eq(analyses.leaseToken, leaseToken), eq(analyses.status, "processing")));
     await audit(analysisId, "analysis.failed", { error: msg });
   } finally {
     clearInterval(heartbeat);
   }
-}
-
-async function log2(analysisId: string, log: LogLine[], msg: string) {
-  log.push({ t: now(), msg });
-  await db.update(analyses).set({ log }).where(eq(analyses.id, analysisId));
 }
 
 // ── apply / export ───────────────────────────────────────────────────────────
