@@ -43,7 +43,7 @@ export async function recalculateWithLibreOffice(model: WorkbookModel, sourceByt
   const inputPath = join(inputDir, fileName);
   try {
     await writeFile(inputPath, sourceBytes, { flag: "wx" });
-    const profileUrl = "file://" + profileDir.replace(/\\/g, "/");
+    const profileUrl = pathToFileURL(profileDir).href;
     const result = await run(options.executable ?? process.env.LIBREOFFICE_PATH ?? "soffice",
       ["--headless", "-env:UserInstallation=" + profileUrl, "--convert-to", "xlsx", "--outdir", outputDir, inputPath],
       options.timeoutMs ?? 120_000);
