@@ -4,28 +4,6 @@ import { assertSafeZipContainer, parseFile } from "../parse";
 import { workbookToXlsxBytes } from "../serialize";
 
 export interface VerificationIssue { code: string; message: string; sheet?: string; cell?: string }
-export interface PackagePartVerificationReport { ok: boolean; checkedParts: number; missingParts: string[]; error?: string }
-const PROTECTED_PART = /^(?:_xmlsignatures\/|xl\/(?:charts\/|drawings\/|media\/|pivotTables\/|pivotCache\/|externalLinks\/|connections\.xml$|queryTables\/|tables\/|slicers?\/|slicerCaches\/|activeX\/|embeddings\/|ctrlProps\/|threadedComments\/|comments\d*\.xml$|persons\/|webExtensions\/|vbaProject(?:Signature)?\.bin$|printerSettings\/)|customXml\/)/i;
-/** Checks that OOXML package parts carrying advanced features are still present after a native engine save. */
-export function verifyProtectedPackageParts(sourceBytes: Uint8Array, outputBytes: Uint8Array): PackagePartVerificationReport {
-  const readParts = (bytes: Uint8Array): Set<string> => {
-    assertSafeZipContainer(bytes);
-    const workbook = XLSX.read(bytes, { type: "array", bookFiles: true }) as unknown as { keys?: string[]; files?: Record<string, unknown> };
-    const parts = new Set((workbook.keys?.length ? workbook.keys : Object.keys(workbook.files ?? {})).map(name => name.replace(/^\/+/, "")));
-    delete workbook.keys;
-    delete workbook.files;
-    return parts;
-  };
-  try {
-    const source = readParts(sourceBytes), output = readParts(outputBytes);
-    const required = [...source].filter(name => PROTECTED_PART.test(name));
-    const missingParts = required.filter(name => !output.has(name)).sort();
-    return { ok: missingParts.length === 0, checkedParts: required.length, missingParts };
-  } catch (error) {
-    return { ok: false, checkedParts: 0, missingParts: [], error: error instanceof Error ? error.message : String(error) };
-  }
-}
-
 export interface PackagePartVerificationReport {
   ok: boolean;
   checkedParts: number;
