@@ -135,7 +135,7 @@ async function insertFileForLease(jobId: string, leaseToken: string, values: typ
     )).for("update").limit(1);
     if (!owned) throw new Error("JOB_LEASE_LOST: this worker no longer owns the job lease.");
     const [row] = await tx.insert(files).values(values).returning();
-    return row;
+    return [row];
   });
 }
 
