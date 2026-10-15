@@ -1,11 +1,20 @@
 import type { CellModel, WorkbookModel } from "../types";
 export type InferredColumnType = "empty"|"text"|"number"|"date"|"boolean"|"mixed";
-export interface QualityFinding { code:"MIXED_TYPES"|"NUMBER_AS_TEXT"|"DATE_AS_TEXT"|"SUSPICIOUS_NEGATIVE"|"POSSIBLE_DUPLICATE_ROW"|"MISSING_KEY"; severity:"info"|"warning"|"error"; sheet:string; cell?:string; column?:number; message:string; evidence:Record<string,string|number|boolean|null>; repairable:false }
+export interface QualityFinding { code:"MIXED_TYPES"|"NUMBER_AS_TEXT"|"DATE_AS_TEXT"|"INVALID_DATE_TEXT"|"SUSPICIOUS_NEGATIVE"|"POSSIBLE_DUPLICATE_ROW"|"MISSING_KEY"; severity:"info"|"warning"|"error"; sheet:string; cell?:string; column?:number; message:string; evidence:Record<string,string|number|boolean|null>; repairable:false }
 export interface ColumnProfile { sheet:string; column:number; header:string; inferredType:InferredColumnType; nonEmpty:number; typeCounts:Record<string,number> }
 export interface QualityOptions { keyColumns?:Record<string,number[]>; quantityHeaderPattern?:RegExp; duplicateRowScan?:boolean }
 const DATE=/^(?:\d{4}[-/]\d{1,2}[-/]\d{1,2}|\d{4}年\d{1,2}月\d{1,2}日)$/;
 const NUM=/^[-+]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?%?$/;
 const empty=(c:CellModel)=>c.v===null||c.v==="";
+function validDateText(value: string): boolean {
+ const western=/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/.exec(value);
+ const japanese=/^(\d{4})年(\d{1,2})月(\d{1,2})日$/.exec(value);
+ const match=western??japanese;
+ if(!match)return false;
+ const year=Number(match[1]),month=Number(match[2]),day=Number(match[3]);
+ const date=new Date(Date.UTC(year,month-1,day));
+ return date.getUTCFullYear()===year&&date.getUTCMonth()===month-1&&date.getUTCDate()===day;
+}
 function typeOf(c:CellModel):string {
  if(empty(c))return "empty"; if(c.t==="b"||typeof c.v==="boolean")return "boolean";
  if(c.t==="d"||(typeof c.v==="string"&&DATE.test(c.v)))return "date";
@@ -28,7 +37,10 @@ export function profileWorkbookQuality(model:WorkbookModel, options:QualityOptio
    for(const c of cells){
     const t=typeOf(c);
     if(t==="numeric-text")findings.push({code:"NUMBER_AS_TEXT",severity:"info",sheet:sheet.name,cell:c.a,column:col,message:"Numeric-looking text may need normalization; locale and identifier semantics require review.",evidence:{value:String(c.v),header},repairable:false});
-    if(t==="date"&&typeof c.v==="string"&&DATE.test(c.v)){const year=Number(c.v.match(/^\d{4}/)?.[0]??0);if(year>0&&(year<1900||year>new Date().getFullYear()+20))findings.push({code:"DATE_AS_TEXT",severity:"warning",sheet:sheet.name,cell:c.a,column:col,message:"Date text contains an unusual year; confirm locale and century before repair.",evidence:{value:c.v,year},repairable:false});}
+    if(t==="date"&&typeof c.v==="string"&&DATE.test(c.v)){
+     if(!validDateText(c.v)) findings.push({code:"INVALID_DATE_TEXT",severity:"error",sheet:sheet.name,cell:c.a,column:col,message:"Date-shaped text is not a valid calendar date; no automatic correction was attempted.",evidence:{value:c.v,header},repairable:false});
+     else {const year=Number(c.v.match(/^\d{4}/)?.[0]??0);if(year>0&&(year<1900||year>new Date().getFullYear()+20))findings.push({code:"DATE_AS_TEXT",severity:"warning",sheet:sheet.name,cell:c.a,column:col,message:"Date text contains an unusual year; confirm locale and century before repair.",evidence:{value:c.v,year},repairable:false});}
+    }
     if(quantity.test(header)&&typeof c.v==="number"&&c.v<0)findings.push({code:"SUSPICIOUS_NEGATIVE",severity:"warning",sheet:sheet.name,cell:c.a,column:col,message:"Negative quantity-like value requires domain review; returns and corrections may be valid.",evidence:{value:c.v,header},repairable:false});
    }
   }
