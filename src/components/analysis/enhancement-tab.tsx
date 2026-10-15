@@ -31,7 +31,7 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
   const [features, setFeatures] = useState<Feature[]>(["formatting", "numberFormats"]);
   const [theme, setTheme] = useState<"report" | "financial">("report");
   const [currencyCode, setCurrencyCode] = useState<"JPY" | "USD" | "EUR" | "GBP" | "CAD" | "AUD">("JPY");
-  const [engine, setEngine = useState<"excel" | "libreoffice">("excel");
+  const [engine, setEngine] = useState<"excel" | "libreoffice">("excel");
   const [refitWidths, setRefitWidths] = useState(true);
   const [confirmFormulaRepairs, setConfirmFormulaRepairs] = useState(false);
   const [busy, setBusy] = useState<Action | null>(null);
