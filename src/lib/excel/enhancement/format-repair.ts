@@ -10,10 +10,10 @@ export interface FormatRepairOptions {
   apply?: boolean; minConfidence?: number; overwriteExisting?: boolean;
   currencyCode?: "USD" | "EUR" | "GBP" | "JPY" | "CAD" | "AUD";
 }
-const DATE_HEADER = /date|日付|年月日|日期/i;
-const PERCENT_HEADER = /percent|percentage|rate|ratio|margin|growth|割合|率|比率/i;
-const CURRENCY_HEADER = /price|cost|amount|revenue|sales|total|balance|salary|budget|円|金額|売上|価格|費用/i;
-const INTEGER_HEADER = /count|quantity|qty|units|items|number|件数|数量|個数/i;
+const DATE_HEADER = /\\bdate\\b|\\bday\\b|\\bmonth\\b|\\byear\\b|日付|年月日|日期/i;
+const PERCENT_HEADER = /\\bpercent(?:age)?\\b|\\brate\\b|\\bratio\\b|\\bmargin\\b|\\bgrowth\\b|割合|率|比率/i;
+const CURRENCY_HEADER = /\\bprice\\b|\\bcost\\b|\\bamount\\b|\\brevenue\\b|\\bsales\\b|\\bbalance\\b|\\bsalary\\b|\\bbudget\\b|円|金額|売上|価格|費用/i;
+const INTEGER_HEADER = /\\bcount\\b|\\bquantity\\b|\\bqty\\b|\\bunits?\\b|\\bitems?\\b|件数|数量|個数/i;
 const CURRENCY_FORMAT: Record<NonNullable<FormatRepairOptions["currencyCode"]>, string> = {
   USD: '"$"#,##0.00;[Red]("$"#,##0.00)', EUR: '"€"#,##0.00;[Red]("€"#,##0.00)',
   GBP: '"£"#,##0.00;[Red]("£"#,##0.00)', JPY: '"¥"#,##0;[Red]("¥"#,##0)',
