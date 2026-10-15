@@ -54,7 +54,7 @@ export async function recalculateWithMicrosoftExcel(model: WorkbookModel, source
     "$excel = $null; $book = $null",
     "try {",
     "  $excel = New-Object -ComObject Excel.Application",
-    "  $excel.Visible = $false; $excel.DisplayAlerts = $false; $excel.AskToUpdateLinks = $false",
+    "  $excel.Visible = $false; $excel.DisplayAlerts = $false; $excel.AskToUpdateLinks = $false; $excel.EnableEvents = $false",
     "  $excel.AutomationSecurity = 3",
     "  $excel.Calculation = -4105",
     "  $book = $excel.Workbooks.Open($InputPath, 0, $false, [Type]::Missing, [Type]::Missing, [Type]::Missing, $true)",
