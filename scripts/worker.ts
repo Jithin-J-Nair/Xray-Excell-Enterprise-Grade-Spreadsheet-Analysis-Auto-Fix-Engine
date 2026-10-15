@@ -2,6 +2,7 @@ import { db } from "../src/db";
 import { analyses, jobs } from "../src/db/schema";
 import { and, eq, gte, isNull, lt, or } from "drizzle-orm";
 import { runAnalysisJob, runApplyJob } from "../src/lib/server/jobs";
+import { MAX_JOB_ATTEMPTS } from "../src/lib/server/job-policy";
 
 const pollMs = Math.max(250, Number(process.env.XRAY_WORKER_POLL_MS ?? 1000));
 const batchSize = Math.max(1, Math.min(20, Number(process.env.XRAY_WORKER_BATCH_SIZE ?? 4)));
@@ -9,9 +10,6 @@ const configuredStaleMs = Number(process.env.XRAY_JOB_STALE_MS ?? 300_000);
 const staleMs = Number.isFinite(configuredStaleMs)
   ? Math.max(60_000, Math.min(3_600_000, configuredStaleMs))
   : 300_000;
-// Attempts are incremented only when a queued record is atomically claimed.
-// A crash can therefore trigger at most three total executions per work item.
-const MAX_ATTEMPTS = 3;
 let stopping = false;
 let preferApply = false;
 
@@ -38,19 +36,19 @@ async function main() {
       const [recoveredAnalyses, recoveredJobs, failedAnalyses, failedJobs] = await Promise.all([
         db.update(analyses)
           .set({ status: "queued", statusText: "Recovered after stale worker heartbeat", heartbeatAt: null, error: null })
-          .where(and(staleAnalysis, lt(analyses.attempts, MAX_ATTEMPTS)))
+          .where(and(staleAnalysis, lt(analyses.attempts, MAX_JOB_ATTEMPTS)))
           .returning({ id: analyses.id }),
         db.update(jobs)
           .set({ status: "queued", progress: 0, error: "Recovered after stale worker heartbeat", heartbeatAt: null })
-          .where(and(staleJob, lt(jobs.attempts, MAX_ATTEMPTS)))
+          .where(and(staleJob, lt(jobs.attempts, MAX_JOB_ATTEMPTS)))
           .returning({ id: jobs.id }),
         db.update(analyses)
           .set({ status: "failed", statusText: "Worker stopped responding; retry limit reached", error: "JOB_RETRY_LIMIT_EXCEEDED", heartbeatAt: null, completedAt: new Date() })
-          .where(and(staleAnalysis, gte(analyses.attempts, MAX_ATTEMPTS)))
+          .where(and(staleAnalysis, gte(analyses.attempts, MAX_JOB_ATTEMPTS)))
           .returning({ id: analyses.id }),
         db.update(jobs)
           .set({ status: "failed", error: "JOB_RETRY_LIMIT_EXCEEDED", heartbeatAt: null, completedAt: new Date() })
-          .where(and(staleJob, gte(jobs.attempts, MAX_ATTEMPTS)))
+          .where(and(staleJob, gte(jobs.attempts, MAX_JOB_ATTEMPTS)))
           .returning({ id: jobs.id }),
       ]);
       if (recoveredAnalyses.length || recoveredJobs.length || failedAnalyses.length || failedJobs.length) {
