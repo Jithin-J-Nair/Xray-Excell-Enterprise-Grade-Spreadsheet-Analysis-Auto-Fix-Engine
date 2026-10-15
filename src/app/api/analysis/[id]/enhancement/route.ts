@@ -254,44 +254,55 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       await db.update(jobs).set({ status: "failed", error: message.slice(0, 2000), completedAt: new Date(), heartbeatAt: null }).where(eq(jobs.id, jobId)).catch(() => undefined);
       await db.insert(auditLogs).values({ analysisId: id, action: "enhancement.failed", detail: { jobId, error: message.slice(0, 1000) } }).catch(() => undefined);
     }
-    const status = /ALREADY_RUNNING|STATE_CHANGED|CONFLICT/.test(message) ? 409 : /UNSUPPORTED_WORKBOOK|MACRO_PRESERVATION|STYLE_METADATA|MODEL_TRUNCATED|VERIFICATION_FAILED|RECOVERY_/.test(message) ? 422 : 500;
+    const status = /ALREADY_RUNNING|STATE_CHANGED|CONFLICT|IN_PROGRESS/.test(message) ? 409 : /ANALYSIS_NOT_FOUND/.test(message) ? 404 : /SNAPSHOT_MISSING/.test(message) ? 410 : /UNSUPPORTED_WORKBOOK|MACRO_PRESERVATION|STYLE_METADATA|MODEL_TRUNCATED|VERIFICATION_FAILED|RECOVERY_/.test(message) ? 422 : 500;
     return NextResponse.json({ errorCode: "ENHANCEMENT_FAILED", message, retryable: status === 500 }, { status });
   }
 }
 
 async function undoEnhancement(analysisId: string, jobId: string) {
-  const [job] = await db.select().from(jobs).where(and(eq(jobs.id, jobId), eq(jobs.analysisId, analysisId), eq(jobs.kind, "enhancement"))).limit(1);
-  if (!job) return NextResponse.json({ errorCode: "ENHANCEMENT_NOT_FOUND", message: "Enhancement job not found.", retryable: false }, { status: 404 });
-  if (job.status !== "completed") return NextResponse.json({ errorCode: "NOT_COMPLETED", message: "Only completed enhancement jobs can be undone.", retryable: false }, { status: 409 });
-  if (job.reverted) return NextResponse.json({ errorCode: "ALREADY_REVERTED", message: "This enhancement has already been undone.", retryable: false }, { status: 409 });
-  if (!job.patchFileId) return NextResponse.json({ errorCode: "RECOVERY_SNAPSHOT_MISSING", message: "No recovery snapshot was persisted for this enhancement.", retryable: false }, { status: 410 });
-  const [analysis] = await db.select().from(analyses).where(eq(analyses.id, analysisId)).limit(1);
-  if (!analysis?.result) return NextResponse.json({ errorCode: "ANALYSIS_NOT_FOUND", message: "Analysis result is no longer available.", retryable: false }, { status: 404 });
-  const [snapshotFile] = await db.select().from(files).where(eq(files.id, job.patchFileId)).limit(1);
-  if (!snapshotFile || snapshotFile.analysisId !== analysisId) return NextResponse.json({ errorCode: "RECOVERY_SNAPSHOT_MISSING", message: "Recovery snapshot is unavailable.", retryable: false }, { status: 410 });
-  const raw = JSON.parse(new TextDecoder().decode(await readBytes(snapshotFile.path))) as { schemaVersion?: number; snapshots?: unknown[] };
-  if (raw.schemaVersion !== 1 || !Array.isArray(raw.snapshots)) throw new Error("RECOVERY_SNAPSHOT_INVALID");
-  const snapshots = raw.snapshots.map(item => parseRecoverySnapshot(JSON.stringify(item)));
-  const current = currentModels(analysis.result as unknown as AnalysisResult);
-  const restored = snapshots.map((snapshot: RecoverySnapshot) => {
-    const match = current.find(model => model.fileId === snapshot.workbookId);
-    if (!match) throw new Error("RECOVERY_CONFLICT: current workbook is missing from analysis state.");
-    return undoWorkbook(snapshot, match);
-  });
-  for (const model of restored) {
-    const report = await verifyWorkbookExport(model);
-    if (!report.ok) throw new Error("RECOVERY_VERIFICATION_FAILED: " + model.fileName + ": " + report.issues.slice(0, 5).map(issue => issue.code).join(", "));
+  const [existing] = await db.select().from(jobs).where(and(eq(jobs.id, jobId), eq(jobs.analysisId, analysisId), eq(jobs.kind, "enhancement"))).limit(1);
+  if (!existing) return NextResponse.json({ errorCode: "ENHANCEMENT_NOT_FOUND", message: "Enhancement job not found.", retryable: false }, { status: 404 });
+  if (existing.reverted) return NextResponse.json({ errorCode: "ALREADY_REVERTED", message: "This enhancement has already been undone.", retryable: false }, { status: 409 });
+  if (existing.status !== "completed") return NextResponse.json({ errorCode: "NOT_COMPLETED", message: "Only completed enhancement jobs can be undone.", retryable: false }, { status: 409 });
+  if (!existing.patchFileId) return NextResponse.json({ errorCode: "RECOVERY_SNAPSHOT_MISSING", message: "No recovery snapshot was persisted for this enhancement.", retryable: false }, { status: 410 });
+
+  // Atomically claim the undo so duplicate requests cannot create multiple restore outputs.
+  const [job] = await db.update(jobs).set({ status: "running", progress: 10, heartbeatAt: new Date() })
+    .where(and(eq(jobs.id, jobId), eq(jobs.analysisId, analysisId), eq(jobs.kind, "enhancement"), eq(jobs.status, "completed"), eq(jobs.reverted, false)))
+    .returning();
+  if (!job) {
+    const [latest] = await db.select().from(jobs).where(eq(jobs.id, jobId)).limit(1);
+    if (latest?.reverted) return NextResponse.json({ errorCode: "ALREADY_REVERTED", message: "This enhancement has already been undone.", retryable: false }, { status: 409 });
+    return NextResponse.json({ errorCode: "UNDO_IN_PROGRESS", message: "Another enhancement operation is in progress.", retryable: true }, { status: 409 });
   }
-  const savedOutputs: Array<{ model: WorkbookModel; name: string; bytes: Uint8Array; path: string }> = [];
-  for (let index = 0; index < restored.length; index++) {
-    const model = restored[index], bytes = workbookToXlsxBytes(model), name = outputName(model, index, "restored");
-    const saved = await saveBytes("exports", jobId + "-undo", name, bytes);
-    savedOutputs.push({ model, name, bytes, path: saved.relPath });
-  }
-  const updatedResult = withModels(analysis.result as unknown as AnalysisResult, restored);
+
   try {
+    const [analysis] = await db.select().from(analyses).where(eq(analyses.id, analysisId)).limit(1);
+    if (!analysis?.result) throw new Error("ANALYSIS_NOT_FOUND: analysis result is no longer available.");
+    const [snapshotFile] = await db.select().from(files).where(eq(files.id, job.patchFileId!)).limit(1);
+    if (!snapshotFile || snapshotFile.analysisId !== analysisId || snapshotFile.kind !== "patch") throw new Error("RECOVERY_SNAPSHOT_MISSING: recovery snapshot is unavailable.");
+    const raw = JSON.parse(new TextDecoder().decode(await readBytes(snapshotFile.path))) as { schemaVersion?: number; snapshots?: unknown[] };
+    if (raw.schemaVersion !== 1 || !Array.isArray(raw.snapshots)) throw new Error("RECOVERY_SNAPSHOT_INVALID");
+    const snapshots = raw.snapshots.map(item => parseRecoverySnapshot(JSON.stringify(item)));
+    const current = currentModels(analysis.result as unknown as AnalysisResult);
+    const restored = snapshots.map((snapshot: RecoverySnapshot) => {
+      const match = current.find(model => model.fileId === snapshot.workbookId);
+      if (!match) throw new Error("RECOVERY_CONFLICT: current workbook is missing from analysis state.");
+      return undoWorkbook(snapshot, match);
+    });
+    for (const model of restored) {
+      const report = await verifyWorkbookExport(model);
+      if (!report.ok) throw new Error("RECOVERY_VERIFICATION_FAILED: " + model.fileName + ": " + report.issues.slice(0, 5).map(issue => issue.code).join(", "));
+    }
+    const savedOutputs: Array<{ model: WorkbookModel; name: string; bytes: Uint8Array; path: string }> = [];
+    for (let index = 0; index < restored.length; index++) {
+      const model = restored[index], bytes = workbookToXlsxBytes(model), name = outputName(model, index, "restored");
+      const saved = await saveBytes("exports", jobId + "-undo", name, bytes);
+      savedOutputs.push({ model, name, bytes, path: saved.relPath });
+    }
+    const updatedResult = withModels(analysis.result as unknown as AnalysisResult, restored);
+    const outputIds: string[] = [];
     await db.transaction(async tx => {
-      const outputIds: string[] = [];
       for (const output of savedOutputs) {
         const [file] = await tx.insert(files).values({
           jobId, analysisId, kind: "reverted", name: output.name, size: output.bytes.byteLength,
@@ -300,12 +311,19 @@ async function undoEnhancement(analysisId: string, jobId: string) {
         outputIds.push(file.id);
       }
       await tx.update(analyses).set({ result: updatedResult }).where(eq(analyses.id, analysisId));
-      await tx.update(jobs).set({ reverted: true, undoFileId: outputIds[0] ?? null, summary: { ...(job.summary as Record<string, unknown>), undo: { outputIds } } }).where(eq(jobs.id, jobId));
+      await tx.update(jobs).set({
+        status: "completed", progress: 100, heartbeatAt: null, reverted: true, undoFileId: outputIds[0] ?? null,
+        summary: { ...(job.summary as Record<string, unknown>), undo: { outputIds } },
+      }).where(eq(jobs.id, jobId));
       await tx.insert(auditLogs).values({ analysisId, action: "enhancement.undone", detail: { jobId, outputs: outputIds } });
+    });
+    return NextResponse.json({
+      status: "reverted", jobId,
+      outputs: savedOutputs.map((output, index) => ({ fileId: outputIds[index], name: output.name, size: output.bytes.byteLength, downloadUrl: "/api/outputs/" + outputIds[index] + "/download" })),
     });
   } catch (error) {
     await cleanupJobFiles(jobId, true);
+    await db.update(jobs).set({ status: "completed", heartbeatAt: null }).where(and(eq(jobs.id, jobId), eq(jobs.status, "running"))).catch(() => undefined);
     throw error;
   }
-  return NextResponse.json({ status: "reverted", jobId, outputs: savedOutputs.map(output => ({ name: output.name, size: output.bytes.byteLength })) });
 }
