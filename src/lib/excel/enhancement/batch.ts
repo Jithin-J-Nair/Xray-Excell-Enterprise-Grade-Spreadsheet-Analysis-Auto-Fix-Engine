@@ -17,8 +17,12 @@ export async function processWorkbookBatch<T>(files: readonly BatchInput[], proc
   const names = new Set<string>();
   let total = 0;
   for (const file of files) {
-    const safeName = file.name.replace(/\\/g, "/").split("/").pop() ?? "";
-    if (!safeName || safeName === "." || safeName === ".." || safeName !== file.name) throw new Error("UNSAFE_BATCH_FILENAME");
+    const safeName = file.name.replace(/\\/g, "/");
+    const parts = safeName.split("/");
+    if (!safeName || safeName.startsWith("/") || /^[A-Za-z]:/.test(safeName) ||
+        parts.some(part => !part || part === "." || part === ".." || part.includes("\\0"))) {
+      throw new Error("UNSAFE_BATCH_FILENAME");
+    }
     if (names.has(safeName.toLocaleLowerCase())) throw new Error("DUPLICATE_BATCH_FILENAME: " + safeName);
     names.add(safeName.toLocaleLowerCase());
     if (!(file.bytes instanceof Uint8Array) || file.bytes.byteLength > maxBytes) throw new Error("BATCH_FILE_SIZE_LIMIT: " + safeName);
