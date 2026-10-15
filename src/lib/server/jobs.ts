@@ -216,7 +216,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
       2
     );
     const patchName = `patch_${baseName}_${ts}.json`;
-    const ps = await saveBytes("exports", jobId, patchName, enc.encode(patchDoc));
+    const ps = await saveBytes("exports", jobId + "-" + leaseToken, patchName, enc.encode(patchDoc));
     const [patchRow] = await insertFileForLease(jobId, leaseToken, { jobId, analysisId, kind: "patch", name: patchName, size: enc.encode(patchDoc).byteLength, mime: MIME.patch, path: ps.relPath, sha256: sha256(enc.encode(patchDoc)) });
     await db.update(jobs).set({ patchFileId: patchRow.id, progress: 55 }).where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)));
 
@@ -225,7 +225,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
       if (formats.includes("xlsx")) {
         const bytes = workbookToXlsxBytes(model);
         const name = `fixed_${targetBase}_${ts}.xlsx`;
-        const saved = await saveBytes("exports", jobId, name, bytes);
+        const saved = await saveBytes("exports", jobId + "-" + leaseToken, name, bytes);
         const [row2] = await insertFileForLease(jobId, leaseToken, { jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.xlsx, path: saved.relPath, sha256: sha256(bytes), meta: { format: "xlsx" } });
         outputs.push({ format: "xlsx", fileId: row2.id, name, size: bytes.length });
       }
@@ -236,7 +236,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
       const csv = sheetToCsv(sheet);
       const bytes = enc.encode(csv);
       const name = `${baseName}_${sheet.name}_${ts}.csv`.slice(0, 150);
-      const saved = await saveBytes("exports", jobId, name, bytes);
+      const saved = await saveBytes("exports", jobId + "-" + leaseToken, name, bytes);
       const [row2] = await insertFileForLease(jobId, leaseToken, { jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.csv, path: saved.relPath, sha256: sha256(bytes), meta: { format: "csv", sheet: sheet.name, bom: true } });
       outputs.push({ format: "csv", fileId: row2.id, name, size: bytes.length });
     }
@@ -244,7 +244,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
       const json = modelToJson(main, undefined, true);
       const bytes = enc.encode(json);
       const name = `${baseName}_${ts}.json`;
-      const saved = await saveBytes("exports", jobId, name, bytes);
+      const saved = await saveBytes("exports", jobId + "-" + leaseToken, name, bytes);
       const [row2] = await insertFileForLease(jobId, leaseToken, { jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.json, path: saved.relPath, sha256: sha256(bytes), meta: { format: "json" } });
       outputs.push({ format: "json", fileId: row2.id, name, size: bytes.length });
     }
@@ -252,7 +252,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
       const nd = modelToNdjson(main);
       const bytes = enc.encode(nd);
       const name = `${baseName}_${ts}.ndjson`;
-      const saved = await saveBytes("exports", jobId, name, bytes);
+      const saved = await saveBytes("exports", jobId + "-" + leaseToken, name, bytes);
       const [row2] = await insertFileForLease(jobId, leaseToken, { jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.ndjson, path: saved.relPath, sha256: sha256(bytes), meta: { format: "ndjson" } });
       outputs.push({ format: "ndjson", fileId: row2.id, name, size: bytes.length });
     }
@@ -267,7 +267,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
       });
       const bytes = enc.encode(md);
       const name = `report_${baseName}_${ts}.md`;
-      const saved = await saveBytes("exports", jobId, name, bytes);
+      const saved = await saveBytes("exports", jobId + "-" + leaseToken, name, bytes);
       const [row2] = await insertFileForLease(jobId, leaseToken, { jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.md, path: saved.relPath, sha256: sha256(bytes), meta: { format: "md" } });
       outputs.push({ format: "md", fileId: row2.id, name, size: bytes.length });
     }
