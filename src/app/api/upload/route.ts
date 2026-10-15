@@ -130,7 +130,8 @@ export async function POST(req: NextRequest) {
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : "";
-    const errorCode = (message.split(":")[0] || "UPLOAD_FAILED").replace(/[^A-Z0-9_]/gi, "").slice(0, 80) || "UPLOAD_FAILED";
+    const candidateCode = message.split(":")[0] || "";
+    const errorCode = /^[A-Z][A-Z0-9_]{0,79}$/.test(candidateCode) ? candidateCode : "UPLOAD_FAILED";
     return NextResponse.json({ errorCode: "UPLOAD_FAILED", message: "Upload could not be completed. Check file limits and supported formats, then retry.", failureCode: errorCode, retryable: true }, { status: 500 });
   }
 }
