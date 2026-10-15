@@ -71,7 +71,7 @@ export async function runAnalysisJob(analysisId: string): Promise<void> {
     let i = 0;
     for (const fr of fileRows) {
       i++;
-      await pushLog(analysisId, leaseToken, log, `parse: ${fr.name} (${(fr.size / 1024).toFixed(1)} KB)`, 6 + i * 6, `Parsing ${fr.name}`);
+      await pushLog(analysisId, leaseToken, log, `parse: input ${i}/${fileRows.length} (${(fr.size / 1024).toFixed(1)} KB)`, 6 + i * 6, `Parsing file ${i} of ${fileRows.length}`);
       const bytes = await readBytes(fr.path);
       const model = await parseFile(fr.id, fr.name, new Uint8Array(bytes));
       models.push(model);
