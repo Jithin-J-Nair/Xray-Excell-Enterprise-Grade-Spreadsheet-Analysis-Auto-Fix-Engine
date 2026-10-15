@@ -128,7 +128,8 @@ const MIME: Record<string, string> = {
 
 
 function safeJobErrorCode(message: string): string {
-  return (message.split(":")[0] || "JOB_FAILED").replace(/[^A-Z0-9_]/gi, "").slice(0, 80) || "JOB_FAILED";
+  const candidate = message.split(":")[0] || "";
+  return /^[A-Z][A-Z0-9_]{0,79}$/.test(candidate) ? candidate : "JOB_FAILED";
 }
 
 async function insertFileForLease(jobId: string, leaseToken: string, values: typeof files.$inferInsert) {
