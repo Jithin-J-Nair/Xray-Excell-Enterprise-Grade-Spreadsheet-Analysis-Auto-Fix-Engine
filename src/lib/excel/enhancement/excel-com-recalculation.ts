@@ -84,7 +84,7 @@ export async function recalculateWithMicrosoftExcel(model: WorkbookModel, source
     catch { throw new Error("EXCEL_RECALCULATION_OUTPUT_MISSING"); }
     const reopened = await parseFile(model.fileId, fileName, bytes);
     const packageReport = verifyProtectedPackageParts(sourceBytes, bytes);
-    if (!packageReport.ok) throw new Error("EXCEL_RECALCULATION_PACKAGE_PARTS_MISSING: " + (packageReport.missingParts.join(", ") || packageReport.error || "package-part verification failed"));
+    if (!packageReport.ok) throw new Error("EXCEL_RECALCULATION_PACKAGE_FIDELITY_FAILED: " + [...packageReport.missingParts, ...(packageReport.changedFeatureMarkers ?? []), ...(packageReport.error ? [packageReport.error] : [])].slice(0, 30).join(", "));
     const report = verifyRecalculatedWorkbook(model, reopened);
     if (!report.ok) throw new Error("EXCEL_RECALCULATION_STRUCTURE_MISMATCH: " + report.issues.slice(0, 20).map(issue => issue.code + " " + issue.message).join("; "));
     return { bytes, engine: "Microsoft Excel COM", formulasBefore: report.originalFormulaCount, formulasAfter: report.recalculatedFormulaCount,
