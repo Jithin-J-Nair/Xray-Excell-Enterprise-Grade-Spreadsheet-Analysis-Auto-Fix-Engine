@@ -14,7 +14,7 @@ import {
   sheetToCsv,
   workbookToXlsxBytes,
 } from "@/lib/excel/serialize";
-import { readBytes, saveBytes, sha256, stamp } from "./storage";
+import { readBytes, saveBytes, sha256, stamp, removeLeaseExportDirectory } from "./storage";
 
 const enc = new TextEncoder();
 
@@ -272,10 +272,12 @@ export async function runApplyJob(jobId: string): Promise<void> {
       outputs.push({ format: "md", fileId: row2.id, name, size: bytes.length });
     }
 
-    await db
+    const [published] = await db
       .update(jobs)
       .set({ status: "completed", progress: 100, outputs, summary: summary as unknown as Record<string, unknown>, completedAt: new Date(), heartbeatAt: null, leaseToken: null })
-      .where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)));
+      .where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)))
+      .returning({ id: jobs.id });
+    if (!published) throw new Error("JOB_LEASE_LOST: output publication was rejected because this worker no longer owns the lease.");
     await audit(analysisId, "apply.completed", {
       jobId,
       tools,
@@ -287,7 +289,9 @@ export async function runApplyJob(jobId: string): Promise<void> {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("apply-failed", { jobId, code: msg.split(":")[0].slice(0, 80) });
+    await removeLeaseExportDirectory(jobId, leaseToken).catch(() => undefined);
+    if (msg.startsWith("JOB_LEASE_LOST")) return;
+    console.error("apply-failed", { jobId, code: safeJobErrorCode(msg) });
     await db.update(jobs).set({ status: "failed", error: safeJobErrorCode(msg), completedAt: new Date(), heartbeatAt: null, leaseToken: null }).where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)));
     await audit(analysisId, "apply.failed", { jobId, error: safeJobErrorCode(msg) });
   } finally {
