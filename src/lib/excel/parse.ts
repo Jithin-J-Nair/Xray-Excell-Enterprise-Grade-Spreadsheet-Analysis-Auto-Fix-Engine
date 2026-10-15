@@ -1,6 +1,7 @@
 // ── Workbook ingestion: bytes/text → WorkbookModel (isomorphic) ──────────────
 import * as XLSX from "@redoper1/xlsx-js-style";
 import type { CellModel, NamedRangeModel, SheetModel, WorkbookModel } from "./types";
+import { detectOoxmlUnsupportedFeatures } from "./ooxml-preflight";
 
 export const MAX_MODEL_CELLS = 60000;
 /** Prevent dense exports from expanding pathological sparse worksheet ranges. */
@@ -215,6 +216,8 @@ function detectUnsupportedPackageFeatures(wb: XLSX.WorkBook, model: WorkbookMode
   const workbookXml = rawZipText(raw, "xl/workbook.xml");
   if (/<(?:[A-Za-z0-9_]+:)?workbookProtection\b/i.test(workbookXml)) features.add("workbook protection");
   if (/<(?:[A-Za-z0-9_]+:)?extLst\b/i.test(workbookXml)) features.add("workbook extension data");
+
+  for (const feature of detectOoxmlUnsupportedFeatures(paths.map(path => ({ path, text: rawZipText(raw, path) })))) features.add(feature);
 
   if (features.size) model.unsupportedFeatures = [...features];
 }
