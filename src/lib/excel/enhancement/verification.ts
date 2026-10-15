@@ -1,6 +1,6 @@
 import * as XLSX from "@redoper1/xlsx-js-style";
 import type { WorkbookModel } from "../types";
-import { parseFile } from "../parse";
+import { assertSafeZipContainer, parseFile } from "../parse";
 import { workbookToXlsxBytes } from "../serialize";
 
 export interface VerificationIssue { code: string; message: string; sheet?: string; cell?: string }
