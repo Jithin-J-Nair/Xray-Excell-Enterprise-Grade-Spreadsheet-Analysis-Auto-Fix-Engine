@@ -33,6 +33,16 @@ describe("read-only data-quality profiler",()=>{
  it("flags missing required keys",()=>{const m=fixture();m.sheets[0].cells.A2.v="";const r=profileWorkbookQuality(m,{keyColumns:{Sales:[0]},duplicateRowScan:false});assert.ok(r.findings.some(f=>f.code==="MISSING_KEY"));});
 });
 describe("invalid calendar date detection",()=>{
+
+ it("validates years below 100 without JavaScript's Date.UTC remapping bug",()=>{
+  const m=fixture();m.sheets[0].rows=6;
+  m.sheets[0].cells.A5={a:"A5",r:4,c:0,t:"s",v:"0001-01-01"};
+  m.sheets[0].cells.A6={a:"A6",r:5,c:0,t:"s",v:"0099-12-31"};
+  const result=profileWorkbookQuality(m,{duplicateRowScan:false});
+  assert.ok(!result.findings.some(f=>f.code==="INVALID_DATE_TEXT"&&(f.cell==="A5"||f.cell==="A6")));
+  assert.ok(result.findings.some(f=>f.code==="DATE_AS_TEXT"&&f.cell==="A5"));
+  assert.ok(result.findings.some(f=>f.code==="DATE_AS_TEXT"&&f.cell==="A6"));
+ });
  it("flags impossible date-shaped text without mutating the workbook",()=>{
   const m=fixture();m.sheets[0].rows=5;m.sheets[0].cells.A5={a:"A5",r:4,c:0,t:"s",v:"2024-02-30"};
   const before=JSON.stringify(m),result=profileWorkbookQuality(m,{duplicateRowScan:false});
