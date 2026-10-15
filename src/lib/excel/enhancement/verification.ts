@@ -50,7 +50,9 @@ export async function verifyWorkbookExport(model: WorkbookModel, exportedBytes?:
       if (cell.s && JSON.stringify(cell.s) !== JSON.stringify(actual.s ?? null)) issues.push({ code: "STYLE_MISMATCH", message: "Explicit cell style changed during export/reopen.", sheet: before.name, cell: cell.a });
       const expectedFormat = cell.z && cell.z.toLowerCase() !== "general" ? cell.z : null;
       const actualFormat = actual.z && actual.z.toLowerCase() !== "general" ? actual.z : null;
-      if (expectedFormat !== actualFormat) issues.push({ code: "NUMBER_FORMAT_MISMATCH", message: "Explicit cell number format changed during export/reopen.", sheet: before.name, cell: cell.a });
+      // Excel readers can assign a default display format to typed dates/numbers that had no
+      // explicit format in the model. Only enforce equality when the source format was explicit.
+      if (expectedFormat !== null && expectedFormat !== actualFormat) issues.push({ code: "NUMBER_FORMAT_MISMATCH", message: "Explicit cell number format changed during export/reopen.", sheet: before.name, cell: cell.a });
       if (!cell.f && (cell.v !== null || cell.t !== "z") && (cell.t !== actual.t || JSON.stringify(cell.v) !== JSON.stringify(actual.v))) {
         issues.push({ code: "CELL_CONTENT_MISMATCH", message: "Cell value or type changed during export/reopen.", sheet: before.name, cell: cell.a });
       }
