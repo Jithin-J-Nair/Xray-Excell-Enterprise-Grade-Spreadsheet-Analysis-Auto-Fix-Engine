@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, inArray, ne } from "drizzle-orm";
 import { basename, extname, join } from "node:path";
 import { rm } from "node:fs/promises";
 import { db } from "@/db";
@@ -19,7 +19,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Feature = "formatting" | "numberFormats" | "formulaRepairs";
-type Action = "profile" | "preview" | "verify" | "apply" | "undo";
+type Action = "profile" | "preview" | "verify" | "apply" | "recalculate" | "undo";
 const FEATURES = new Set<Feature>(["formatting", "numberFormats", "formulaRepairs"]);
 const MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const MAX_REPORT_ITEMS = 500;
@@ -153,7 +153,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   let undoMode = false;
   try {
     const raw: unknown = await req.json();
-    if (!object(raw) || typeof raw.action !== "string" || !["profile", "preview", "verify", "apply", "undo"].includes(raw.action)) {
+    if (!object(raw) || typeof raw.action !== "string" || !["profile", "preview", "verify", "apply", "recalculate", "undo"].includes(raw.action)) {
       return NextResponse.json({ errorCode: "BAD_REQUEST", message: "action must be profile, preview, verify, apply, or undo.", retryable: false }, { status: 400 });
     }
     const action = raw.action as Action;
@@ -175,6 +175,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     if (action === "verify") {
       return NextResponse.json({ action, files: await Promise.all(models.map(async model => ({ fileName: model.fileName, report: await verifyWorkbookExport(model) }))) });
+    }
+    if (action === "recalculate") {
+      if (raw.engine !== "excel" && raw.engine !== "libreoffice") return NextResponse.json({ errorCode: "BAD_ENGINE", message: "engine must be excel or libreoffice.", retryable: false }, { status: 400 });
+      return await runRecalculation(id, analysis, result, models, raw.engine);
     }
     const features = selectFeatures(raw.features);
     const initialFingerprints = new Map(models.map(model => [model.fileId, fingerprintWorkbook(model)]));
