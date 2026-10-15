@@ -132,9 +132,9 @@ function assertSerializable(models: WorkbookModel[]) {
     if (model.unsupportedFeatures?.length) throw new Error("UNSUPPORTED_WORKBOOK_FEATURES: refusing to rewrite " + model.fileName + " because preservation is not guaranteed: " + model.unsupportedFeatures.join(", "));
   }
 }
-function outputName(model: WorkbookModel, index: number, suffix: "enhanced" | "restored"): string {
+function outputName(model: WorkbookModel, index: number, suffix: "enhanced" | "restored" | "recalculated"): string {
   const stem = basename(model.fileName, extname(model.fileName)).replace(/[^\w.-]/g, "_").slice(0, 90) || "workbook";
-  return (index + 1) + "_" + stem + "_" + suffix + ".xlsx";
+  const extension = suffix === "recalculated" && model.fileName.toLowerCase().endsWith(".xlsm") ? ".xlsm" : ".xlsx";\n  return (index + 1) + "_" + stem + "_" + suffix + extension;
 }
 async function cleanupJobFiles(jobId: string, undo = false) {
   const buckets = undo ? ["exports"] : ["exports", "patches"];
