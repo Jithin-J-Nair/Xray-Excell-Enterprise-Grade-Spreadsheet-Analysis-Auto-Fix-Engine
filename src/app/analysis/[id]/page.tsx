@@ -232,7 +232,8 @@ export default function AnalysisPage() {
           {tab === "risks" && <RisksTab detail={detail} />}
           {tab === "sheets" && <SheetsTab detail={detail} />}
           {tab === "workbench" && <WorkbenchTab detail={detail} reload={reload} />}
-          {tab === "export" && <ExportTab detail={detail} reload={reload} />}\n          {tab === "enhancement" && <EnhancementTab detail={detail} reload={reload} />}
+          {tab === "export" && <ExportTab detail={detail} reload={reload} />}
+          {tab === "enhancement" && <EnhancementTab detail={detail} reload={reload} />}
         </motion.div>
       </AnimatePresence>
     </div>
