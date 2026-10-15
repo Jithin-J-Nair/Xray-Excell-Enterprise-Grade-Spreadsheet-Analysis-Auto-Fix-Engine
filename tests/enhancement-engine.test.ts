@@ -200,3 +200,43 @@ describe("safe directory batch processing", () => {
     } finally { await rm(root, { recursive: true, force: true }); }
   });
 });
+
+describe("recalculation regression guards", () => {
+  it("rejects a newly introduced formula error result", () => {
+    const before = fixture();
+    before.sheets[0].cells.C3.f = "B2/500";
+    const after = structuredClone(before);
+    after.sheets[0].cells.C3.t = "e";
+    after.sheets[0].cells.C3.v = "#DIV/0!";
+    const report = verifyRecalculatedWorkbook(before, after);
+    assert.equal(report.ok, false);
+    assert.ok(report.issues.some(issue => issue.code === "NEW_FORMULA_ERROR" && issue.cell === "C3"));
+  });
+  it("rejects unexpected literal cells introduced during recalculation", () => {
+    const before = fixture();
+    const after = structuredClone(before);
+    after.sheets[0].cells.D4 = { a: "D4", r: 3, c: 3, t: "s", v: "unexpected" };
+    const report = verifyRecalculatedWorkbook(before, after);
+    assert.equal(report.ok, false);
+    assert.ok(report.issues.some(issue => issue.code === "UNEXPECTED_CELL" && issue.cell === "D4"));
+  });
+});
+
+describe("batch configuration validation", () => {
+  it("rejects invalid resource budgets before processing", async () => {
+    await assert.rejects(
+      () => processWorkbookBatch([], async () => true, { maxFiles: 0 }),
+      /INVALID_BATCH_FILE_LIMIT/
+    );
+    await assert.rejects(
+      () => processWorkbookBatch([], async () => true, { maxTotalBytes: -1 }),
+      /INVALID_BATCH_BYTE_LIMIT/
+    );
+  });
+  it("rejects NUL bytes in filenames", async () => {
+    await assert.rejects(
+      () => processWorkbookBatch([{ name: "bad\\0name.xlsx", bytes: new Uint8Array([1]) }], async () => true),
+      /UNSAFE_BATCH_FILENAME/
+    );
+  });
+});
