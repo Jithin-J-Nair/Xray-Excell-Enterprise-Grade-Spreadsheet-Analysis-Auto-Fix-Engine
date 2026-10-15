@@ -18,10 +18,19 @@ const THEMES = {
   }
 } as const;
 function clone<T>(v: T): T { return v == null ? v : JSON.parse(JSON.stringify(v)) as T; }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
 function mergeStyle(old: Record<string, unknown> | undefined, patch: Record<string, unknown>, preserve: boolean): Record<string, unknown> {
   if (!preserve) return clone(patch);
-  const out: Record<string, unknown> = { ...(old ?? {}) };
-  for (const [key, value] of Object.entries(patch)) if (out[key] === undefined) out[key] = clone(value);
+  const out: Record<string, unknown> = clone(old ?? {});
+  for (const [key, value] of Object.entries(patch)) {
+    if (out[key] === undefined) out[key] = clone(value);
+    else if (isRecord(out[key]) && isRecord(value)) {
+      // Preserve explicitly configured leaves while filling missing font/fill/border/alignment properties.
+      out[key] = mergeStyle(out[key] as Record<string, unknown>, value, true);
+    }
+  }
   return out;
 }
 function colName(i: number): string { let n=i+1, s=""; while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);} return s; }
