@@ -60,6 +60,18 @@ Formula repair requires an explicit confirmation after reviewing the proposals:
 
 This is a user opt-in, not a guarantee of semantic correctness. Verify formulas against business rules before using the result for financial, regulatory, or operational decisions.
 
+## Recalculate formulas with a native engine
+
+The Analysis Detail Enhancement Engine tab exposes both adapters. This action uses the immutable original upload bytes and writes a separately verified output copy; it does not overwrite the source upload or mutate the current analysis model.
+
+```json
+{"action":"recalculate","engine":"excel"}
+```
+
+Use `"engine":"excel"` for Windows with desktop Microsoft Excel installed, or `"engine":"libreoffice"` when LibreOffice Calc is installed and `soffice` is available. Engine-specific requirements and limitations are enforced per workbook. The API verifies formula locations/text, non-formula values, explicit styles/formats, sheet dimensions, merged ranges, defined names, feature markers, and (for Excel COM) presence of protected OOXML package parts. These checks do not prove that a formula's business meaning is correct or that LibreOffice results equal Excel results.
+
+Workbooks with external data connections/query tables are blocked from automatic refresh; LibreOffice also refuses external workbook references and network/data-provider formulas. A batch can return successful outputs alongside per-file skip reasons.
+
 ## Verify current workbook models
 
 ```json
