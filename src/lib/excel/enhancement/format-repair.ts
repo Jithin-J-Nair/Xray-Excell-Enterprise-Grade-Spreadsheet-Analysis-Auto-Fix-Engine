@@ -97,8 +97,9 @@ export function repairNumberFormats(model: WorkbookModel, options: FormatRepairO
   const applied = findings.map(finding => {
     const sheet = copy.sheets.find(s => s.name === finding.sheet);
     const cell = sheet?.cells[finding.cell];
+    const hasExplicitFormat = !!finding.currentFormat && finding.currentFormat.toLowerCase() !== "general";
     const allowed = (options.apply ?? true) && finding.confidence >= minConfidence &&
-      (!finding.currentFormat || options.overwriteExisting === true);
+      (!hasExplicitFormat || options.overwriteExisting === true);
     if (allowed && cell) cell.z = finding.proposedFormat;
     return { ...finding, applied: !!(allowed && cell) };
   });
