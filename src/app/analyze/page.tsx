@@ -26,11 +26,17 @@ export default function AnalyzePage() {
 
   const addFiles = useCallback((list: FileList | null) => {
     if (!list || list.length === 0) return;
-    const incoming = Array.from(list);
-    if (files.length + incoming.length > 12) {
-      setErr("A batch can contain at most 12 files. Choose a smaller folder or remove files before adding more.");
+    const selected = Array.from(list);
+    const incoming = selected.filter(file => /\\.(xlsx|xlsm|xlsb|xls|csv|tsv|json|ndjson|txt)$/i.test(file.name));
+    if (incoming.length === 0) {
+      setErr("No supported spreadsheet or data files were found in that selection.");
       return;
     }
+    if (files.length + incoming.length > 12) {
+      setErr("A batch can contain at most 12 supported files. Choose a smaller folder or remove files before adding more.");
+      return;
+    }
+    const skipped = selected.length - incoming.length;
     const next: Picked[] = incoming.map((file) => ({
       file,
       relativePath: file.webkitRelativePath || undefined,
