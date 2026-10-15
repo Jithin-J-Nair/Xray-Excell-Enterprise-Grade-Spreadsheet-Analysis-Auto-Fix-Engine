@@ -18,7 +18,7 @@ interface PreviewFile { fileName: string; changes: Record<Feature, number>; prof
 interface VerifyFile { fileName: string; report: { ok: boolean; issues: { code: string; message: string; cell?: string }[] } }
 interface ApiResult {
   action?: string; message?: string; errorCode?: string; jobId?: string; files?: ProfileFile[] | PreviewFile[] | VerifyFile[];
-  outputs?: Output[]; status?: string; features?: Feature[];
+  outputs?: Output[]; status?: string; features?: Feature[]; skippedFiles?: { fileName: string; reason: string }[];
 }
 
 const FEATURE_LABELS: Record<Feature, string> = {
@@ -77,7 +77,7 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
       if (action === "apply") {
         setRecentOutputs(data.outputs ?? []);
         setRecentJobId(data.jobId ?? null);
-        setNotice("Enhanced workbook copies created and offline verification passed.");
+        setNotice(data.skippedFiles?.length ? "Verified " + (data.outputs?.length ?? 0) + " output(s); skipped " + data.skippedFiles.length + " unsupported workbook(s). See job summary for details." : "Enhanced workbook copies created and offline verification passed.");
       } else if (action === "undo") {
         setRecentOutputs(data.outputs ?? []);
         setRecentJobId(null);
