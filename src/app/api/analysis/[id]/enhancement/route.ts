@@ -134,7 +134,8 @@ function assertSerializable(models: WorkbookModel[]) {
 }
 function outputName(model: WorkbookModel, index: number, suffix: "enhanced" | "restored" | "recalculated"): string {
   const stem = basename(model.fileName, extname(model.fileName)).replace(/[^\w.-]/g, "_").slice(0, 90) || "workbook";
-  const extension = suffix === "recalculated" && model.fileName.toLowerCase().endsWith(".xlsm") ? ".xlsm" : ".xlsx";\n  return (index + 1) + "_" + stem + "_" + suffix + extension;
+  const extension = suffix === "recalculated" && model.fileName.toLowerCase().endsWith(".xlsm") ? ".xlsm" : ".xlsx";
+  return (index + 1) + "_" + stem + "_" + suffix + extension;
 }
 async function cleanupJobFiles(jobId: string, undo = false) {
   const buckets = undo ? ["exports"] : ["exports", "patches"];
