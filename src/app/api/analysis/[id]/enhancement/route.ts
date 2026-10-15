@@ -297,7 +297,9 @@ async function undoEnhancement(analysisId: string, jobId: string) {
     if (!analysis?.result) throw new Error("ANALYSIS_NOT_FOUND: analysis result is no longer available.");
     const [snapshotFile] = await db.select().from(files).where(eq(files.id, job.patchFileId!)).limit(1);
     if (!snapshotFile || snapshotFile.analysisId !== analysisId || snapshotFile.kind !== "patch") throw new Error("RECOVERY_SNAPSHOT_MISSING: recovery snapshot is unavailable.");
-    const raw = JSON.parse(new TextDecoder().decode(await readBytes(snapshotFile.path))) as { schemaVersion?: number; snapshots?: unknown[] };
+    const snapshotBytes = await readBytes(snapshotFile.path);
+    if (snapshotFile.sha256 && sha256(snapshotBytes) !== snapshotFile.sha256) throw new Error("RECOVERY_SNAPSHOT_CORRUPT: stored snapshot checksum does not match its database record.");
+    const raw = JSON.parse(new TextDecoder().decode(snapshotBytes)) as { schemaVersion?: number; snapshots?: unknown[] };
     if (raw.schemaVersion !== 1 || !Array.isArray(raw.snapshots)) throw new Error("RECOVERY_SNAPSHOT_INVALID");
     const snapshots = raw.snapshots.map(item => parseRecoverySnapshot(JSON.stringify(item)));
     const current = currentModels(analysis.result as unknown as AnalysisResult);
