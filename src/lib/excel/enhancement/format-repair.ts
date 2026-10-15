@@ -10,7 +10,7 @@ export interface FormatRepairOptions {
   apply?: boolean; minConfidence?: number; overwriteExisting?: boolean;
   currencyCode?: "USD" | "EUR" | "GBP" | "JPY" | "CAD" | "AUD";
 }
-const DATE_HEADER = /date|day|month|year|日付|年月日|日$/i;
+const DATE_HEADER = /date|日付|年月日|日期/i;
 const PERCENT_HEADER = /percent|percentage|rate|ratio|margin|growth|割合|率|比率/i;
 const CURRENCY_HEADER = /price|cost|amount|revenue|sales|total|balance|salary|budget|円|金額|売上|価格|費用/i;
 const INTEGER_HEADER = /count|quantity|qty|units|items|number|件数|数量|個数/i;
@@ -53,6 +53,9 @@ export function inspectNumberFormats(model: WorkbookModel, options: FormatRepair
       if (cell.t === "d" || validDate(cell.v)) {
         kind = "date"; proposed = "yyyy-mm-dd"; confidence = cell.t === "d" ? 0.99 : 0.96;
         reason = "Cell is typed as a date or contains an unambiguous ISO date.";
+      } else if (DATE_HEADER.test(header) && typeof cell.v === "number" && cell.v > 1 && cell.v < 2958466) {
+        kind = "date"; proposed = "yyyy-mm-dd"; confidence = 0.68;
+        reason = "Header suggests a date but numeric serial semantics are ambiguous; confirm before applying.";
       } else if (PERCENT_HEADER.test(header)) {
         const nums = sample.filter(c => typeof c.v === "number").map(c => c.v as number);
         // Percent units are ambiguous: 0.15 can mean 15% or 0.15%. Do not guess scaling.
