@@ -100,8 +100,8 @@ export function verifyRecalculatedWorkbook(before: WorkbookModel, after: Workboo
       if (!actual) { issues.push({ code: "CELL_MISSING", message: "Cell disappeared during recalculation.", sheet: source.name, cell: cell.a }); continue; }
       if (cell.f) {
         if (actual.f !== cell.f) issues.push({ code: "FORMULA_CHANGED", message: "Formula text changed during recalculation.", sheet: source.name, cell: cell.a });
-        const wasError = cell.t === "e" || (typeof cell.v === "string" && /^#(?:REF!|DIV\\/0!|VALUE!|NAME\\?|N\\/A|NUM!|NULL!|SPILL!|CALC!|FIELD!|BLOCKED!)/i.test(cell.v));
-        const isError = actual.t === "e" || (typeof actual.v === "string" && /^#(?:REF!|DIV\\/0!|VALUE!|NAME\\?|N\\/A|NUM!|NULL!|SPILL!|CALC!|FIELD!|BLOCKED!)/i.test(actual.v));
+        const wasError = cell.t === "e" || (typeof cell.v === "string" && /^#(?:REF!|DIV[/]0!|VALUE!|NAME[?]|N[/]A|NUM!|NULL!|SPILL!|CALC!|FIELD!|BLOCKED!)/i.test(cell.v));
+        const isError = actual.t === "e" || (typeof actual.v === "string" && /^#(?:REF!|DIV[/]0!|VALUE!|NAME[?]|N[/]A|NUM!|NULL!|SPILL!|CALC!|FIELD!|BLOCKED!)/i.test(actual.v));
         if (isError && !wasError) issues.push({ code: "NEW_FORMULA_ERROR", message: "Recalculation introduced a formula error result.", sheet: source.name, cell: cell.a });
       } else if (cell.t !== actual.t || stable(cell.v) !== stable(actual.v)) {
         issues.push({ code: "CELL_CONTENT_MISMATCH", message: "A non-formula cell value or type changed during recalculation.", sheet: source.name, cell: cell.a });
