@@ -54,7 +54,7 @@ Formula repair requires an explicit confirmation after reviewing the proposals:
   "action": "apply",
   "features": ["formulaRepairs"],
   "confirmFormulaRepairs": true,
-  "options": { "minConfidence": 0.95 }
+  "options": { "formulaMinConfidence": 0.95 }
 }
 ```
 
