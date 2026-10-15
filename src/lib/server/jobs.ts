@@ -289,6 +289,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    await db.delete(files).where(and(eq(files.jobId, jobId), sql`${files.path} like ${"%" + jobId + "-" + leaseToken + "%"}`)).catch(() => undefined);
     await removeLeaseExportDirectory(jobId, leaseToken).catch(() => undefined);
     if (msg.startsWith("JOB_LEASE_LOST")) return;
     console.error("apply-failed", { jobId, code: safeJobErrorCode(msg) });
