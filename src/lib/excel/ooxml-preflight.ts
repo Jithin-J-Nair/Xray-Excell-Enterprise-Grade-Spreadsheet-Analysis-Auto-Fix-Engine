@@ -98,7 +98,8 @@ export function detectOoxmlUnsupportedFeatures(entries: OoxmlPackageEntry[]): st
       if (/pivotCacheDefinition/i.test(text)) features.add("pivot caches");
       if (/pivotTable/i.test(text)) features.add("pivot tables");
       if (/queryTable/i.test(text)) features.add("query tables");
-      if (/oleObject|package/i.test(text)) features.add("embedded objects");
+      // Do not match the standard OOXML namespace "…/package/…"; classify only explicit OLE/package parts or content types.
+      if (/oleObject/i.test(text) || /PartName=["\'][^"\']*(?:embeddings|oleObject)/i.test(text)) features.add("embedded objects");
     }
   }
 
