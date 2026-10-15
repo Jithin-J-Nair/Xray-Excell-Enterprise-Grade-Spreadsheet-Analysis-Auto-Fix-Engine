@@ -34,7 +34,7 @@ export async function recalculateWithMicrosoftExcel(model: WorkbookModel, source
   if (model.truncated) throw new Error("MODEL_TRUNCATED: refusing to recalculate incomplete workbook.");
   if (!/\.xlsx$|\.xlsm$/i.test(model.fileName)) throw new Error("EXCEL_COM_FORMAT_UNSUPPORTED: only .xlsx and .xlsm are supported.");
   if (sourceBytes.byteLength < 4) throw new Error("INVALID_WORKBOOK_BYTES");
-  if ((model.unsupportedFeatures ?? []).some(feature => /digital signatures/i.test(feature))) {
+  if ((model.unsupportedFeatures ?? []).some(feature => /external data connections|query tables/i.test(feature))) {\n    throw new Error("EXTERNAL_REFRESH_BLOCKED: workbook contains external data connections or query tables; refresh behavior cannot be safely guaranteed.");\n  }\n  if ((model.unsupportedFeatures ?? []).some(feature => /digital signatures/i.test(feature))) {
     throw new Error("SIGNED_WORKBOOK_BLOCKED: recalculation can invalidate digital signatures.");
   }
   const root = await mkdtemp(join(tmpdir(), "xray-excel-com-"));
