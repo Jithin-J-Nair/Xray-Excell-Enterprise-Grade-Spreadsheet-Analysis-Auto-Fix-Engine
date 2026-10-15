@@ -48,6 +48,8 @@ function containsExpected(actual: unknown, expected: unknown): boolean {
     const actualRecord = actual as Record<string, unknown>;
     return Object.entries(expected as Record<string, unknown>).every(([key, value]) => {
       const actualValue = actualRecord[key];
+      // Indexed color 64 is Excel's default background; serializers commonly omit it.
+      if (key === "bgColor" && actualValue === undefined && value && typeof value === "object" && (value as Record<string, unknown>).indexed === "64") return true;
       if (key === "rgb" && typeof value === "string" && typeof actualValue === "string" && /^[#0-9a-f]{6,9}$/i.test(value) && /^[#0-9a-f]{6,9}$/i.test(actualValue)) {
         return value.replace(/^#/, "").slice(-6).toUpperCase() === actualValue.replace(/^#/, "").slice(-6).toUpperCase();
       }
@@ -177,7 +179,7 @@ export async function verifyWorkbookExport(model: WorkbookModel, exportedBytes?:
       if (!actual) { issues.push({ code: "CELL_MISSING", message: "Cell missing after export/reopen.", sheet: before.name, cell: cell.a }); continue; }
       // Readers may materialize default Excel styles ("General", empty fill/font records) for unstyled cells.
       // Only compare style metadata that was explicitly present in the source model.
-      if (cell.s && !containsExpected(actual.s ?? null, cell.s)) issues.push({ code: "STYLE_MISMATCH", message: "Explicit cell style properties changed during export/reopen. expected=" + stable(cell.s) + " actual=" + stable(actual.s ?? null), sheet: before.name, cell: cell.a });
+      if (cell.s && !containsExpected(actual.s ?? null, cell.s)) issues.push({ code: "STYLE_MISMATCH", message: "Explicit cell style properties changed during export/reopen.", sheet: before.name, cell: cell.a });
       const expectedFormat = cell.z && cell.z.toLowerCase() !== "general" ? cell.z : null;
       const actualFormat = actual.z && actual.z.toLowerCase() !== "general" ? actual.z : null;
       // Excel readers can assign a default display format to typed dates/numbers that had no
