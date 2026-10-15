@@ -12,7 +12,7 @@ A4:{a:"A4",r:3,c:0,t:"s",v:"Widget"},B4:{a:"B4",r:3,c:1,t:"s",v:"12"},C4:{a:"C4"
 describe("enhancement formatting engine",()=>{
  it("styles headers, bounds widths, preserves styles and leaves input immutable",()=>{const m=fixture(),before=JSON.stringify(m),r=applyFormattingTheme(m,{minColumnWidth:8,maxColumnWidth:30});assert.notEqual(JSON.stringify(r.model),before);assert.deepEqual(m.sheets[0].cells.A2.s,{font:{bold:true,color:{rgb:"FF00FF00"}}});assert.equal((r.model.sheets[0].cells.A1.s?.font as {bold?:boolean}).bold,true);assert.ok(r.model.sheets[0].columnWidths?.every(w=>(w.wch??0)>=8&&(w.wch??0)<=30));assert.ok(r.changes.length>0);});
  it("sizes multiline cells using their longest line and can explicitly refit existing widths",()=>{
-  const m=fixture();m.sheets[0].cols=4;m.sheets[0].cells.D2={a:"D2",r:1,c:3,t:"s",v:"longer\\nx"};m.sheets[0].columnWidths=[{wch:4}];
+  const m=fixture();m.sheets[0].cols=4;m.sheets[0].cells.D2={a:"D2",r:1,c:3,t:"s",v:"longer\nx"};m.sheets[0].columnWidths=[{wch:4}];
   const preserved=applyFormattingTheme(m,{minColumnWidth:1,maxColumnWidth:20});
   assert.equal(preserved.model.sheets[0].columnWidths?.[0].wch,4);
   assert.equal(preserved.model.sheets[0].columnWidths?.[3].wch,8);
