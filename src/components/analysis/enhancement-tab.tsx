@@ -42,7 +42,7 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
   const [recentOutputs, setRecentOutputs] = useState<Output[]>([]);
   const [recentJobId, setRecentJobId] = useState<string | null>(null);
 
-  const serverReady = detail.mode === "server" && detail.status === "completed" && !!detail.result;
+  const serverReady = detail.mode === "server" && detail.status === "completed" && !!detail.result;\n  const enhancementRunning = detail.jobs.some(job => job.kind === "enhancement" && job.status === "running");
   const undoableJob = useMemo(() => [...detail.jobs]
     .filter(job => job.kind === "enhancement" && job.status === "completed" && !job.reverted && !!job.patchFileId)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0], [detail.jobs]);
@@ -112,7 +112,7 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
             </div>
           </div>
         </div>
-        {!serverReady && (
+        {enhancementRunning && <div className="mt-4 rounded-lg border border-warn/30 bg-warn/5 p-3 text-sm text-dim">An enhancement or undo operation is already running for this analysis. Wait for it to finish before starting another operation.</div>}\n        {!serverReady && (
           <div className="mt-4 rounded-lg border border-warn/30 bg-warn/5 p-3 text-sm text-dim">
             {detail.mode === "local" ? "The enhancement API currently runs on server-mode analyses. Local/private browser-mode enhancements are not wired to this panel." : "Wait for the server analysis to complete before using enhancement tools."}
           </div>
@@ -163,7 +163,7 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
           </label>
         )}
         <div className="flex flex-wrap gap-2">
-          <button className="btn btn-ghost text-sm" disabled={!serverReady || !!busy} onClick={() => void request("profile", { features: undefined })}>
+          <button className="btn btn-ghost text-sm" disabled={!serverReady || !!busy || enhancementRunning} onClick={() => void request("profile", { features: undefined })}>
             {busy === "profile" ? <Loader2 size={14} className="animate-spin" /> : <ClipboardCheck size={14} />} Profile workbook
           </button>
           <button className="btn btn-ghost text-sm" disabled={!serverReady || !!busy || features.length === 0} onClick={() => void request("preview")}>
