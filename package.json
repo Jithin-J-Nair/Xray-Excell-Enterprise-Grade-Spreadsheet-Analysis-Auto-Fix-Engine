@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test:unit": "node --import tsx --test tests/formula.test.ts tests/graph-state.test.ts tests/serialize.test.ts tests/storage.test.ts tests/parse.test.ts tests/transform.test.ts tests/proxy.test.ts tests/request-limits.test.ts tests/enhancement.test.ts",
+    "test:unit": "node --import tsx --test tests/formula.test.ts tests/graph-state.test.ts tests/serialize.test.ts tests/storage.test.ts tests/parse.test.ts tests/transform.test.ts tests/proxy.test.ts tests/request-limits.test.ts tests/enhancement.test.ts tests/enhancement-engine.test.ts",
     "test:integration": "node --import tsx --test tests/download.test.ts tests/delete-analysis.test.ts tests/upload.test.ts",
     "validate:fixes": "node --import tsx scripts/validate-fixes.mjs"
   },
