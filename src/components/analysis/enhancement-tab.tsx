@@ -48,7 +48,10 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
   const undoableJob = useMemo(() => [...detail.jobs]
     .filter(job => job.kind === "enhancement" && job.status === "completed" && !job.reverted && !!job.patchFileId)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0], [detail.jobs]);
-  const displayedOutputs = recentOutputs.length ? recentOutputs : (undoableJob?.outputs ?? []).map(output => ({
+  const latestOutputJob = useMemo(() => [...detail.jobs]
+    .filter(job => (job.kind === "enhancement" || job.kind === "recalculation") && job.status === "completed" && job.outputs.length > 0)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0], [detail.jobs]);
+  const displayedOutputs = recentOutputs.length ? recentOutputs : (latestOutputJob?.outputs ?? []).map(output => ({
     fileId: output.fileId, name: output.name, size: output.size, downloadUrl: "/api/outputs/" + output.fileId + "/download",
   }));
 
