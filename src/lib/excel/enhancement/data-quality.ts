@@ -55,10 +55,10 @@ export function profileWorkbookQuality(model: WorkbookModel, options: QualityOpt
     const byRow = new Map<number, CellModel[]>();
     const byRowColumn = new Map<number, Map<number, CellModel>>();
     const headers = new Map<number, string>();
-    let maxColumnCount = Math.max(0, sheet.cols);
+    let maxColumnCount = Math.max(0, sheet.cols), maxRowCount = Math.max(0, sheet.rows);
 
     for (const cell of Object.values(sheet.cells)) {
-      maxColumnCount = Math.max(maxColumnCount, cell.c + 1);
+      maxColumnCount = Math.max(maxColumnCount, cell.c + 1);\n      maxRowCount = Math.max(maxRowCount, cell.r + 1);
       const column = byColumn.get(cell.c) ?? [];
       column.push(cell); byColumn.set(cell.c, column);
       const row = byRow.get(cell.r) ?? [];
@@ -112,7 +112,7 @@ export function profileWorkbookQuality(model: WorkbookModel, options: QualityOpt
 
     if (options.duplicateRowScan ?? true) {
       const seen = new Map<string, number>();
-      for (const [rowNumber, rowCells] of byRow) {
+      for (const [rowNumber, rowCells] of [...byRow.entries()].sort((a, b) => a[0] - b[0])) {
         if (rowNumber === 0) continue;
         const populated = rowCells.filter(cell => !empty(cell)).sort((a, b) => a.c - b.c);
         if (!populated.length) continue;
@@ -138,7 +138,7 @@ export function profileWorkbookQuality(model: WorkbookModel, options: QualityOpt
         });
         continue;
       }
-      for (let row = 1; row < sheet.rows; row++) {
+      for (let row = 1; row < maxRowCount; row++) {
         const cell = byRowColumn.get(row)?.get(column);
         if (empty(cell)) findings.push({
           code: "MISSING_KEY", severity: "error", sheet: sheet.name, cell: cell?.a, column,
