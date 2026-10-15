@@ -35,10 +35,12 @@ const HEARTBEAT_MS = Number.isFinite(configuredHeartbeatMs)
 
 async function pushLog(analysisId: string, leaseToken: string, log: LogLine[], msg: string, progress: number, statusText: string) {
   log.push({ t: now(), msg });
-  await db
+  const [owned] = await db
     .update(analyses)
     .set({ log, progress, statusText, status: "processing", heartbeatAt: new Date() })
-    .where(and(eq(analyses.id, analysisId), eq(analyses.leaseToken, leaseToken), eq(analyses.status, "processing")));
+    .where(and(eq(analyses.id, analysisId), eq(analyses.leaseToken, leaseToken), eq(analyses.status, "processing")))
+    .returning({ id: analyses.id });
+  if (!owned) throw new Error("JOB_LEASE_LOST: analysis worker no longer owns the lease.");
 }
 
 export async function runAnalysisJob(analysisId: string): Promise<void> {
@@ -101,7 +103,8 @@ export async function runAnalysisJob(analysisId: string): Promise<void> {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("analysis-failed", { code: msg.split(":")[0].slice(0, 80) });
+    if (msg.startsWith("JOB_LEASE_LOST")) return;
+    console.error("analysis-failed", { code: safeJobErrorCode(msg) });
     await db
       .update(analyses)
       .set({ status: "failed", error: safeJobErrorCode(msg), completedAt: new Date(), statusText: "Failed", heartbeatAt: null, leaseToken: null })
