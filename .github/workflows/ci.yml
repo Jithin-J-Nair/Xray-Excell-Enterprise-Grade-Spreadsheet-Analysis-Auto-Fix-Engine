@@ -9,6 +9,11 @@ on:
 permissions:
   contents: read
 
+# Avoid multiple expensive full verification runs racing while a PR receives rapid fixes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
