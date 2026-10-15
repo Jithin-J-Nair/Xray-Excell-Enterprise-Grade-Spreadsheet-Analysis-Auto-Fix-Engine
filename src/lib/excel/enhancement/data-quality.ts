@@ -88,12 +88,12 @@ export function profileWorkbookQuality(model: WorkbookModel, options: QualityOpt
           message: "Text contains leading or trailing whitespace; review before trimming because whitespace can be meaningful.",
           evidence: { value: cell.v, suggestedValue: cell.v.trim(), header }, repairable: false
         });
-        if (typeof cell.v === "string" && /[\\uFF01-\\uFF5E\\u3000]/u.test(cell.v)) findings.push({
+        if (typeof cell.v === "string" && /[！-～　]/u.test(cell.v)) findings.push({
           code: "FULLWIDTH_TEXT", severity: "info", sheet: sheet.name, cell: cell.a, column,
           message: "Text contains full-width compatibility characters; normalization may change identifiers or user-entered text.",
           evidence: { value: cell.v, suggestedValue: cell.v.normalize("NFKC"), header }, repairable: false
         });
-        if (cell.t === "e" || (typeof cell.v === "string" && /^#(?:REF!|DIV\\/0!|VALUE!|NAME\\?|N\\/A|NUM!|NULL!|SPILL!|CALC!|FIELD!|BLOCKED!)/i.test(cell.v))) findings.push({
+        if (cell.t === "e" || (typeof cell.v === "string" && /^#(?:REF!|DIV[/]0!|VALUE!|NAME[?]|N[/]A|NUM!|NULL!|SPILL!|CALC!|FIELD!|BLOCKED!)/i.test(cell.v))) findings.push({
           code: "FORMULA_ERROR", severity: "error", sheet: sheet.name, cell: cell.a, column,
           message: "Cell contains an Excel error value; inspect the formula, references and input data.",
           evidence: { value: typeof cell.v === "string" ? cell.v : null, formula: cell.f ?? null, header }, repairable: false
