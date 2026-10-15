@@ -46,7 +46,13 @@ function containsExpected(actual: unknown, expected: unknown): boolean {
     if (Array.isArray(expected)) return Array.isArray(actual) && expected.length === actual.length && expected.every((item, index) => containsExpected(actual[index], item));
     if (!actual || typeof actual !== "object" || Array.isArray(actual)) return false;
     const actualRecord = actual as Record<string, unknown>;
-    return Object.entries(expected as Record<string, unknown>).every(([key, value]) => containsExpected(actualRecord[key], value));
+    return Object.entries(expected as Record<string, unknown>).every(([key, value]) => {
+      const actualValue = actualRecord[key];
+      if (key === "rgb" && typeof value === "string" && typeof actualValue === "string" && /^[#0-9a-f]{6,9}$/i.test(value) && /^[#0-9a-f]{6,9}$/i.test(actualValue)) {
+        return value.replace(/^#/, "").slice(-6).toUpperCase() === actualValue.replace(/^#/, "").slice(-6).toUpperCase();
+      }
+      return containsExpected(actualValue, value);
+    });
   }
   return stable(actual) === stable(expected);
 }
