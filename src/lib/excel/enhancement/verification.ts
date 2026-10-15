@@ -140,6 +140,23 @@ export async function verifyWorkbookExport(model: WorkbookModel, exportedBytes?:
     if (!after) { issues.push({ code: "SHEET_MISSING", message: "Worksheet missing after reopen.", sheet: before.name }); continue; }
     if (before.name !== after.name) issues.push({ code: "SHEET_NAME_MISMATCH", message: "Worksheet name changed.", sheet: before.name });
     if (before.visibility !== after.visibility) issues.push({ code: "SHEET_VISIBILITY_MISMATCH", message: "Worksheet visibility changed.", sheet: before.name });
+    if (before.rows !== after.rows || before.cols !== after.cols) issues.push({ code: "SHEET_DIMENSION_MISMATCH", message: "Worksheet used dimensions changed.", sheet: before.name });
+    for (let column = 0; column < (before.columnWidths?.length ?? 0); column++) {
+      const expected = before.columnWidths?.[column], actual = after.columnWidths?.[column];
+      if (!expected) continue;
+      if (expected.hidden !== undefined && expected.hidden !== actual?.hidden) issues.push({ code: "COLUMN_VISIBILITY_MISMATCH", message: "Explicit column hidden state changed.", sheet: before.name, cell: String(column + 1) });
+      const expectedWidth = expected.wch ?? (expected.wpx === undefined ? undefined : expected.wpx / 7);
+      const actualWidth = actual?.wch ?? (actual?.wpx === undefined ? undefined : actual.wpx / 7);
+      if (expectedWidth !== undefined && (actualWidth === undefined || Math.abs(expectedWidth - actualWidth) > 1.5)) issues.push({ code: "COLUMN_WIDTH_MISMATCH", message: "Explicit column width changed.", sheet: before.name, cell: String(column + 1) });
+    }
+    for (let row = 0; row < (before.rowHeights?.length ?? 0); row++) {
+      const expected = before.rowHeights?.[row], actual = after.rowHeights?.[row];
+      if (!expected) continue;
+      if (expected.hidden !== undefined && expected.hidden !== actual?.hidden) issues.push({ code: "ROW_VISIBILITY_MISMATCH", message: "Explicit row hidden state changed.", sheet: before.name, cell: String(row + 1) });
+      const expectedHeight = expected.hpt ?? (expected.hpx === undefined ? undefined : expected.hpx * 0.75);
+      const actualHeight = actual?.hpt ?? (actual?.hpx === undefined ? undefined : actual.hpx * 0.75);
+      if (expectedHeight !== undefined && (actualHeight === undefined || Math.abs(expectedHeight - actualHeight) > 1.0)) issues.push({ code: "ROW_HEIGHT_MISMATCH", message: "Explicit row height changed.", sheet: before.name, cell: String(row + 1) });
+    }
     const formulaCells = Object.values(before.cells).filter(c => !!c.f);
     for (const cell of formulaCells) {
       const actual = after.cells[cell.a];
