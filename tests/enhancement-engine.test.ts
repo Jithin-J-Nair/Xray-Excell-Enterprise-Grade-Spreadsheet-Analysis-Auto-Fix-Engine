@@ -6,6 +6,10 @@ import { createRecoverySnapshot, sealRecoverySnapshot, undoWorkbook, serializeRe
 import { processWorkbookBatch } from "../src/lib/excel/enhancement/batch";
 import { verifyWorkbookExport } from "../src/lib/excel/enhancement/verification";
 import { proposeFormulaRepairs } from "../src/lib/excel/enhancement/formula-repair";
+import { processWorkbookDirectory } from "../src/lib/excel/enhancement/batch-directory";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 function fixture(): WorkbookModel {
   return { fileId: "test-id", fileName: "fixture.xlsx", names: [], sheets: [{
@@ -120,5 +124,28 @@ describe("review-first formula repair", () => {
     const result = proposeFormulaRepairs(model, { apply: true, minConfidence: 0.95 });
     assert.equal(result.model.sheets[0].cells.B3.f, "C3*2");
     assert.ok(result.proposals.some(p => p.cell === "B3" && p.applied));
+  });
+});
+
+describe("safe directory batch processing", () => {
+  it("recursively processes supported files in stable relative-path order", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xray-batch-test-"));
+    try {
+      await mkdir(join(root, "nested"));
+      await writeFile(join(root, "a.xlsx"), new Uint8Array([1, 2]));
+      await writeFile(join(root, "nested", "b.csv"), new Uint8Array([3]));
+      await writeFile(join(root, "ignore.bin"), new Uint8Array([4]));
+      const result = await processWorkbookDirectory(root, async file => file.name + ":" + file.bytes.length, { concurrency: 2 });
+      assert.deepEqual(result.map(r => r.name), ["a.xlsx", "nested/b.csv"]);
+      assert.ok(result.every(r => r.ok));
+      assert.deepEqual([...await readFile(join(root, "a.xlsx"))], [1, 2], "source workbook remains unchanged");
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+  it("rejects oversized folder batches before reading files", async () => {
+    const root = await mkdtemp(join(tmpdir(), "xray-batch-limit-"));
+    try {
+      await writeFile(join(root, "large.xlsx"), new Uint8Array(32));
+      await assert.rejects(() => processWorkbookDirectory(root, async () => true, { maxBytesPerFile: 16 }), /BATCH_FILE_SIZE_LIMIT/);
+    } finally { await rm(root, { recursive: true, force: true }); }
   });
 });
