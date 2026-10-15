@@ -1,6 +1,6 @@
 import { db } from "../src/db";
 import { analyses, jobs } from "../src/db/schema";
-import { and, eq, isNull, lt, or } from "drizzle-orm";
+import { and, eq, gte, isNull, lt, or } from "drizzle-orm";
 import { runAnalysisJob, runApplyJob } from "../src/lib/server/jobs";
 
 const pollMs = Math.max(250, Number(process.env.XRAY_WORKER_POLL_MS ?? 1000));
@@ -9,6 +9,9 @@ const configuredStaleMs = Number(process.env.XRAY_JOB_STALE_MS ?? 300_000);
 const staleMs = Number.isFinite(configuredStaleMs)
   ? Math.max(60_000, Math.min(3_600_000, configuredStaleMs))
   : 300_000;
+// Attempts are incremented only when a queued record is atomically claimed.
+// A crash can therefore trigger at most three total executions per work item.
+const MAX_ATTEMPTS = 3;
 let stopping = false;
 let preferApply = false;
 
@@ -24,32 +27,38 @@ async function main() {
       // Requeue work abandoned by a crashed request process or worker. A live
       // runner refreshes heartbeatAt independently while parsing/exporting.
       const staleBefore = new Date(Date.now() - staleMs);
-      const [recoveredAnalyses, recoveredJobs] = await Promise.all([
+      const staleAnalysis = and(
+        eq(analyses.status, "processing"),
+        or(lt(analyses.heartbeatAt, staleBefore), and(isNull(analyses.heartbeatAt), lt(analyses.createdAt, staleBefore)))
+      );
+      const staleJob = and(
+        eq(jobs.status, "running"),
+        or(lt(jobs.heartbeatAt, staleBefore), and(isNull(jobs.heartbeatAt), lt(jobs.createdAt, staleBefore)))
+      );
+      const [recoveredAnalyses, recoveredJobs, failedAnalyses, failedJobs] = await Promise.all([
         db.update(analyses)
           .set({ status: "queued", statusText: "Recovered after stale worker heartbeat", heartbeatAt: null, error: null })
-          .where(and(
-            eq(analyses.status, "processing"),
-            or(
-              lt(analyses.heartbeatAt, staleBefore),
-              and(isNull(analyses.heartbeatAt), lt(analyses.createdAt, staleBefore))
-            )
-          ))
+          .where(and(staleAnalysis, lt(analyses.attempts, MAX_ATTEMPTS)))
           .returning({ id: analyses.id }),
         db.update(jobs)
           .set({ status: "queued", progress: 0, error: "Recovered after stale worker heartbeat", heartbeatAt: null })
-          .where(and(
-            eq(jobs.status, "running"),
-            or(
-              lt(jobs.heartbeatAt, staleBefore),
-              and(isNull(jobs.heartbeatAt), lt(jobs.createdAt, staleBefore))
-            )
-          ))
+          .where(and(staleJob, lt(jobs.attempts, MAX_ATTEMPTS)))
+          .returning({ id: jobs.id }),
+        db.update(analyses)
+          .set({ status: "failed", statusText: "Worker stopped responding; retry limit reached", error: "JOB_RETRY_LIMIT_EXCEEDED", heartbeatAt: null, completedAt: new Date() })
+          .where(and(staleAnalysis, gte(analyses.attempts, MAX_ATTEMPTS)))
+          .returning({ id: analyses.id }),
+        db.update(jobs)
+          .set({ status: "failed", error: "JOB_RETRY_LIMIT_EXCEEDED", heartbeatAt: null, completedAt: new Date() })
+          .where(and(staleJob, gte(jobs.attempts, MAX_ATTEMPTS)))
           .returning({ id: jobs.id }),
       ]);
-      if (recoveredAnalyses.length || recoveredJobs.length) {
+      if (recoveredAnalyses.length || recoveredJobs.length || failedAnalyses.length || failedJobs.length) {
         console.warn("Recovered stale X-RAY work", {
           analyses: recoveredAnalyses.length,
           applyJobs: recoveredJobs.length,
+          failedAnalyses: failedAnalyses.length,
+          failedApplyJobs: failedJobs.length,
         });
       }
       const [queuedAnalyses, queuedJobs] = await Promise.all([
