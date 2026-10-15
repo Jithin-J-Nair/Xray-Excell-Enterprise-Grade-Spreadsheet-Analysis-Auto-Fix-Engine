@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import type { WorkbookModel } from "../types";
-import { parseFile } from "../parse";
+import { parseFile } from "../parse";\nimport { verifyRecalculatedWorkbook } from "./verification";
 
 export interface ExcelComOptions { powershell?: string; timeoutMs?: number }
 export interface ExcelComResult {
@@ -79,18 +79,9 @@ export async function recalculateWithMicrosoftExcel(model: WorkbookModel, source
     try { bytes = new Uint8Array(await readFile(outputPath)); }
     catch { throw new Error("EXCEL_RECALCULATION_OUTPUT_MISSING"); }
     const reopened = await parseFile(model.fileId, fileName, bytes);
-    const before = formulaAddresses(model), after = formulaAddresses(reopened);
-    const missing = before.filter(address => !after.includes(address));
-    const changedSheets = model.sheets.some((sheet, index) =>
-      reopened.sheets[index]?.name !== sheet.name || reopened.sheets[index]?.visibility !== sheet.visibility);
-    if (model.sheets.length !== reopened.sheets.length || changedSheets || missing.length || before.length !== after.length) {
-      throw new Error("EXCEL_RECALCULATION_STRUCTURE_MISMATCH: sheet names/visibility or formula locations changed.");
-    }
-    const oldFeatures = new Set(model.unsupportedFeatures ?? []);
-    const newFeatures = new Set(reopened.unsupportedFeatures ?? []);
-    const lostFeatures = [...oldFeatures].filter(feature => !newFeatures.has(feature));
-    if (lostFeatures.length) throw new Error("EXCEL_RECALCULATION_FEATURE_MISMATCH: feature markers disappeared after save: " + lostFeatures.join(", "));
-    return { bytes, engine: "Microsoft Excel COM", formulasBefore: before.length, formulasAfter: after.length,
-      verifiedStructure: true, preservedFeatures: [...newFeatures] };
+    const report = verifyRecalculatedWorkbook(model, reopened);
+    if (!report.ok) throw new Error("EXCEL_RECALCULATION_STRUCTURE_MISMATCH: " + report.issues.slice(0, 20).map(issue => issue.code + " " + issue.message).join("; "));
+    return { bytes, engine: "Microsoft Excel COM", formulasBefore: report.originalFormulaCount, formulasAfter: report.recalculatedFormulaCount,
+      verifiedStructure: true, preservedFeatures: [...(reopened.unsupportedFeatures ?? [])] };
   } finally { await rm(root, { recursive: true, force: true }); }
 }
