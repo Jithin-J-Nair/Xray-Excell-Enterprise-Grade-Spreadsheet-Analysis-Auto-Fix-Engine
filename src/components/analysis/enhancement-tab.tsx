@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, ClipboardCheck, Download, FileCheck2, Loader2, ShieldCheck, Sparkles, Undo2, WandSparkles } from "lucide-react";
+import { AlertTriangle, Calculator, CheckCircle2, ClipboardCheck, Download, FileCheck2, Loader2, ShieldCheck, Sparkles, Undo2, WandSparkles } from "lucide-react";
 import type { AnalysisDetail } from "@/components/analysis/shared";
 
-type Action = "profile" | "preview" | "verify" | "apply" | "undo";
+type Action = "profile" | "preview" | "verify" | "apply" | "recalculate" | "undo";
 type Feature = "formatting" | "numberFormats" | "formulaRepairs";
 interface Output { fileId: string; name: string; size: number; downloadUrl?: string }
 interface Finding { code?: string; cell?: string; kind?: string; confidence?: number; message?: string; reason?: string; before?: string; proposed?: string; applied?: boolean }
@@ -18,7 +18,7 @@ interface PreviewFile { fileName: string; changes: Record<Feature, number>; bloc
 interface VerifyFile { fileName: string; report: { ok: boolean; issues: { code: string; message: string; cell?: string }[] } }
 interface ApiResult {
   action?: string; message?: string; errorCode?: string; jobId?: string; files?: ProfileFile[] | PreviewFile[] | VerifyFile[];
-  outputs?: Output[]; status?: string; features?: Feature[]; skippedFiles?: { fileName: string; reason: string }[];
+  outputs?: Output[]; status?: string; features?: Feature[]; engine?: string; skippedFiles?: { fileName: string; reason: string }[];
 }
 
 const FEATURE_LABELS: Record<Feature, string> = {
@@ -30,7 +30,7 @@ const FEATURE_LABELS: Record<Feature, string> = {
 export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; reload: () => Promise<unknown> }) {
   const [features, setFeatures] = useState<Feature[]>(["formatting", "numberFormats"]);
   const [theme, setTheme] = useState<"report" | "financial">("report");
-  const [currencyCode, setCurrencyCode] = useState<"JPY" | "USD" | "EUR" | "GBP" | "CAD" | "AUD">("JPY");
+  const [currencyCode, setCurrencyCode] = useState<"JPY" | "USD" | "EUR" | "GBP" | "CAD" | "AUD">("JPY");\n  const [engine, setEngine] = useState<"excel" | "libreoffice">("excel");
   const [refitWidths, setRefitWidths] = useState(true);
   const [confirmFormulaRepairs, setConfirmFormulaRepairs] = useState(false);
   const [busy, setBusy] = useState<Action | null>(null);
@@ -43,7 +43,7 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
   const [recentJobId, setRecentJobId] = useState<string | null>(null);
 
   const serverReady = detail.mode === "server" && detail.status === "completed" && !!detail.result;
-  const enhancementRunning = detail.jobs.some(job => job.kind === "enhancement" && job.status === "running");
+  const enhancementRunning = detail.jobs.some(job => (job.kind === "enhancement" || job.kind === "recalculation") && job.status === "running");
   const undoableJob = useMemo(() => [...detail.jobs]
     .filter(job => job.kind === "enhancement" && job.status === "completed" && !job.reverted && !!job.patchFileId)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0], [detail.jobs]);
@@ -74,10 +74,12 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
       if (action === "profile") setProfile((data.files ?? []) as ProfileFile[]);
       if (action === "preview") setPreview((data.files ?? []) as PreviewFile[]);
       if (action === "verify") setVerification((data.files ?? []) as VerifyFile[]);
-      if (action === "apply") {
+      if (action === "apply" || action === "recalculate") {
         setRecentOutputs(data.outputs ?? []);
         setRecentJobId(data.jobId ?? null);
-        setNotice(data.skippedFiles?.length ? "Verified " + (data.outputs?.length ?? 0) + " output(s); skipped " + data.skippedFiles.length + " unsupported workbook(s). See job summary for details." : "Enhanced workbook copies created and offline verification passed.");
+        setNotice(action === "recalculate"
+          ? "Recalculated " + (data.outputs?.length ?? 0) + " workbook copy/copies using " + (data.engine ?? engine) + ". Original uploads and analysis model remain unchanged." + (data.skippedFiles?.length ? " Skipped " + data.skippedFiles.length + " unsupported workbook(s)." : "")
+          : data.skippedFiles?.length ? "Verified " + (data.outputs?.length ?? 0) + " output(s); skipped " + data.skippedFiles.length + " unsupported workbook(s). See job summary for details." : "Enhanced workbook copies created and offline verification passed.");
       } else if (action === "undo") {
         setRecentOutputs(data.outputs ?? []);
         setRecentJobId(null);
@@ -164,6 +166,16 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
             <span><strong>Explicit formula-change authorization.</strong><span className="block text-xs text-dim mt-1">I reviewed the proposals and understand that structural similarity does not prove business correctness.</span></span>
           </label>
         )}
+        <div className="grid sm:grid-cols-2 gap-3">
+          <label className="text-xs text-dim space-y-1">
+            <span className="block">Formula recalculation engine</span>
+            <select value={engine} onChange={event => setEngine(event.target.value as "excel" | "libreoffice")} className="field w-full">
+              <option value="excel">Microsoft Excel COM (Windows)</option>
+              <option value="libreoffice">LibreOffice Calc</option>
+            </select>
+            <span className="block text-[11px]">Excel requires Windows with desktop Excel installed. LibreOffice may differ on proprietary Excel functions.</span>
+          </label>
+        </div>
         <div className="flex flex-wrap gap-2">
           <button className="btn btn-ghost text-sm" disabled={!serverReady || !!busy || enhancementRunning} onClick={() => void request("profile", { features: undefined })}>
             {busy === "profile" ? <Loader2 size={14} className="animate-spin" /> : <ClipboardCheck size={14} />} Profile workbook
@@ -174,7 +186,10 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
           <button className="btn btn-primary text-sm" disabled={!serverReady || !!busy || features.length === 0 || (features.includes("formulaRepairs") && !confirmFormulaRepairs)} onClick={() => void request("apply", { confirmFormulaRepairs })}>
             {busy === "apply" ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />} Apply & verify
           </button>
-          <button className="btn btn-ghost text-sm" disabled={!serverReady || !!busy} onClick={() => void request("verify", { features: undefined })}>
+          <button className="btn btn-ghost text-sm" disabled={!serverReady || !!busy || enhancementRunning} onClick={() => void request("recalculate", { engine })}>
+            {busy === "recalculate" ? <Loader2 size={14} className="animate-spin" /> : <Calculator size={14} />} Recalculate formulas
+          </button>
+          <button className="btn btn-ghost text-sm" disabled={!serverReady || !!busy || enhancementRunning} onClick={() => void request("verify", { features: undefined })}>
             {busy === "verify" ? <Loader2 size={14} className="animate-spin" /> : <FileCheck2 size={14} />} Verify current model
           </button>
           <button className="btn btn-ghost text-sm" disabled={!serverReady || !!busy || !undoableJob} onClick={runUndo}>
