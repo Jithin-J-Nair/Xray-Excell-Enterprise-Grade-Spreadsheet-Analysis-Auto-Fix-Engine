@@ -61,6 +61,12 @@ jobs:
         run: npm run test:unit
       - name: XLSX download integration test
         run: npm run test:integration
+      - name: Install LibreOffice Calc for native recalculation smoke test
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-calc
+      - name: Verify real LibreOffice recalculation
+        run: npm run verify:libreoffice
       - name: Build
         run: npm run build
       - name: Start app for full export smoke test
