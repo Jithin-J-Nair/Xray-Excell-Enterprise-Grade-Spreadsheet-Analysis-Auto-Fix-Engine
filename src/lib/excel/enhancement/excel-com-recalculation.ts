@@ -12,7 +12,6 @@ export interface ExcelComResult {
   verified: true; preservedFeatures: string[];
 }
 const formulaAddresses = (model: WorkbookModel) => model.sheets.flatMap(s => Object.values(s.cells).filter(c => !!c.f).map(c => s.name + "!" + c.a)).sort();
-function psQuote(value: string): string { return "'" + value.replace(/'/g, "''") + "'"; }
 function runPowerShell(command: string, args: string[], timeoutMs: number): Promise<{ code: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
@@ -35,8 +34,7 @@ export async function recalculateWithMicrosoftExcel(model: WorkbookModel, source
   if (model.truncated) throw new Error("MODEL_TRUNCATED: refusing to recalculate incomplete workbook.");
   if (!/\.xlsx$|\.xlsm$/i.test(model.fileName)) throw new Error("EXCEL_COM_FORMAT_UNSUPPORTED: only .xlsx and .xlsm are supported.");
   if (sourceBytes.byteLength < 4) throw new Error("INVALID_WORKBOOK_BYTES");
-  const sourceText = Buffer.from(sourceBytes).toString("latin1");
-  if (sourceText.includes("_xmlsignatures/") || sourceText.includes("vbaProjectSignature")) {
+  if ((model.unsupportedFeatures ?? []).some(feature => /digital signatures/i.test(feature))) {
     throw new Error("SIGNED_WORKBOOK_BLOCKED: recalculation can invalidate digital signatures.");
   }
   const root = await mkdtemp(join(tmpdir(), "xray-excel-com-"));
@@ -48,8 +46,8 @@ export async function recalculateWithMicrosoftExcel(model: WorkbookModel, source
   const scriptPath = join(root, "recalculate.ps1");
   const format = /\.xlsm$/i.test(fileName) ? 52 : 51;
   const script = [
-    "$ErrorActionPreference = 'Stop'",
     "param([string]$InputPath, [string]$OutputPath, [int]$FileFormat)",
+    "$ErrorActionPreference = 'Stop'",
     "$excel = $null; $book = $null",
     "try {",
     "  $excel = New-Object -ComObject Excel.Application",
