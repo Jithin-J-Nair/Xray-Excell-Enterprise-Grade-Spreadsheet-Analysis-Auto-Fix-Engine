@@ -235,8 +235,42 @@ describe("batch configuration validation", () => {
   });
   it("rejects NUL bytes in filenames", async () => {
     await assert.rejects(
-      () => processWorkbookBatch([{ name: "bad\\0name.xlsx", bytes: new Uint8Array([1]) }], async () => true),
+      () => processWorkbookBatch([{ name: "bad" + String.fromCharCode(0) + "name.xlsx", bytes: new Uint8Array([1]) }], async () => true),
       /UNSAFE_BATCH_FILENAME/
     );
+  });
+});
+
+describe("additional formatting and safety regression coverage", () => {
+  it("deep-merges style leaves while preserving explicit user formatting", async () => {
+    const { applyFormattingTheme } = await import("../src/lib/excel/enhancement/formatting");
+    const model = fixture();
+    model.sheets[0].cells.A1.s = { font: { bold: false, color: { rgb: "FFFF0000" } }, alignment: { horizontal: "center" } };
+    const result = applyFormattingTheme(model, { preserveExistingStyles: true });
+    const style = result.model.sheets[0].cells.A1.s as {
+      font: { bold?: boolean; color?: { rgb?: string }; name?: string };
+      alignment: { horizontal?: string; vertical?: string; wrapText?: boolean };
+      border?: { bottom?: { style?: string } };
+      fill?: { patternType?: string };
+    };
+    assert.equal(style.font.bold, false);
+    assert.equal(style.font.color?.rgb, "FFFF0000");
+    assert.ok(style.font.name);
+    assert.equal(style.alignment.horizontal, "center");
+    assert.equal(style.alignment.vertical, "center");
+    assert.ok(style.border?.bottom?.style);
+    assert.equal(JSON.stringify(model.sheets[0].cells.A1.s).includes("vertical"), false);
+  });
+  it("does not auto-apply an ambiguous numeric date serial", async () => {
+    const { inspectNumberFormats, repairNumberFormats } = await import("../src/lib/excel/enhancement/format-repair");
+    const model = fixture();
+    model.sheets[0].cells.A1.v = "Order Date";
+    model.sheets[0].cells.A2 = { a: "A2", r: 1, c: 0, t: "n", v: 45678 };
+    const proposal = inspectNumberFormats(model).find(item => item.cell === "A2");
+    assert.equal(proposal?.kind, "date");
+    assert.ok((proposal?.confidence ?? 1) < 0.9);
+    const result = repairNumberFormats(model);
+    assert.equal(result.model.sheets[0].cells.A2.z, undefined);
+    assert.equal(result.findings.find(item => item.cell === "A2")?.applied, false);
   });
 });
