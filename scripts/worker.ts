@@ -35,15 +35,15 @@ async function main() {
       );
       const [recoveredAnalyses, recoveredJobs, failedAnalyses, failedJobs] = await Promise.all([
         db.update(analyses)
-          .set({ status: "queued", statusText: "Recovered after stale worker heartbeat", heartbeatAt: null, error: null })
+          .set({ status: "queued", statusText: "Recovered after stale worker heartbeat", heartbeatAt: null, leaseToken: null, error: null })
           .where(and(staleAnalysis, lt(analyses.attempts, MAX_JOB_ATTEMPTS)))
           .returning({ id: analyses.id }),
         db.update(jobs)
-          .set({ status: "queued", progress: 0, error: "Recovered after stale worker heartbeat", heartbeatAt: null })
+          .set({ status: "queued", progress: 0, error: "Recovered after stale worker heartbeat", heartbeatAt: null, leaseToken: null })
           .where(and(staleJob, lt(jobs.attempts, MAX_JOB_ATTEMPTS)))
           .returning({ id: jobs.id }),
         db.update(analyses)
-          .set({ status: "failed", statusText: "Worker stopped responding; retry limit reached", error: "JOB_RETRY_LIMIT_EXCEEDED", heartbeatAt: null, completedAt: new Date() })
+          .set({ status: "failed", statusText: "Worker stopped responding; retry limit reached", error: "JOB_RETRY_LIMIT_EXCEEDED", heartbeatAt: null, leaseToken: null, completedAt: new Date() })
           .where(and(staleAnalysis, gte(analyses.attempts, MAX_JOB_ATTEMPTS)))
           .returning({ id: analyses.id }),
         db.update(jobs)
