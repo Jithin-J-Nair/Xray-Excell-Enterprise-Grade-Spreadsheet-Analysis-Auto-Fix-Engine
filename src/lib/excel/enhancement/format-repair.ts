@@ -78,7 +78,7 @@ export function inspectNumberFormats(model: WorkbookModel, options: FormatRepair
       }
       if (!kind) continue;
       const existingKind = currentKind(cell.z);
-      if (cell.z && !options.overwriteExisting) {
+      if (cell.z && cell.z.toLowerCase() !== "general" && !options.overwriteExisting) {
         if (existingKind === kind) continue;
         // An existing explicit format can encode intent (including IDs/leading zeros); leave it for review.
         confidence = Math.min(confidence, 0.49);
