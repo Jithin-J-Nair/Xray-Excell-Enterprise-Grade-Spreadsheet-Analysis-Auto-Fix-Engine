@@ -48,7 +48,7 @@ describe("semantic number-format repair", () => {
 it("treats General as unformatted and applies explicit high-confidence formats", () => {
     const model = fixture();
     model.sheets[0].cells.B2.z = "General";
-    const result = repairNumberFormats(model, { apply: true, minConfidence: 0.8, currencyCode: "USD" });
+    const result = repairNumberFormats(model, { apply: true, currencyCode: "USD" });
     assert.equal(result.model.sheets[0].cells.B2.z, '"$"#,##0.00;[Red]("$"#,##0.00)');
     assert.ok(result.findings.some(f => f.cell === "B2" && f.applied));
   });
