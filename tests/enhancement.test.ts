@@ -15,6 +15,6 @@ describe("enhancement formatting engine",()=>{
  it("inspects styles without mutation",()=>{const s=fixture().sheets[0],before=JSON.stringify(s),r=inspectStyleConsistency(s);assert.equal(r.styledCells,1);assert.equal(r.distinctStyles,1);assert.equal(JSON.stringify(s),before);});
 });
 describe("read-only data-quality profiler",()=>{
- it("detects mixed types, numeric text, suspicious date, negative quantity and duplicates",()=>{const r=profileWorkbookQuality(fixture(),{keyColumns:{Sales:[0]}}),codes=new Set(r.findings.map(f=>f.code));for(const code of ["MIXED_TYPES","NUMBER_AS_TEXT","DATE_AS_TEXT","SUSPICIOUS_NEGATIVE","POSSIBLE_DUPLICATE_ROW"])assert.ok(codes.has(code),"missing "+code);assert.ok(r.findings.every(f=>!f.repairable));assert.ok(r.columns.some(c=>c.header==="Quantity"));});
+ it("detects mixed types, numeric text, suspicious date, negative quantity and duplicates",()=>{const r=profileWorkbookQuality(fixture(),{keyColumns:{Sales:[0]}}),codes=new Set<string>(r.findings.map(f=>f.code));for(const code of ["MIXED_TYPES","NUMBER_AS_TEXT","DATE_AS_TEXT","SUSPICIOUS_NEGATIVE","POSSIBLE_DUPLICATE_ROW"])assert.ok(codes.has(code),"missing "+code);assert.ok(r.findings.every(f=>!f.repairable));assert.ok(r.columns.some(c=>c.header==="Quantity"));});
  it("flags missing required keys",()=>{const m=fixture();m.sheets[0].cells.A2.v="";const r=profileWorkbookQuality(m,{keyColumns:{Sales:[0]},duplicateRowScan:false});assert.ok(r.findings.some(f=>f.code==="MISSING_KEY"));});
 });
