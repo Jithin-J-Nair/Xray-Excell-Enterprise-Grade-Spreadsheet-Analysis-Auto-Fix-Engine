@@ -6,6 +6,7 @@ import { createRecoverySnapshot, sealRecoverySnapshot, undoWorkbook, serializeRe
 import { processWorkbookBatch } from "../src/lib/excel/enhancement/batch";
 import { verifyWorkbookExport, verifyRecalculatedWorkbook, verifyProtectedPackageParts } from "../src/lib/excel/enhancement/verification";
 import { workbookToXlsxBytes } from "../src/lib/excel/serialize";
+import * as XLSX from "@redoper1/xlsx-js-style";
 import { proposeFormulaRepairs } from "../src/lib/excel/enhancement/formula-repair";
 import { processWorkbookDirectory } from "../src/lib/excel/enhancement/batch-directory";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -273,4 +274,21 @@ describe("additional formatting and safety regression coverage", () => {
     assert.equal(result.model.sheets[0].cells.A2.z, undefined);
     assert.equal(result.findings.find(item => item.cell === "A2")?.applied, false);
   });
+});
+
+
+it("detects a real hyperlink feature lost between OOXML workbook packages", () => {
+  const sourceWorkbook = XLSX.utils.book_new();
+  const sourceSheet = XLSX.utils.aoa_to_sheet([["Open details"]]);
+  sourceSheet.A1.l = { Target: "https://example.com/report", Tooltip: "Open report" };
+  XLSX.utils.book_append_sheet(sourceWorkbook, sourceSheet, "Report");
+  const sourceBytes = new Uint8Array(XLSX.write(sourceWorkbook, { type: "array", bookType: "xlsx" }));
+
+  const outputWorkbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(outputWorkbook, XLSX.utils.aoa_to_sheet([["Open details"]]), "Report");
+  const outputBytes = new Uint8Array(XLSX.write(outputWorkbook, { type: "array", bookType: "xlsx" }));
+
+  const report = verifyProtectedPackageParts(sourceBytes, outputBytes);
+  assert.equal(report.ok, false, "a native-engine save that drops a hyperlink must fail fidelity verification");
+  assert.ok(report.changedFeatureMarkers?.some(marker => marker.includes("hyperlink")), JSON.stringify(report));
 });
