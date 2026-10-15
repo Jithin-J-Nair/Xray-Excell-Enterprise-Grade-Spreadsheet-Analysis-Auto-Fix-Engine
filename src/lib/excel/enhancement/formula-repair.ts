@@ -1,5 +1,6 @@
 import type { WorkbookModel } from "../types";
-import { abstractFormula, instantiateTemplate, VOLATILE_FUNCTIONS } from "../formula";
+import { VOLATILE_FUNCTIONS } from "../types";
+import { abstractFormula, instantiateTemplate } from "../formula";
 
 export interface FormulaRepairProposal {
   sheet: string; cell: string; before: string; proposed: string; confidence: number;
