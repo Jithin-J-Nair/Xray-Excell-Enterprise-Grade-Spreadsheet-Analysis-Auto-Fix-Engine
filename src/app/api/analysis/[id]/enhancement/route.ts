@@ -41,6 +41,8 @@ function validateOptions(value: unknown): {
   }
   for (const key of ["headerRow", "neighborRadius", "minSupportingFormulas"] as const) {
     if (input[key] !== undefined && (!Number.isInteger(input[key]) || Number(input[key]) < 0)) throw new Error("BAD_OPTIONS: " + key + " must be a non-negative integer.");
+  if (input.neighborRadius !== undefined && (Number(input.neighborRadius) < 1 || Number(input.neighborRadius) > 20)) throw new Error("BAD_OPTIONS: neighborRadius must be between 1 and 20.");
+  if (input.minSupportingFormulas !== undefined && (Number(input.minSupportingFormulas) < 2 || Number(input.minSupportingFormulas) > 20)) throw new Error("BAD_OPTIONS: minSupportingFormulas must be between 2 and 20.");
   }
   for (const key of ["preserveExistingStyles", "preserveExistingColumnWidths", "bandedRows", "overwriteExisting"] as const) {
     if (input[key] !== undefined && typeof input[key] !== "boolean") throw new Error("BAD_OPTIONS: " + key + " must be boolean.");
@@ -108,7 +110,7 @@ function applyFeatures(model: WorkbookModel, features: Feature[], options: Retur
   if (features.includes("formulaRepairs")) {
     const result = proposeFormulaRepairs(current, { ...options.formulaRepairs, apply: applyFormula });
     current = result.model;
-    changes.formulaRepairs = applyFormula ? result.proposals.filter(item => item.applied).length : result.proposals.filter(item => item.confidence >= (options.formulaRepairs.minConfidence ?? 0.9)).length;
+    changes.formulaRepairs = applyFormula ? result.proposals.filter(item => item.applied).length : result.proposals.filter(item => item.confidence >= (options.formulaRepairs.minConfidence ?? 0.95)).length;
   }
   return { model: current, changes };
 }
