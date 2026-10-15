@@ -123,20 +123,37 @@ const MIME: Record<string, string> = {
   patch: "application/json; charset=utf-8",
 };
 
+
+function safeJobErrorCode(message: string): string {
+  return (message.split(":")[0] || "JOB_FAILED").replace(/[^A-Z0-9_]/gi, "").slice(0, 80) || "JOB_FAILED";
+}
+
+async function insertFileForLease(jobId: string, leaseToken: string, values: typeof files.$inferInsert) {
+  return db.transaction(async tx => {
+    const [owned] = await tx.select({ id: jobs.id }).from(jobs).where(and(
+      eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)
+    )).for("update").limit(1);
+    if (!owned) throw new Error("JOB_LEASE_LOST: this worker no longer owns the job lease.");
+    const [row] = await tx.insert(files).values(values).returning();
+    return row;
+  });
+}
+
 export async function runApplyJob(jobId: string): Promise<void> {
+  const leaseToken = randomUUID();
   // Claim queued jobs atomically so a request-triggered runner and the durable
-  // worker cannot both generate the same exports.
+  // worker cannot both generate the same exports. The token fences all later writes.
   const [job] = await db
     .update(jobs)
-    .set({ status: "running", progress: 10, heartbeatAt: new Date(), attempts: sql`${jobs.attempts} + 1` })
+    .set({ status: "running", progress: 10, heartbeatAt: new Date(), leaseToken, attempts: sql`${jobs.attempts} + 1` })
     .where(and(eq(jobs.id, jobId), eq(jobs.status, "queued")))
     .returning();
   if (!job) return;
   const heartbeat = setInterval(() => {
     void db.update(jobs)
       .set({ heartbeatAt: new Date() })
-      .where(and(eq(jobs.id, jobId), eq(jobs.status, "running")))
-      .catch((error) => console.error("apply-heartbeat-failed", error));
+      .where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)))
+      .catch(() => console.error("apply-heartbeat-failed"));
   }, HEARTBEAT_MS);
   heartbeat.unref?.();
   const analysisId = job.analysisId!;
@@ -168,7 +185,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
     const options = (preview?.options ?? {}) as { minOccurrences?: number };
     const language = (result.language ?? "en") as "en" | "jp";
 
-    await db.update(jobs).set({ progress: 25 }).where(eq(jobs.id, jobId));
+    await db.update(jobs).set({ progress: 25 }).where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)));
     const before = models[0] ? rescoreModel(models[0], { language }) : 0;
     const { models: patched, diffs, summary } = applyTransforms(models, tools, options);
     const after = patched[0] ? rescoreModel(patched[0], { language }) : 0;
@@ -176,7 +193,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
     summary.riskScoreAfter = after;
     summary.risksResolved = Math.max(0, before - after);
 
-    await db.update(jobs).set({ progress: 45 }).where(eq(jobs.id, jobId));
+    await db.update(jobs).set({ progress: 45 }).where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)));
     const outputs: { format: string; fileId: string; name: string; size: number }[] = [];
     const main = patched[0];
     const baseName = (result.files[0]?.name ?? "workbook").replace(/\.[^.]+$/, "");
@@ -200,11 +217,8 @@ export async function runApplyJob(jobId: string): Promise<void> {
     );
     const patchName = `patch_${baseName}_${ts}.json`;
     const ps = await saveBytes("exports", jobId, patchName, enc.encode(patchDoc));
-    const [patchRow] = await db
-      .insert(files)
-      .values({ jobId, analysisId, kind: "patch", name: patchName, size: enc.encode(patchDoc).byteLength, mime: MIME.patch, path: ps.relPath, sha256: sha256(enc.encode(patchDoc)) })
-      .returning();
-    await db.update(jobs).set({ patchFileId: patchRow.id, progress: 55 }).where(eq(jobs.id, jobId));
+    const [patchRow] = await insertFileForLease(jobId, leaseToken, { jobId, analysisId, kind: "patch", name: patchName, size: enc.encode(patchDoc).byteLength, mime: MIME.patch, path: ps.relPath, sha256: sha256(enc.encode(patchDoc)) });
+    await db.update(jobs).set({ patchFileId: patchRow.id, progress: 55 }).where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)));
 
     for (const model of patched) {
       const targetBase = (model.fileName || baseName).replace(/\.[^.]+$/, "");
@@ -212,10 +226,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
         const bytes = workbookToXlsxBytes(model);
         const name = `fixed_${targetBase}_${ts}.xlsx`;
         const saved = await saveBytes("exports", jobId, name, bytes);
-        const [row2] = await db
-          .insert(files)
-          .values({ jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.xlsx, path: saved.relPath, sha256: sha256(bytes), meta: { format: "xlsx" } })
-          .returning();
+        const [row2] = await insertFileForLease(jobId, leaseToken, { jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.xlsx, path: saved.relPath, sha256: sha256(bytes), meta: { format: "xlsx" } });
         outputs.push({ format: "xlsx", fileId: row2.id, name, size: bytes.length });
       }
     }
@@ -226,10 +237,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
       const bytes = enc.encode(csv);
       const name = `${baseName}_${sheet.name}_${ts}.csv`.slice(0, 150);
       const saved = await saveBytes("exports", jobId, name, bytes);
-      const [row2] = await db
-        .insert(files)
-        .values({ jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.csv, path: saved.relPath, sha256: sha256(bytes), meta: { format: "csv", sheet: sheet.name, bom: true } })
-        .returning();
+      const [row2] = await insertFileForLease(jobId, leaseToken, { jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.csv, path: saved.relPath, sha256: sha256(bytes), meta: { format: "csv", sheet: sheet.name, bom: true } });
       outputs.push({ format: "csv", fileId: row2.id, name, size: bytes.length });
     }
     if (formats.includes("json")) {
@@ -237,10 +245,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
       const bytes = enc.encode(json);
       const name = `${baseName}_${ts}.json`;
       const saved = await saveBytes("exports", jobId, name, bytes);
-      const [row2] = await db
-        .insert(files)
-        .values({ jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.json, path: saved.relPath, sha256: sha256(bytes), meta: { format: "json" } })
-        .returning();
+      const [row2] = await insertFileForLease(jobId, leaseToken, { jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.json, path: saved.relPath, sha256: sha256(bytes), meta: { format: "json" } });
       outputs.push({ format: "json", fileId: row2.id, name, size: bytes.length });
     }
     if (formats.includes("ndjson")) {
@@ -248,10 +253,7 @@ export async function runApplyJob(jobId: string): Promise<void> {
       const bytes = enc.encode(nd);
       const name = `${baseName}_${ts}.ndjson`;
       const saved = await saveBytes("exports", jobId, name, bytes);
-      const [row2] = await db
-        .insert(files)
-        .values({ jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.ndjson, path: saved.relPath, sha256: sha256(bytes), meta: { format: "ndjson" } })
-        .returning();
+      const [row2] = await insertFileForLease(jobId, leaseToken, { jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.ndjson, path: saved.relPath, sha256: sha256(bytes), meta: { format: "ndjson" } });
       outputs.push({ format: "ndjson", fileId: row2.id, name, size: bytes.length });
     }
     if (formats.includes("md")) {
@@ -266,17 +268,14 @@ export async function runApplyJob(jobId: string): Promise<void> {
       const bytes = enc.encode(md);
       const name = `report_${baseName}_${ts}.md`;
       const saved = await saveBytes("exports", jobId, name, bytes);
-      const [row2] = await db
-        .insert(files)
-        .values({ jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.md, path: saved.relPath, sha256: sha256(bytes), meta: { format: "md" } })
-        .returning();
+      const [row2] = await insertFileForLease(jobId, leaseToken, { jobId, analysisId, kind: "export", name, size: bytes.length, mime: MIME.md, path: saved.relPath, sha256: sha256(bytes), meta: { format: "md" } });
       outputs.push({ format: "md", fileId: row2.id, name, size: bytes.length });
     }
 
     await db
       .update(jobs)
-      .set({ status: "completed", progress: 100, outputs, summary: summary as unknown as Record<string, unknown>, completedAt: new Date(), heartbeatAt: null })
-      .where(eq(jobs.id, jobId));
+      .set({ status: "completed", progress: 100, outputs, summary: summary as unknown as Record<string, unknown>, completedAt: new Date(), heartbeatAt: null, leaseToken: null })
+      .where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)));
     await audit(analysisId, "apply.completed", {
       jobId,
       tools,
@@ -288,8 +287,8 @@ export async function runApplyJob(jobId: string): Promise<void> {
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("apply-failed", msg);
-    await db.update(jobs).set({ status: "failed", error: msg, completedAt: new Date(), heartbeatAt: null }).where(eq(jobs.id, jobId));
+    console.error("apply-failed", { jobId, code: msg.split(":")[0].slice(0, 80) });
+    await db.update(jobs).set({ status: "failed", error: safeJobErrorCode(msg), completedAt: new Date(), heartbeatAt: null, leaseToken: null }).where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)));
     await audit(analysisId, "apply.failed", { jobId, error: msg });
   } finally {
     clearInterval(heartbeat);
