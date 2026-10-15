@@ -64,11 +64,11 @@ function validateOptions(value: unknown): {
     },
     numberFormats: {
       currencyCode: input.currencyCode as FormatRepairOptions["currencyCode"],
-      minConfidence: input.minConfidence as number | undefined,
+      minConfidence: (input.numberFormatMinConfidence ?? input.minConfidence) as number | undefined,
       overwriteExisting: input.overwriteExisting as boolean | undefined,
     },
     formulaRepairs: {
-      minConfidence: input.minConfidence as number | undefined,
+      minConfidence: input.formulaMinConfidence as number | undefined,
       neighborRadius: input.neighborRadius as number | undefined,
       minSupportingFormulas: input.minSupportingFormulas as number | undefined,
     },
