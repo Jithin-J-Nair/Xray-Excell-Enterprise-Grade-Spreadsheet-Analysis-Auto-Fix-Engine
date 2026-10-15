@@ -32,11 +32,14 @@ function validDate(value: unknown): boolean {
 }
 function currentKind(format: string | undefined): NumberFormatKind | null {
   if (!format) return null;
-  if (/[ymdhis]/i.test(format) && !/[#0?]/.test(format)) return "date";
-  if (format.includes("%")) return "percentage";
+  // Ignore quoted literals and color/condition metadata such as [Red], which otherwise
+  // makes numeric formats look like dates because the literal contains letters.
+  const semantic = format.replace(/"[^"]*"/g, "").replace(/\[[^\]]*\]/g, "").replace(/\\./g, "");
+  if (/[ymdhis]/i.test(semantic) && !/[#0?]/.test(semantic)) return "date";
+  if (semantic.includes("%")) return "percentage";
   if (/[$€£¥]|USD|EUR|GBP|JPY/i.test(format)) return "currency";
-  if (/0\.0+/.test(format)) return "decimal";
-  if (/0/.test(format)) return "integer";
+  if (/0\.0+/.test(semantic)) return "decimal";
+  if (/0/.test(semantic)) return "integer";
   return null;
 }
 /** Infer format proposals from header semantics and value evidence. Never changes values or formulas. */
@@ -46,7 +49,7 @@ export function inspectNumberFormats(model: WorkbookModel, options: FormatRepair
   const currency = options.currencyCode ?? "USD";
   for (const sheet of model.sheets) {
     for (const cell of Object.values(sheet.cells)) {
-      if (cell.r === 0 || cell.f || (typeof cell.v !== "number" && cell.t !== "d")) continue;
+      if (cell.r === 0 || cell.f || (typeof cell.v !== "number" && cell.t !== "d" && !validDate(cell.v))) continue;
       const header = headerFor(model, sheet.name, cell.c);
       const sample = Object.values(sheet.cells).filter(c => c.c === cell.c && c.r > 0 && c.v !== null);
       let kind: NumberFormatKind | null = null, proposed = "", confidence = 0, reason = "";
