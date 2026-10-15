@@ -31,7 +31,12 @@ async function main() {
 }
 
 main().catch(error => {
-  const code = error instanceof Error ? error.message.split(":")[0] : "UNKNOWN_FAILURE";
-  process.stderr.write(JSON.stringify({ status: "FAIL", code }) + "\n");
+  const message = error instanceof Error ? error.message : "";
+  const code = message.split(":")[0] || "UNKNOWN_FAILURE";
+  // Only emit stable verification issue codes; never print workbook content or raw engine output.
+  const issues = code === "RECALCULATION_STRUCTURE_MISMATCH"
+    ? message.slice(message.indexOf(":") + 1).split(";").map(item => item.trim().split(" ")[0]).filter(Boolean).slice(0, 20)
+    : undefined;
+  process.stderr.write(JSON.stringify({ status: "FAIL", code, ...(issues ? { issues } : {}) }) + "\n");
   process.exitCode = 1;
 });
