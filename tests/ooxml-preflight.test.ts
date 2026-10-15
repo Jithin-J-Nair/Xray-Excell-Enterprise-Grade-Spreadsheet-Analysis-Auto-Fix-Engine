@@ -18,6 +18,14 @@ describe("relationship-aware OOXML preflight", () => {
     assert.ok(features.includes("data validation rules"), features.join(", "));
   });
 
+
+  it("does not misclassify the standard OOXML content-types namespace as an embedded object", () => {
+    const features = detectOoxmlUnsupportedFeatures([
+      { path: "[Content_Types].xml", text: '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/></Types>' }
+    ]);
+    assert.ok(!features.includes("embedded objects"), features.join(", "));
+  });
+
   it("detects VBA, digital signatures, pivot caches, query tables and embedded objects", () => {
     const features = detectOoxmlUnsupportedFeatures([
       { path: "xl/vbaProject.bin" },
