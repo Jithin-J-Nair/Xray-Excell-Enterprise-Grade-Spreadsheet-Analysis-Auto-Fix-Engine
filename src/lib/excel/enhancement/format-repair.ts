@@ -6,7 +6,7 @@ export interface FormatFinding {
   proposedFormat: string; confidence: number; reason: string; applied: boolean;
 }
 export interface FormatRepairOptions {
-  /** Only apply suggestions at or above this confidence. Defaults to review-only (1.01). */
+  /** Minimum confidence required for explicit repair; inspection itself is always read-only. */
   apply?: boolean; minConfidence?: number; overwriteExisting?: boolean;
   currencyCode?: "USD" | "EUR" | "GBP" | "JPY" | "CAD" | "AUD";
 }
