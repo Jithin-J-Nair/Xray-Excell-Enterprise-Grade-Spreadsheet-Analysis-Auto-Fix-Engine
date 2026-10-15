@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
         await tx.insert(auditLogs).values({
           analysisId: null,
           action: "upload.created",
-          detail: { uploadId, files: out.map((o) => o.name) },
+          detail: { uploadId, fileCount: out.length },
         });
       });
 
@@ -124,12 +124,13 @@ export async function POST(req: NextRequest) {
       try {
         await fs.rm(absOf(path.join("uploads", uploadId)), { recursive: true, force: true });
       } catch (cleanupError) {
-        console.error("upload-rollback-cleanup-failed", uploadId, cleanupError);
+        console.error("upload-rollback-cleanup-failed", { uploadId });
       }
       throw error;
     }
   } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    return NextResponse.json({ errorCode: "UPLOAD_FAILED", message, retryable: true }, { status: 500 });
+    const message = e instanceof Error ? e.message : "";
+    const errorCode = (message.split(":")[0] || "UPLOAD_FAILED").replace(/[^A-Z0-9_]/gi, "").slice(0, 80) || "UPLOAD_FAILED";
+    return NextResponse.json({ errorCode: "UPLOAD_FAILED", message: "Upload could not be completed. Check file limits and supported formats, then retry.", failureCode: errorCode, retryable: true }, { status: 500 });
   }
 }
