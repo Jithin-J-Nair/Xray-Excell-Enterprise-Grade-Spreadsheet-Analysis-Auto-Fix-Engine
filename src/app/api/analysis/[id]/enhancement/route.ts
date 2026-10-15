@@ -108,7 +108,7 @@ function applyFeatures(model: WorkbookModel, features: Feature[], options: Retur
   if (features.includes("formulaRepairs")) {
     const result = proposeFormulaRepairs(current, { ...options.formulaRepairs, apply: applyFormula });
     current = result.model;
-    changes.formulaRepairs = result.proposals.filter(item => item.applied).length;
+    changes.formulaRepairs = applyFormula ? result.proposals.filter(item => item.applied).length : result.proposals.filter(item => item.confidence >= (options.formulaRepairs.minConfidence ?? 0.9)).length;
   }
   return { model: current, changes };
 }
@@ -203,7 +203,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const snapshotJson = JSON.stringify({ schemaVersion: 1, snapshots: sealedSnapshots });
     const snapshotBytes = new TextEncoder().encode(snapshotJson);
     const savedSnapshot = await saveBytes("patches", jobId, "enhancement-recovery.json", snapshotBytes);
-    const savedOutputs: Array<{ model: WorkbookModel; name: string; bytes: Uint8Array; path: string }> = [];
+    const savedOutputs: Array<{ model: WorkbookModel; name: string; bytes: Uint8Array; path: string }> = [];\n    const outputRecords: Array<{ fileId: string; name: string; size: number }> = [];
     for (let index = 0; index < transformed.length; index++) {
       const model = transformed[index].model;
       const bytes = workbookToXlsxBytes(model);
@@ -225,7 +225,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           mime: MIME_XLSX, path: output.path, sha256: sha256(output.bytes),
           meta: { format: "xlsx", enhancement: features, sourceFile: output.model.fileName },
         }).returning();
-        outputs.push({ format: "xlsx", fileId: file.id, name: file.name, size: file.size });
+        outputs.push({ format: "xlsx", fileId: file.id, name: file.name, size: file.size });\n        outputRecords.push({ fileId: file.id, name: file.name, size: file.size });
       }
       await tx.update(analyses).set({ result: updatedResult }).where(eq(analyses.id, id));
       await tx.update(jobs).set({
@@ -244,7 +244,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     });
     return NextResponse.json({
       action: "apply", jobId, status: "completed", features,
-      outputs: savedOutputs.map(output => ({ name: output.name, size: output.bytes.byteLength, downloadUrl: "/api/outputs/" + encodeURIComponent(""), fileId: undefined })),
+      outputs: outputRecords.map(output => ({ ...output, downloadUrl: "/api/outputs/" + output.fileId + "/download" })),
       message: "Enhanced copies were created and verified; original uploads remain unchanged.",
     });
   } catch (error) {
