@@ -146,6 +146,8 @@ function detectUnsupportedPackageFeatures(wb: XLSX.WorkBook, model: WorkbookMode
 
   const features = new Set(model.unsupportedFeatures ?? []);
   const partRules: Array<[RegExp, string]> = [
+    [/^_xmlsignatures\//i, "digital signatures"],
+    [/^xl\/vbaProjectSignature\.bin$/i, "digital signatures"],
     [/^xl\/charts\//i, "charts"],
     [/^xl\/drawings\//i, "drawings and embedded images"],
     [/^xl\/media\//i, "embedded images"],
