@@ -20,7 +20,8 @@ export default function AnalyzePage() {
   const [mode, setMode] = useState<"server" | "local">("server");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);\n  const folderInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   const addFiles = useCallback((list: FileList | null) => {
     if (!list || list.length === 0) return;
