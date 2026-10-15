@@ -48,8 +48,9 @@ describe("database fencing-token lease", () => {
     await db.update(jobs).set({ status: "queued", leaseToken: null, heartbeatAt: null })
       .where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, owner.leaseToken!)));
     const staleToken = owner.leaseToken!;
+    const successorToken = randomUUID();
     const [reclaimed] = await db.update(jobs)
-      .set({ status: "running", leaseToken: secondToken, heartbeatAt: new Date() })
+      .set({ status: "running", leaseToken: successorToken, heartbeatAt: new Date() })
       .where(and(eq(jobs.id, jobId), eq(jobs.status, "queued")))
       .returning({ id: jobs.id });
     assert.ok(reclaimed, "a successor should claim the recovered job");
@@ -62,7 +63,7 @@ describe("database fencing-token lease", () => {
 
     const currentPublish = await db.update(jobs)
       .set({ status: "completed", leaseToken: null, completedAt: new Date() })
-      .where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, secondToken)))
+      .where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, successorToken)))
       .returning({ id: jobs.id });
     assert.equal(currentPublish.length, 1, "only the current lease owner can publish");
   });
