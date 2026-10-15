@@ -5,6 +5,7 @@ import { inspectNumberFormats, repairNumberFormats } from "../src/lib/excel/enha
 import { createRecoverySnapshot, sealRecoverySnapshot, undoWorkbook, serializeRecoverySnapshot, parseRecoverySnapshot } from "../src/lib/excel/enhancement/recovery";
 import { processWorkbookBatch } from "../src/lib/excel/enhancement/batch";
 import { verifyWorkbookExport } from "../src/lib/excel/enhancement/verification";
+import { proposeFormulaRepairs } from "../src/lib/excel/enhancement/formula-repair";
 
 function fixture(): WorkbookModel {
   return { fileId: "test-id", fileName: "fixture.xlsx", names: [], sheets: [{
@@ -88,5 +89,30 @@ describe("offline export verification", () => {
     assert.equal(report.originalFormulaCount, 1);
     assert.equal(report.reopenedFormulaCount, 1);
     assert.equal(report.ok, true, JSON.stringify(report.issues));
+  });
+});
+
+describe("review-first formula repair", () => {
+  it("proposes a structural outlier without changing formulas by default", () => {
+    const model = fixture();
+    const sheet = model.sheets[0];
+    sheet.cells.B2.f = "C2*2";
+    sheet.cells.B3 = { a: "B3", r: 2, c: 1, t: "n", v: 250, f: "C3*3" };
+    sheet.cells.B1.v = "Calculated";
+    sheet.cells.C2.v = 100; sheet.cells.C3.v = 200;
+    const before = JSON.stringify(model);
+    const result = proposeFormulaRepairs(model, { neighborRadius: 3 });
+    assert.equal(JSON.stringify(model), before);
+    assert.ok(result.proposals.some(p => p.cell === "B3" && p.proposed === "C3*2"));
+    assert.ok(result.proposals.every(p => !p.applied));
+  });
+  it("only applies a high-confidence proposal when explicitly requested", () => {
+    const model = fixture(), sheet = model.sheets[0];
+    sheet.cells.B2.f = "C2*2";
+    sheet.cells.B3 = { a: "B3", r: 2, c: 1, t: "n", v: 250, f: "C3*3" };
+    sheet.cells.B1.v = "Calculated"; sheet.cells.C2.v = 100; sheet.cells.C3.v = 200;
+    const result = proposeFormulaRepairs(model, { apply: true, minConfidence: 0.95 });
+    assert.equal(result.model.sheets[0].cells.B3.f, "C3*2");
+    assert.ok(result.proposals.some(p => p.cell === "B3" && p.applied));
   });
 });
