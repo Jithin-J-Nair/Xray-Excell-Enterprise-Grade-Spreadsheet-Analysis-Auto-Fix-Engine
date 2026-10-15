@@ -84,7 +84,7 @@ async function main() {
           .where(and(staleAnalysis, lt(analyses.attempts, MAX_JOB_ATTEMPTS)))
           .returning({ id: analyses.id }),
         db.update(jobs)
-          .set({ status: "queued", progress: 0, error: "Recovered after stale worker heartbeat", heartbeatAt: null, leaseToken: null })
+          .set({ status: "queued", progress: 0, outputs: [], patchFileId: null, error: "Recovered after stale worker heartbeat", heartbeatAt: null, leaseToken: null })
           .where(and(staleJob, lt(jobs.attempts, MAX_JOB_ATTEMPTS)))
           .returning({ id: jobs.id }),
         db.update(analyses)
@@ -92,7 +92,7 @@ async function main() {
           .where(and(staleAnalysis, gte(analyses.attempts, MAX_JOB_ATTEMPTS)))
           .returning({ id: analyses.id }),
         db.update(jobs)
-          .set({ status: "failed", error: "JOB_RETRY_LIMIT_EXCEEDED", heartbeatAt: null, leaseToken: null, completedAt: new Date() })
+          .set({ status: "failed", error: "JOB_RETRY_LIMIT_EXCEEDED", outputs: [], patchFileId: null, heartbeatAt: null, leaseToken: null, completedAt: new Date() })
           .where(and(staleJob, gte(jobs.attempts, MAX_JOB_ATTEMPTS)))
           .returning({ id: jobs.id }),
       ]);
