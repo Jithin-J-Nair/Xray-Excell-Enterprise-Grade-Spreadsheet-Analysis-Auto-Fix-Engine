@@ -34,7 +34,7 @@ function mergeStyle(old: Record<string, unknown> | undefined, patch: Record<stri
   return out;
 }
 function colName(i: number): string { let n=i+1, s=""; while(n>0){const r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);} return s; }
-function widthOf(c: CellModel): number { const s = c.f ? "=" + c.f : c.v == null ? "" : String(c.v); return Math.min(80, ...s.split("\n").map(x=>x.length)); }
+function widthOf(c: CellModel): number { const s = c.f ? "=" + c.f : c.v == null ? "" : String(c.v); return Math.min(80, Math.max(0, ...s.split("\n").map(x=>x.length))); }
 
 /** Applies a deterministic theme to the reduced workbook model; existing styles win by default. */
 export function applyFormattingTheme(model: WorkbookModel, options: FormattingOptions = {}): FormattingResult {
