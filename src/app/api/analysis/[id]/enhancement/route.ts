@@ -12,7 +12,7 @@ import { applyFormattingTheme, type FormattingOptions } from "@/lib/excel/enhanc
 import { inspectNumberFormats, repairNumberFormats, type FormatRepairOptions } from "@/lib/excel/enhancement/format-repair";
 import { profileWorkbookQuality } from "@/lib/excel/enhancement/data-quality";
 import { proposeFormulaRepairs, type FormulaRepairOptions } from "@/lib/excel/enhancement/formula-repair";
-import { createRecoverySnapshot, sealRecoverySnapshot, undoWorkbook, parseRecoverySnapshot, type RecoverySnapshot } from "@/lib/excel/enhancement/recovery";
+import { createRecoverySnapshot, sealRecoverySnapshot, undoWorkbook, parseRecoverySnapshot, fingerprintWorkbook, type RecoverySnapshot } from "@/lib/excel/enhancement/recovery";
 import { verifyWorkbookExport } from "@/lib/excel/enhancement/verification";
 
 export const runtime = "nodejs";
@@ -177,6 +177,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json({ action, files: await Promise.all(models.map(async model => ({ fileName: model.fileName, report: await verifyWorkbookExport(model) }))) });
     }
     const features = selectFeatures(raw.features);
+    const initialFingerprints = new Map(models.map(model => [model.fileId, fingerprintWorkbook(model)]));
     const confirmFormulaRepairs = raw.confirmFormulaRepairs === true;
     if (action === "apply" && features.includes("formulaRepairs") && !confirmFormulaRepairs) {
       return NextResponse.json({ errorCode: "FORMULA_CONFIRMATION_REQUIRED", message: "Formula repair requires confirmFormulaRepairs: true after reviewing proposals. Structural similarity is not proof of business correctness.", retryable: false }, { status: 409 });
@@ -193,6 +194,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const [created] = await db.transaction(async tx => {
       const [locked] = await tx.select().from(analyses).where(eq(analyses.id, id)).for("update").limit(1);
       if (!locked || locked.status !== "completed" || !locked.result) throw new Error("ANALYSIS_STATE_CHANGED: refresh the analysis and retry.");
+      const lockedModels = currentModels(locked.result as unknown as AnalysisResult);
+      if (lockedModels.length !== initialFingerprints.size || lockedModels.some(model => initialFingerprints.get(model.fileId) !== fingerprintWorkbook(model))) {
+        throw new Error("ANALYSIS_STATE_CHANGED: workbook models changed while this request was being prepared; preview again before applying.");
+      }
       const [active] = await tx.select({ id: jobs.id }).from(jobs).where(and(eq(jobs.analysisId, id), eq(jobs.kind, "enhancement"), eq(jobs.status, "running"))).limit(1);
       if (active) throw new Error("ENHANCEMENT_ALREADY_RUNNING");
       const [createdJob] = await tx.insert(jobs).values({
