@@ -13,7 +13,7 @@ import { inspectNumberFormats, repairNumberFormats, type FormatRepairOptions } f
 import { profileWorkbookQuality } from "@/lib/excel/enhancement/data-quality";
 import { proposeFormulaRepairs, type FormulaRepairOptions } from "@/lib/excel/enhancement/formula-repair";
 import { createRecoverySnapshot, sealRecoverySnapshot, undoWorkbook, parseRecoverySnapshot, fingerprintWorkbook, type RecoverySnapshot } from "@/lib/excel/enhancement/recovery";
-import { verifyWorkbookExport } from "@/lib/excel/enhancement/verification";
+import { verifyWorkbookExport } from "@/lib/excel/enhancement/verification";\nimport { recalculateWithLibreOffice } from "@/lib/excel/enhancement/recalculation";\nimport { recalculateWithMicrosoftExcel } from "@/lib/excel/enhancement/excel-com-recalculation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -300,6 +300,101 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ errorCode: "ENHANCEMENT_FAILED", message, retryable: status === 500 }, { status });
   }
 }
+
+async function runRecalculation(analysisId: string, result: AnalysisResult, models: WorkbookModel[], engine: "excel" | "libreoffice") {
+  let jobId: string | undefined;
+  try {
+    const expected = new Map(models.map(model => [model.fileId, fingerprintWorkbook(model)]));
+    const [created] = await db.transaction(async tx => {
+      const [locked] = await tx.select().from(analyses).where(eq(analyses.id, analysisId)).for("update").limit(1);
+      if (!locked || locked.status !== "completed" || !locked.result) throw new Error("ANALYSIS_STATE_CHANGED: refresh the analysis and retry.");
+      const lockedModels = currentModels(locked.result as unknown as AnalysisResult);
+      if (lockedModels.length !== expected.size || lockedModels.some(model => expected.get(model.fileId) !== fingerprintWorkbook(model))) {
+        throw new Error("ANALYSIS_STATE_CHANGED: workbook models changed while recalculation was being prepared.");
+      }
+      const [active] = await tx.select({ id: jobs.id }).from(jobs).where(and(
+        eq(jobs.analysisId, analysisId), inArray(jobs.kind, ["enhancement", "recalculation"]), eq(jobs.status, "running")
+      )).limit(1);
+      if (active) throw new Error("ENHANCEMENT_ALREADY_RUNNING: another enhancement or recalculation is in progress.");
+      const [job] = await tx.insert(jobs).values({
+        analysisId, kind: "recalculation", status: "running", progress: 5, formats: engine === "excel" ? ["xlsx", "xlsm"] : ["xlsx"],
+        summary: { action: "recalculate", engine, requestedAt: new Date().toISOString() },
+      }).returning();
+      await tx.insert(auditLogs).values({ analysisId, action: "recalculation.started", detail: { jobId: job.id, engine } });
+      return [job];
+    });
+    jobId = created.id;
+
+    const successes: Array<{ model: WorkbookModel; name: string; bytes: Uint8Array; path: string; details: Record<string, unknown> }> = [];
+    const skippedFiles: Array<{ fileName: string; reason: string }> = [];
+    for (let index = 0; index < models.length; index++) {
+      const model = models[index];
+      try {
+        const [source] = await db.select().from(files).where(and(eq(files.id, model.fileId), eq(files.analysisId, analysisId))).limit(1);
+        if (!source || !source.path) throw new Error("ORIGINAL_FILE_MISSING: original upload bytes are unavailable.");
+        const sourceBytes = await readBytes(source.path);
+        if (source.sha256 && sha256(sourceBytes) !== source.sha256) throw new Error("ORIGINAL_FILE_CHECKSUM_MISMATCH: source upload failed integrity verification.");
+        const calculated = engine === "excel"
+          ? await recalculateWithMicrosoftExcel(model, sourceBytes)
+          : await recalculateWithLibreOffice(model, sourceBytes);
+        const verified = "verified" in calculated ? calculated.verified : calculated.verifiedStructure;
+        if (!verified) throw new Error("RECALCULATION_VERIFICATION_FAILED: engine did not confirm a verified result.");
+        const bytes = calculated.bytes;
+        const name = outputName(model, index, "recalculated");
+        const saved = await saveBytes("exports", jobId, name, bytes);
+        successes.push({
+          model, name, bytes, path: saved.relPath,
+          details: {
+            engine: calculated.engine,
+            formulasBefore: calculated.formulasBefore,
+            formulasAfter: calculated.formulasAfter,
+            warnings: "warnings" in calculated ? calculated.warnings : [],
+            preservedFeatures: "preservedFeatures" in calculated ? calculated.preservedFeatures : [],
+          },
+        });
+      } catch (error) {
+        skippedFiles.push({ fileName: model.fileName, reason: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    if (!successes.length) throw new Error("RECALCULATION_FAILED: no workbook was recalculated successfully. " + skippedFiles.map(file => file.fileName + ": " + file.reason).join(" | "));
+
+    const outputRecords: OutputRecord[] = [];
+    await db.transaction(async tx => {
+      for (const output of successes) {
+        const macroEnabled = /\\.xlsm$/i.test(output.name);
+        const [file] = await tx.insert(files).values({
+          jobId, analysisId, kind: "export", name: output.name, size: output.bytes.byteLength,
+          mime: macroEnabled ? "application/vnd.ms-excel.sheet.macroEnabled.12" : MIME_XLSX,
+          path: output.path, sha256: sha256(output.bytes),
+          meta: { action: "recalculate", engine, sourceFile: output.model.fileName, verified: true, ...output.details },
+        }).returning();
+        outputRecords.push({ fileId: file.id, name: file.name, size: file.size });
+      }
+      await tx.update(jobs).set({
+        status: "completed", progress: 100, completedAt: new Date(), heartbeatAt: null,
+        outputs: outputRecords.map(output => ({ format: extname(output.name).slice(1), ...output })),
+        summary: { action: "recalculate", engine, fileCount: successes.length, skippedFiles, results: successes.map(item => ({ fileName: item.model.fileName, ...item.details })) },
+      }).where(eq(jobs.id, jobId!));
+      await tx.insert(auditLogs).values({ analysisId, action: "recalculation.completed", detail: { jobId, engine, outputs: outputRecords.map(output => output.fileId), skippedFiles } });
+    });
+    return NextResponse.json({
+      action: "recalculate", engine, jobId, status: "completed",
+      outputs: outputRecords.map(output => ({ ...output, downloadUrl: "/api/outputs/" + output.fileId + "/download" })),
+      skippedFiles,
+      message: "Recalculation ran on separate copies. Uploaded originals and the current analysis model were not overwritten.",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (jobId) {
+      await cleanupJobFiles(jobId).catch(() => undefined);
+      await db.update(jobs).set({ status: "failed", error: message.slice(0, 2000), completedAt: new Date(), heartbeatAt: null }).where(eq(jobs.id, jobId)).catch(() => undefined);
+      await db.insert(auditLogs).values({ analysisId, action: "recalculation.failed", detail: { jobId, engine, error: message.slice(0, 1000) } }).catch(() => undefined);
+    }
+    const status = /STATE_CHANGED|ALREADY_RUNNING|CONFLICT|IN_PROGRESS/.test(message) ? 409 : /RECALCULATION|EXTERNAL_|UNSUPPORTED|MODEL_TRUNCATED|STYLE_METADATA|SIGNED_WORKBOOK|PACKAGE_PARTS|STRUCTURE_MISMATCH|CHECKSUM_MISMATCH|ORIGINAL_FILE_MISSING/.test(message) ? 422 : 500;
+    return NextResponse.json({ errorCode: "RECALCULATION_FAILED", message, retryable: status === 500 }, { status });
+  }
+}
+interface OutputRecord { fileId: string; name: string; size: number }
 
 async function undoEnhancement(analysisId: string, jobId: string) {
   const [existing] = await db.select().from(jobs).where(and(eq(jobs.id, jobId), eq(jobs.analysisId, analysisId), eq(jobs.kind, "enhancement"))).limit(1);
