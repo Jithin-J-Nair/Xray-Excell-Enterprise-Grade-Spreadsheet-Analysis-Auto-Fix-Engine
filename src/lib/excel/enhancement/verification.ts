@@ -177,7 +177,7 @@ export async function verifyWorkbookExport(model: WorkbookModel, exportedBytes?:
       if (!actual) { issues.push({ code: "CELL_MISSING", message: "Cell missing after export/reopen.", sheet: before.name, cell: cell.a }); continue; }
       // Readers may materialize default Excel styles ("General", empty fill/font records) for unstyled cells.
       // Only compare style metadata that was explicitly present in the source model.
-      if (cell.s && !containsExpected(actual.s ?? null, cell.s)) issues.push({ code: "STYLE_MISMATCH", message: "Explicit cell style properties changed during export/reopen.", sheet: before.name, cell: cell.a });
+      if (cell.s && !containsExpected(actual.s ?? null, cell.s)) issues.push({ code: "STYLE_MISMATCH", message: "Explicit cell style properties changed during export/reopen. expected=" + stable(cell.s) + " actual=" + stable(actual.s ?? null), sheet: before.name, cell: cell.a });
       const expectedFormat = cell.z && cell.z.toLowerCase() !== "general" ? cell.z : null;
       const actualFormat = actual.z && actual.z.toLowerCase() !== "general" ? actual.z : null;
       // Excel readers can assign a default display format to typed dates/numbers that had no
