@@ -16,7 +16,7 @@ const stable = (value: unknown): string => {
     const objectValue = value as Record<string, unknown>;
     return "{" + Object.keys(objectValue).sort().map(key => JSON.stringify(key) + ":" + stable(objectValue[key])).join(",") + "}";
   }
-  return JSON.stringify(value);
+  return JSON.stringify(value) ?? String(value);
 };
 /**
  * Compare an engine output against the source model. Formula cached results may change, but
