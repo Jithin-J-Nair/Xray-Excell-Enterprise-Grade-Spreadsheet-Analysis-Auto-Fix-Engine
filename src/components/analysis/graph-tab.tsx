@@ -15,21 +15,21 @@ import {
 } from "@/lib/excel/graph-layout";
 
 function edgeColor(e: GraphEdge): string {
-  if (e.cycle) return "#f472b6";
+  if (e.cycle) return "#ff4a1f";
   if (e.kind === "missing") return "#fb7185";
-  if (e.kind === "external") return "#a78bfa";
-  if (e.kind === "cross-file") return "#fbbf24";
-  if (e.kind === "cross") return "#38bdf8";
-  return "#35507c";
+  if (e.kind === "external") return "#ff6a45";
+  if (e.kind === "cross-file") return "#e8a317";
+  if (e.kind === "cross") return "#ff6a45";
+  return "#3f4349";
 }
 function nodeColor(n: GraphNode): string {
-  if (n.cycle) return "#f472b6";
-  if (n.external) return "#a78bfa";
+  if (n.cycle) return "#ff4a1f";
+  if (n.external) return "#ff6a45";
   if (n.missing) return "#fb7185";
-  if (n.formula) return "#22d3ee";
-  return "#7d90ad";
+  if (n.formula) return "#eff0f1";
+  return "#9c9ea3";
 }
-const SEV_COLOR: Record<Severity, string> = { critical: "#f472b6", error: "#fb7185", warning: "#fbbf24", info: "#38bdf8" };
+const SEV_COLOR: Record<Severity, string> = { critical: "#ff4a1f", error: "#fb7185", warning: "#e8a317", info: "#9c9ea3" };
 
 interface Tx {
   x: number;
@@ -289,7 +289,7 @@ export function GraphTab({ detail }: { detail: AnalysisDetail }) {
                     stroke="rgba(56,129,196,0.22)"
                     strokeDasharray="3 5"
                   />
-                  <text x={c.x} y={c.y - 14} fontSize="10.5" fill="#5f7ca3" style={{ fontFamily: "var(--font-mono)", letterSpacing: "0.12em" }}>
+                  <text x={c.x} y={c.y - 14} fontSize="10.5" fill="#9c9ea3" style={{ fontFamily: "var(--font-mono)", letterSpacing: "0.12em" }}>
                     {c.label.toUpperCase()} · {c.count}
                   </text>
                 </g>
@@ -341,7 +341,7 @@ export function GraphTab({ detail }: { detail: AnalysisDetail }) {
                       fill={isFocus ? `${color}26` : "rgba(9,15,27,0.94)"}
                       stroke={color}
                       strokeWidth={isFocus ? 2.2 : rk ? 1.6 : 1}
-                      style={n.cycle ? { filter: "drop-shadow(0 0 7px #f472b677)" } : undefined}
+                      style={n.cycle ? { filter: "drop-shadow(0 0 7px #ff4a1f77)" } : undefined}
                     />
                     <text x={9} y={ln.h / 2 + 3.5} fontSize="10.5" fill={color} style={{ fontFamily: "var(--font-mono)" }}>
                       {(n.id.split("::").pop() ?? n.id).slice(0, 26)}
@@ -377,7 +377,7 @@ export function GraphTab({ detail }: { detail: AnalysisDetail }) {
               {laid.nodes.map((ln) => (
                 <rect key={ln.id} x={ln.x * miniScale} y={ln.y * miniScale} width={Math.max(1.6, ln.w * miniScale)} height={Math.max(1.2, ln.h * miniScale)} fill={nodeColor(ln.node)} opacity={0.75} />
               ))}
-              <rect x={vpRect.x} y={vpRect.y} width={Math.max(8, vpRect.w)} height={Math.max(8, vpRect.h)} fill="rgba(34,211,238,0.1)" stroke="#22d3ee" strokeWidth={1} rx={2} />
+              <rect x={vpRect.x} y={vpRect.y} width={Math.max(8, vpRect.w)} height={Math.max(8, vpRect.h)} fill="rgba(255,74,31,0.1)" stroke="#ff4a1f" strokeWidth={1} rx={2} />
             </svg>
           </div>
         </div>
@@ -385,11 +385,11 @@ export function GraphTab({ detail }: { detail: AnalysisDetail }) {
         {/* legend */}
         <div className="flex flex-wrap gap-4 px-4 py-2.5 border-t border-edge/60 text-[10px] mono text-dim">
           {[
-            ["#22d3ee", t("graph.legend.formula")],
-            ["#7d90ad", t("graph.legend.value")],
-            ["#a78bfa", t("graph.legend.external")],
+            ["#eff0f1", t("graph.legend.formula")],
+            ["#9c9ea3", t("graph.legend.value")],
+            ["#ff6a45", t("graph.legend.external")],
             ["#fb7185", t("graph.legend.missing")],
-            ["#f472b6", t("graph.legend.cycle")],
+            ["#ff4a1f", t("graph.legend.cycle")],
           ].map(([c, label]) => (
             <span key={label as string} className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-sm" style={{ background: c as string }} />

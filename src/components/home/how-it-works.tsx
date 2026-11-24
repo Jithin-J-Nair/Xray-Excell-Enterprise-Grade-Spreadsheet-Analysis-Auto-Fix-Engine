@@ -32,7 +32,7 @@ export function HowItWorks() {
   }, []);
 
   return (
-    <section className="section ground-surface" id="how" style={{ ["--h" as string]: 1 }} aria-labelledby="how-h">
+    <section className="section ground-surface" id="how" style={{ ["--h" as string]: 2 }} aria-labelledby="how-h">
       <div className="wrap how-layout">
         <div>
           <div className="section-head">

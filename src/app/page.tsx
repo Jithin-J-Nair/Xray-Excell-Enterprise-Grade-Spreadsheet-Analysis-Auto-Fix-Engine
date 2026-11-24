@@ -180,7 +180,7 @@ export default function HomePage() {
                   </Link>
                 </div>
               </div>
-              <div className="hero__media span-6 start-7" data-visual="">
+              <div className="hero__media span-6 xray-col-start-7" data-visual="">
                 <div
                   data-fx="painterly-landscape"
                   data-fx-seed="11"

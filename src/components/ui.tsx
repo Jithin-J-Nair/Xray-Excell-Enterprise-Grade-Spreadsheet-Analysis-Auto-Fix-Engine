@@ -1,12 +1,12 @@
 "use client";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { Severity } from "@/lib/excel/types";
 
 export const SEV_STYLE: Record<Severity, { color: string; bg: string; border: string; label: string }> = {
-  critical: { color: "#f472b6", bg: "rgba(244,114,182,0.1)", border: "rgba(244,114,182,0.4)", label: "critical" },
+  critical: { color: "#ff4a1f", bg: "rgba(255,74,31,0.12)", border: "rgba(255,74,31,0.4)", label: "critical" },
   error: { color: "#fb7185", bg: "rgba(251,113,133,0.1)", border: "rgba(251,113,133,0.35)", label: "error" },
-  warning: { color: "#fbbf24", bg: "rgba(251,191,36,0.08)", border: "rgba(251,191,36,0.35)", label: "warning" },
-  info: { color: "#38bdf8", bg: "rgba(56,189,248,0.08)", border: "rgba(56,189,248,0.3)", label: "info" },
+  warning: { color: "#e8a317", bg: "rgba(232,163,23,0.1)", border: "rgba(232,163,23,0.35)", label: "warning" },
+  info: { color: "#9c9ea3", bg: "rgba(156,158,163,0.1)", border: "rgba(156,158,163,0.3)", label: "info" },
 };
 
 export function SevBadge({ sev, label }: { sev: Severity; label?: string }) {
@@ -18,8 +18,22 @@ export function SevBadge({ sev, label }: { sev: Severity; label?: string }) {
   );
 }
 
-export function Panel({ children, className = "", glow = false }: { children: ReactNode; className?: string; glow?: boolean }) {
-  return <div className={`panel ${glow ? "panel-glow" : ""} ${className}`}>{children}</div>;
+export function Panel({
+  children,
+  className = "",
+  glow = false,
+  style,
+}: {
+  children: ReactNode;
+  className?: string;
+  glow?: boolean;
+  style?: CSSProperties;
+}) {
+  return (
+    <div className={`panel app-panel ${glow ? "panel-glow" : ""} ${className}`} style={style}>
+      {children}
+    </div>
+  );
 }
 
 export function PanelTitle({ children, right }: { children: ReactNode; right?: ReactNode }) {
@@ -62,10 +76,10 @@ export function relTime(iso: string | Date, lang: string): string {
 
 export function StatusChip({ status, t }: { status: string; t: (k: string) => string }) {
   const map: Record<string, { color: string; border: string; bg: string }> = {
-    completed: { color: "#34d399", border: "rgba(52,211,153,0.4)", bg: "rgba(52,211,153,0.08)" },
-    processing: { color: "#38bdf8", border: "rgba(56,189,248,0.4)", bg: "rgba(56,189,248,0.08)" },
-    running: { color: "#38bdf8", border: "rgba(56,189,248,0.4)", bg: "rgba(56,189,248,0.08)" },
-    queued: { color: "#94a3b8", border: "rgba(148,163,184,0.4)", bg: "rgba(148,163,184,0.08)" },
+    completed: { color: "#5ecf9a", border: "rgba(94,207,154,0.4)", bg: "rgba(94,207,154,0.08)" },
+    processing: { color: "#ff4a1f", border: "rgba(255,74,31,0.4)", bg: "rgba(255,74,31,0.08)" },
+    running: { color: "#ff4a1f", border: "rgba(255,74,31,0.4)", bg: "rgba(255,74,31,0.08)" },
+    queued: { color: "#9c9ea3", border: "rgba(156,158,163,0.35)", bg: "rgba(156,158,163,0.08)" },
     failed: { color: "#fb7185", border: "rgba(251,113,133,0.4)", bg: "rgba(251,113,133,0.08)" },
   };
   const s = map[status] ?? map.queued;
@@ -94,7 +108,7 @@ export function Switch({ checked, onChange, disabled }: { checked: boolean; onCh
   );
 }
 
-export function ProgressBar({ value, color = "#22d3ee" }: { value: number; color?: string }) {
+export function ProgressBar({ value, color = "#ff4a1f" }: { value: number; color?: string }) {
   return (
     <div className="h-1.5 rounded-full bg-edge/70 overflow-hidden">
       <div

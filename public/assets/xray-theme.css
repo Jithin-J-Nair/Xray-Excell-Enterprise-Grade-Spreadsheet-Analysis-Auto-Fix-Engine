@@ -55,18 +55,19 @@ body {
 }
 .xray-nav__bar {
   height: var(--nav, 72px);
-  max-width: var(--container, 1280px);
+  /* Match kit .wrap edges: min(100% - 2gut, container), no inner gut padding */
+  width: min(100% - 2 * var(--gut, 80px), var(--container, 1280px));
+  max-width: none;
   margin: 0 auto;
-  padding: 0 var(--gut, 80px);
+  padding: 0;
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  gap: 16px;
+  column-gap: 16px;
   box-sizing: border-box;
+  position: relative;
 }
 .xray-nav__logo {
-  grid-column: 1;
-  justify-self: start;
   display: inline-flex !important;
   align-items: center;
   gap: 10px;
@@ -75,19 +76,26 @@ body {
   font: 500 18px/1 var(--font-display);
   letter-spacing: var(--display-tracking);
   white-space: nowrap;
+  justify-self: start;
+  min-width: 0;
 }
 .xray-nav__links {
-  grid-column: 2;
   display: flex !important;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 2px;
   flex-wrap: nowrap;
+  justify-self: center;
+  position: static;
+  left: auto;
+  transform: none;
+  max-width: none;
 }
 .xray-nav__links a {
   color: var(--p-muted);
   text-decoration: none;
   font-size: 14px;
-  padding: 8px 12px;
+  padding: 8px 10px;
   white-space: nowrap;
   position: relative;
 }
@@ -100,19 +108,19 @@ body {
 .xray-nav__links a[aria-current="page"]::after {
   content: "";
   position: absolute;
-  left: 12px;
-  right: 12px;
+  left: 10px;
+  right: 10px;
   bottom: 2px;
   height: 2px;
   background: var(--p-ink);
 }
 .xray-nav__actions {
-  grid-column: 3;
-  justify-self: end;
   display: flex !important;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
   flex-wrap: nowrap;
+  justify-self: end;
   min-width: 0;
 }
 .xray-engine {
@@ -150,9 +158,6 @@ body {
   .xray-nav,
   .xray-nav__bar {
     height: 56px;
-  }
-  .xray-nav__bar {
-    padding: 0 24px;
   }
   .xray-cta {
     display: none !important;
@@ -547,9 +552,124 @@ body {
   line-height: 1.5;
 }
 
+/* Dark ground tokens for our app (override lit sage from system.css) */
+html[data-ground="sage"] {
+  --ground-bg: #1c1e21;
+  --ground-surface: #222427;
+  --ground-ink: #eff0f1;
+  --ground-muted: #9c9ea3;
+  --ground-accent: #ff4a1f;
+}
+
 .ground-surface {
+  background: #1c1e21 !important;
+  color: var(--p-ink) !important;
+  --bg: #1c1e21;
+  --surface: var(--p-surface);
+  --ink: var(--p-ink);
+  --muted: var(--p-muted);
+  --accent: var(--p-accent);
+  --action: var(--p-action);
+  --action-ink: var(--p-action-ink);
+  --card: var(--p-surface);
+  --line: color-mix(in oklab, var(--p-ink) 12%, transparent);
+}
+
+/* App panels: beat cards.css lit-ground + min-height so UI stays dark and compact */
+div.panel,
+.panel.app-panel,
+.xray-page .panel {
+  --p-h: 0px !important;
+  min-height: 0 !important;
+  flex: none !important;
+  isolation: auto !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+  border-radius: 8px !important;
+  border: 1px solid color-mix(in oklab, var(--p-ink) 12%, transparent) !important;
   background: var(--p-surface) !important;
+  background-image: none !important;
+  background-color: var(--p-surface) !important;
+  color: var(--p-ink) !important;
+  box-shadow: none !important;
+}
+.xray-page .panel::before,
+.xray-page .panel::after,
+div.panel::before,
+div.panel::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Shared page shell — same edge formula as kit .wrap / nav bar */
+.app-shell {
+  width: min(100% - 2 * var(--gut, 80px), var(--container, 1280px));
+  margin-inline: auto;
+  padding-top: 48px;
+  padding-bottom: 80px;
+  box-sizing: border-box;
+}
+/* App pages: don't inherit marketing hero type scale */
+.app-shell h1 {
+  font-size: clamp(1.75rem, 1.2vw + 1.4rem, 2.25rem) !important;
+  line-height: 1.15 !important;
+  font-weight: 500;
+  letter-spacing: var(--display-tracking);
+}
+.app-shell h2 {
+  font-size: clamp(1.25rem, 0.6vw + 1rem, 1.5rem) !important;
+  line-height: 1.25 !important;
+  font-weight: 500;
+}
+.app-shell > p.text-dim,
+.app-shell > .flex + p.text-dim {
+  margin-bottom: 2.5rem;
+}
+@media (max-width: 639px) {
+  .app-shell {
+    width: min(100% - 2 * var(--gut, 24px), var(--container, 1280px));
+    padding-top: 32px;
+    padding-bottom: 64px;
+  }
+}
+
+/* Analysis tabs underline / active color */
+.analysis-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid color-mix(in oklab, var(--p-ink) 12%, transparent);
+  margin-bottom: 24px;
+  overflow-x: auto;
+}
+.analysis-tabs__btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  font-size: 14px;
+  white-space: nowrap;
+  color: var(--p-muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  transition: color 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.analysis-tabs__btn:hover {
   color: var(--p-ink);
+}
+.analysis-tabs__btn.is-active {
+  color: var(--p-accent);
+}
+.analysis-tabs__btn.is-active::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -1px;
+  height: 2px;
+  background: var(--p-accent);
+  border-radius: 2px;
 }
 
 /* hide .example lint outline noise for stand-in contact */
@@ -685,7 +805,7 @@ html[data-buttons] .btn.btn--secondary,
 .sheet-scan__head,
 .sheet-scan__row {
   display: grid;
-  grid-template-columns: 28px 1fr 64px 1.4fr 88px;
+  grid-template-columns: 28px minmax(0, 1fr) 64px minmax(0, 1.4fr) 88px;
   gap: 8px;
   padding: 8px 14px;
   align-items: center;
@@ -933,18 +1053,93 @@ html[data-buttons] .btn.btn--secondary,
   min-height: 0;
   padding: 18px 20px;
 }
-.how-layout {
-  display: grid;
-  gap: 32px;
+#how .how-layout {
+  display: grid !important;
+  gap: 28px;
   align-items: start;
+  /* keep kit .wrap width — do not force 100% */
 }
 .how-scan-stage {
   margin-top: 0;
+  min-width: 0;
+}
+.how-scan-stage .sheet-scan {
+  height: auto;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 @media (min-width: 1024px) {
-  .how-layout {
-    grid-template-columns: 0.9fr 1.1fr;
+  #how .how-layout {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr) !important;
   }
+}
+/* How section must clear its content — never spill into the next screen */
+#how.section {
+  height: auto !important;
+  min-height: calc(var(--h, 1) * 100svh);
+  overflow: visible;
+}
+#how .how-track--stack {
+  margin-top: 24px;
+}
+#product.section {
+  height: auto !important;
+  min-height: calc(var(--h, 1) * 100svh);
+}
+#features.section,
+#work.section,
+#claim.section {
+  height: auto !important;
+  min-height: calc(var(--h, 1) * 100svh);
+}
+
+/*
+ * Tailwind v4 maps .start-N → inset-inline-start (e.g. start-7 = 28px).
+ * The taste kit uses start-N for grid-column-start. Never use Tailwind's
+ * .start-* on kit grids — use .xray-col-start-N instead.
+ */
+@media (min-width: 1024px) {
+  .hero--split .hero__text.span-5 {
+    grid-column: 1 / span 5 !important;
+  }
+  .hero--split .hero__media.xray-col-start-7,
+  .hero--split .hero__media.span-6 {
+    grid-column: 7 / span 6 !important;
+    inset: auto !important;
+    inset-inline-start: auto !important;
+    left: auto !important;
+    right: auto !important;
+  }
+}
+.hero--split > .wrap {
+  overflow-x: clip;
+}
+.hero--split .hero__grid {
+  min-width: 0;
+  max-width: 100%;
+}
+.hero--split .hero__grid > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.hero--split .hero__media {
+  max-width: 100%;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  justify-self: stretch;
+  position: relative;
+  left: auto !important;
+  inset-inline-start: auto !important;
+}
+.hero--split .hero__media .sheet-scan,
+.hero--split .hero__media .hero-fx {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.hero--split .sheet-scan__grid {
+  overflow: hidden;
 }
 
 /* ----- huge CTA ----- */
