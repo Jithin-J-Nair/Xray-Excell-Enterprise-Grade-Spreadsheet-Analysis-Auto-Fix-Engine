@@ -1,14 +1,14 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Wand2, Play, Download, Loader2, Layers, Sparkles, ChevronRight, PackageCheck, ShieldCheck, Ban } from "lucide-react";
+import { Wand2, Play, Download, Loader2, Layers, Sparkles, ChevronRight, PackageCheck, ShieldCheck, Ban, Sparkle } from "lucide-react";
 import { useI18n } from "@/components/i18n";
 import { Panel, PanelTitle, Switch, fmtBytes, fmtNum } from "@/components/ui";
 import { toast } from "@/components/toast";
 import { downloadOutput, saveBlob } from "@/lib/download";
 import type { AnalysisDetail } from "./shared";
 import { TOOLS, AUTOFIX_TOOLS, DESTRUCTIVE_TOOLS, applyDiffSelection, diffKey, isSelectableDiff } from "@/lib/excel/transform";
-import { autoFixSelection, computeToolStates, enabledToolIds, reconcile, toggleTool, type ToolState } from "@/lib/excel/tool-state";
+import { autoFixSelection, japanHygieneSelection, computeToolStates, enabledToolIds, reconcile, toggleTool, type ToolState } from "@/lib/excel/tool-state";
 import type { Diff } from "@/lib/excel/types";
 
 interface PreviewState {
@@ -127,6 +127,12 @@ export function WorkbenchTab({
     setAcceptedKeys(new Set());
     setApplyDone(null);
     setToolStates((prev) => autoFixSelection(prev));
+  };
+  const onJapanHygiene = () => {
+    setPreview(null);
+    setAcceptedKeys(new Set());
+    setApplyDone(null);
+    setToolStates((prev) => japanHygieneSelection(prev));
   };
 
   const runPreview = useCallback(async () => {
@@ -338,10 +344,16 @@ export function WorkbenchTab({
         <Panel>
           <PanelTitle
             right={
-              <button onClick={onAutoFix} className="btn btn-ghost !py-1 !px-2.5 text-[10.5px]" title={t("wb.autofix.hint")}>
-                <Wand2 size={12} />
-                {t("wb.autofix")}
-              </button>
+              <div className="flex flex-wrap gap-1 justify-end">
+                <button onClick={onJapanHygiene} className="btn btn-ghost !py-1 !px-2.5 text-[10.5px]" title={t("wb.hygiene.hint")}>
+                  <Sparkle size={12} />
+                  {t("wb.hygiene")}
+                </button>
+                <button onClick={onAutoFix} className="btn btn-ghost !py-1 !px-2.5 text-[10.5px]" title={t("wb.autofix.hint")}>
+                  <Wand2 size={12} />
+                  {t("wb.autofix")}
+                </button>
+              </div>
             }
           >
             {t("wb.tools")}

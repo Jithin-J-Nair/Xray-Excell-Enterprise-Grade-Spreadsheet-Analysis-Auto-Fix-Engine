@@ -1,14 +1,19 @@
 "use client";
-import { FileSpreadsheet, EyeOff, ShieldAlert, FileCode, Type } from "lucide-react";
+import { useMemo, useState } from "react";
+import { FileSpreadsheet, EyeOff, ShieldAlert, FileCode, Type, ClipboardList } from "lucide-react";
 import { useI18n } from "@/components/i18n";
 import { Donut, HBars } from "@/components/charts";
 import { Panel, PanelTitle, SevBadge, fmtBytes, fmtNum } from "@/components/ui";
 import type { AnalysisDetail } from "./shared";
+import { CHECK_PACKS, summarizeAllPacks } from "@/lib/excel/check-packs";
 
 export function OverviewTab({ detail }: { detail: AnalysisDetail }) {
   const { t, lang } = useI18n();
   const res = detail.result!;
   const m = res.metrics;
+  const [activePack, setActivePack] = useState<string>("keiri");
+  const packSummaries = useMemo(() => summarizeAllPacks(res), [res]);
+  const activeSummary = packSummaries.find((p) => p.packId === activePack) ?? packSummaries[0];
 
   const sevItems = (["critical", "error", "warning", "info"] as const).map((s) => ({
     label: t(`an.sev.${s}`),
@@ -124,6 +129,58 @@ export function OverviewTab({ detail }: { detail: AnalysisDetail }) {
           </Panel>
         ))}
       </div>
+
+      {/* role check packs */}
+      <Panel className="p-5">
+        <PanelTitle
+          right={
+            <span className="text-[10px] text-dim flex items-center gap-1">
+              <ClipboardList size={12} />
+              {t("pack.note")}
+            </span>
+          }
+        >
+          {t("pack.title")}
+        </PanelTitle>
+        <p className="text-xs text-dim mb-3">{t("pack.lead")}</p>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {CHECK_PACKS.map((pack) => {
+            const summary = packSummaries.find((s) => s.packId === pack.id);
+            const active = activePack === pack.id;
+            return (
+              <button
+                key={pack.id}
+                type="button"
+                onClick={() => setActivePack(pack.id)}
+                className={`btn text-[11px] !py-1.5 !px-3 ${active ? "btn-primary" : "btn-ghost"}`}
+              >
+                {t(pack.nameKey)}
+                <span className="mono ml-1.5 opacity-80">{fmtNum(summary?.matchingRisks ?? 0)}</span>
+              </button>
+            );
+          })}
+        </div>
+        {activeSummary && (
+          <div className="rounded-xl border border-edge/70 bg-ink/40 p-4 space-y-3">
+            <div>
+              <div className="text-sm font-medium">{t(CHECK_PACKS.find((p) => p.id === activeSummary.packId)?.nameKey ?? "")}</div>
+              <p className="text-xs text-dim mt-1">{t(CHECK_PACKS.find((p) => p.id === activeSummary.packId)?.descKey ?? "")}</p>
+            </div>
+            <div className="mono text-2xl font-bold text-accent">{fmtNum(activeSummary.matchingRisks)}</div>
+            <div className="text-[10px] uppercase tracking-widest text-dim">{t("pack.matching")}</div>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(activeSummary.byType).map(([type, n]) => (
+                <span key={type} className="chip text-[10px]">
+                  {t(`risk.${type}`)} · {n}
+                </span>
+              ))}
+              {!Object.keys(activeSummary.byType).length && (
+                <span className="text-xs text-dim">{t("pack.empty")}</span>
+              )}
+            </div>
+          </div>
+        )}
+      </Panel>
 
       {/* sheet inventory */}
       <Panel className="overflow-hidden">

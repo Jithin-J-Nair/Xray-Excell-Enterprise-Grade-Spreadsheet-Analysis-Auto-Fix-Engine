@@ -35,6 +35,9 @@ export const TOOLS: ToolDef[] = [
 
 export const AUTOFIX_TOOLS = TOOLS.filter((t) => t.autoFix).map((t) => t.id);
 
+/** Japan-oriented hygiene: spaces, full-width, date-as-text, number-as-text. */
+export const JAPAN_HYGIENE_TOOLS = ["T007", "T009", "T010", "T013"] as const;
+
 export function toolById(id: string): ToolDef | undefined {
   return TOOLS.find((t) => t.id === id);
 }

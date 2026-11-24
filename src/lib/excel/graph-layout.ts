@@ -6,7 +6,7 @@ export const GRAPH_NODE_CAP = 800;
 export const NODE_W = 172;
 export const NODE_H = 28;
 
-export type GraphTypeFilter = "all" | "circular" | "external" | "volatile" | "hardcoded";
+export type GraphTypeFilter = "all" | "circular" | "external" | "volatile" | "hardcoded" | "cross-file";
 
 export interface GraphFilter {
   sheet: string | "all";
@@ -14,6 +14,7 @@ export interface GraphFilter {
   type: GraphTypeFilter;
   onlyCircular: boolean;
   onlyExternal: boolean;
+  onlyCrossFile: boolean;
 }
 
 export const DEFAULT_FILTER: GraphFilter = {
@@ -22,6 +23,7 @@ export const DEFAULT_FILTER: GraphFilter = {
   type: "all",
   onlyCircular: false,
   onlyExternal: false,
+  onlyCrossFile: false,
 };
 
 const SEV_ORDER: Record<Severity, number> = { critical: 0, error: 1, warning: 2, info: 3 };
@@ -49,15 +51,16 @@ export function buildRiskIndex(risks: Risk[], multiFile: boolean): RiskIndex {
   return idx;
 }
 
-const TYPE_TO_RISK: Record<Exclude<GraphTypeFilter, "all" | "circular" | "external">, RiskType> = {
+const TYPE_TO_RISK: Record<Exclude<GraphTypeFilter, "all" | "circular" | "external" | "cross-file">, RiskType> = {
   volatile: "VOLATILE_FUNCTION",
   hardcoded: "HARDCODED_NUMBER",
 };
 
-function nodeMatches(g: GraphNode, f: GraphFilter, idx: RiskIndex): boolean {
+function nodeMatches(g: GraphNode, f: GraphFilter, idx: RiskIndex, crossFileIds: Set<string>): boolean {
   if (f.sheet !== "all" && g.sheet !== f.sheet) return false;
   if (f.onlyCircular && !g.cycle) return false;
   if (f.onlyExternal && !g.external) return false;
+  if (f.onlyCrossFile && !crossFileIds.has(g.id) && !g.external) return false;
   if (f.severity !== "all") {
     const rk = idx.get(g.id);
     if (!rk || rk.worst !== f.severity) return false;
@@ -65,12 +68,28 @@ function nodeMatches(g: GraphNode, f: GraphFilter, idx: RiskIndex): boolean {
   if (f.type !== "all") {
     if (f.type === "circular" && !g.cycle) return false;
     if (f.type === "external" && !g.external) return false;
+    if (f.type === "cross-file" && !crossFileIds.has(g.id) && !g.external) return false;
     if (f.type === "volatile" || f.type === "hardcoded") {
       const rk = idx.get(g.id);
       if (!rk || !rk.types.has(TYPE_TO_RISK[f.type])) return false;
     }
   }
   return true;
+}
+
+/** Nodes that sit on a cross-file or external edge. */
+export function crossFileNodeIds(graph: DependencyGraph): Set<string> {
+  const ids = new Set<string>();
+  for (const e of graph.edges) {
+    if (e.kind === "cross-file" || e.kind === "external") {
+      ids.add(e.from);
+      ids.add(e.to);
+    }
+  }
+  for (const n of graph.nodes) {
+    if (n.external) ids.add(n.id);
+  }
+  return ids;
 }
 
 export interface FilteredGraph {
@@ -86,7 +105,7 @@ export interface FilteredGraph {
  */
 export function filterGraph(graph: DependencyGraph, f: GraphFilter, idx: RiskIndex, cap = GRAPH_NODE_CAP): FilteredGraph {
   const off =
-    f.sheet === "all" && f.severity === "all" && f.type === "all" && !f.onlyCircular && !f.onlyExternal;
+    f.sheet === "all" && f.severity === "all" && f.type === "all" && !f.onlyCircular && !f.onlyExternal && !f.onlyCrossFile;
   if (off) {
     // No filtering — just cap deterministically
     const pri = priority(graph.nodes, idx);
@@ -98,7 +117,8 @@ export function filterGraph(graph: DependencyGraph, f: GraphFilter, idx: RiskInd
       primaryIds: keep,
     };
   }
-  const primary = graph.nodes.filter((n) => nodeMatches(n, f, idx));
+  const xfIds = crossFileNodeIds(graph);
+  const primary = graph.nodes.filter((n) => nodeMatches(n, f, idx, xfIds));
   const primaryIds = new Set(primary.map((n) => n.id));
   // 1-hop widening
   const expanded = new Set(primaryIds);

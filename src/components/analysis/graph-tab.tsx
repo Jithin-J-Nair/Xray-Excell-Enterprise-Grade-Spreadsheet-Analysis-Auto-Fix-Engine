@@ -9,6 +9,7 @@ import {
   DEFAULT_FILTER,
   GRAPH_NODE_CAP,
   buildRiskIndex,
+  crossFileNodeIds,
   filterGraph,
   layoutGraph,
   type GraphFilter,
@@ -119,6 +120,12 @@ export function GraphTab({ detail }: { detail: AnalysisDetail }) {
     return s;
   }, [focus, filtered.edges]);
 
+  const xfCount = useMemo(() => {
+    const ids = crossFileNodeIds(graph);
+    const edgeN = graph.edges.filter((e) => e.kind === "cross-file" || e.kind === "external").length;
+    return { nodes: ids.size, edges: edgeN };
+  }, [graph]);
+
   // zoom around cursor
   const onWheel = useCallback(
     (e: React.WheelEvent) => {
@@ -181,6 +188,22 @@ export function GraphTab({ detail }: { detail: AnalysisDetail }) {
 
   return (
     <div className="grid lg:grid-cols-4 gap-4">
+      {(multi || xfCount.edges > 0) && (
+        <div className="lg:col-span-4 rounded-xl border border-warn/30 bg-warn/5 px-4 py-3 text-sm flex flex-wrap items-center gap-3">
+          <Link2 size={16} className="text-warn shrink-0" />
+          <div className="min-w-0 flex-1">
+            <div className="font-medium">{t("graph.crossfile.title")}</div>
+            <p className="text-xs text-dim mt-0.5">{t("graph.crossfile.body", { n: xfCount.edges, m: xfCount.nodes })}</p>
+          </div>
+          <button
+            type="button"
+            className="btn btn-ghost text-[11px] !py-1 !px-2.5"
+            onClick={() => setF({ onlyCrossFile: true, onlyCircular: false, onlyExternal: false, type: "cross-file" })}
+          >
+            {t("graph.filter.crossfile.only")}
+          </button>
+        </div>
+      )}
       <Panel className="lg:col-span-3 overflow-hidden" glow>
         <PanelTitle
           right={
@@ -223,25 +246,34 @@ export function GraphTab({ detail }: { detail: AnalysisDetail }) {
             ))}
           </select>
           <select value={cur.type} onChange={(e) => setF({ type: e.target.value as GraphFilter["type"] })} className="!py-1 !px-2 text-[11px]">
-            <option value="all">type — all</option>
-            <option value="circular">circular</option>
-            <option value="external">external</option>
-            <option value="volatile">volatile</option>
-            <option value="hardcoded">hardcoded</option>
+            <option value="all">{t("graph.filter.type.all")}</option>
+            <option value="circular">{t("graph.filter.circular")}</option>
+            <option value="external">{t("graph.filter.external")}</option>
+            <option value="cross-file">{t("graph.filter.crossfile")}</option>
+            <option value="volatile">{t("graph.filter.volatile")}</option>
+            <option value="hardcoded">{t("graph.filter.hardcoded")}</option>
           </select>
           <button
-            onClick={() => setF({ onlyCircular: !cur.onlyCircular, onlyExternal: false })}
+            onClick={() => setF({ onlyCircular: !cur.onlyCircular, onlyExternal: false, onlyCrossFile: false })}
             className={`btn text-[10.5px] !py-1 !px-2.5 ${cur.onlyCircular ? "btn-primary" : "btn-ghost"}`}
           >
             <CircleDot size={11} />
-            circular only
+            {t("graph.filter.circular.only")}
           </button>
           <button
-            onClick={() => setF({ onlyExternal: !cur.onlyExternal, onlyCircular: false })}
+            onClick={() => setF({ onlyExternal: !cur.onlyExternal, onlyCircular: false, onlyCrossFile: false })}
             className={`btn text-[10.5px] !py-1 !px-2.5 ${cur.onlyExternal ? "btn-primary" : "btn-ghost"}`}
           >
             <Link2 size={11} />
-            external only
+            {t("graph.filter.external.only")}
+          </button>
+          <button
+            onClick={() => setF({ onlyCrossFile: !cur.onlyCrossFile, onlyCircular: false, onlyExternal: false, type: !cur.onlyCrossFile ? "cross-file" : "all" })}
+            className={`btn text-[10.5px] !py-1 !px-2.5 ${cur.onlyCrossFile || cur.type === "cross-file" ? "btn-primary" : "btn-ghost"}`}
+            title={t("graph.filter.crossfile.hint")}
+          >
+            <Link2 size={11} />
+            {t("graph.filter.crossfile.only")}
           </button>
           {focus && (
             <button onClick={() => setFocusId(null)} className="btn btn-danger text-[10.5px] !py-1 !px-2.5 ml-auto">

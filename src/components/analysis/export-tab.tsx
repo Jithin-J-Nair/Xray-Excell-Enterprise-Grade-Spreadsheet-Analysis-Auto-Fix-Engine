@@ -176,6 +176,7 @@ export function ExportTab({ detail, reload }: { detail: AnalysisDetail; reload: 
       <div className="space-y-4">
         <Panel>
           <PanelTitle>{t("ex.audit")}</PanelTitle>
+          <p className="px-4 pb-2 text-[11px] text-dim leading-snug">{t("ex.audit.pack")}</p>
           <div className="px-4 pb-4 space-y-0 max-h-[560px] overflow-y-auto">
             {detail.audit.map((a, i) => (
               <div key={a.id} className="flex gap-3 py-2 border-b border-edge/40 last:border-0">

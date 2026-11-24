@@ -46,6 +46,7 @@ function healthColor(h: number | null): string {
 }
 
 function WorkbenchDemo() {
+  const { t } = useI18n();
   const [kept, setKept] = useState(true);
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -57,18 +58,18 @@ function WorkbenchDemo() {
   return (
     <div className="app-frame" data-m-loop="2.8">
       <aside className="app-frame__rail" aria-hidden="true">
-        <div className="rail-item is-on">Overview</div>
-        <div className="rail-item">Issues</div>
-        <div className="rail-item">Formula map</div>
-        <div className="rail-item">Fix &amp; preview</div>
-        <div className="rail-item">Sheets</div>
-        <div className="rail-item">Download</div>
+        <div className="rail-item is-on">{t("an.tabs.overview")}</div>
+        <div className="rail-item">{t("an.tabs.risks")}</div>
+        <div className="rail-item">{t("an.tabs.graph")}</div>
+        <div className="rail-item">{t("an.tabs.workbench")}</div>
+        <div className="rail-item">{t("an.tabs.sheets")}</div>
+        <div className="rail-item">{t("an.tabs.export")}</div>
       </aside>
       <div className="app-frame__main">
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16, gap: 12, alignItems: "flex-start" }}>
           <div>
             <div className="mono" style={{ fontSize: 12, color: "var(--p-muted)" }}>
-              EXAMPLE PREVIEW · NOT A LIVE FILE
+              {t("home.demo.example")}
             </div>
             <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: "var(--display-tracking)" }}>ops_budget_Q3.xlsx</div>
           </div>
@@ -79,49 +80,49 @@ function WorkbenchDemo() {
         <table className="app-frame__table">
           <thead>
             <tr>
-              <th>Keep</th>
-              <th>Issue</th>
-              <th>Sheet</th>
-              <th>Cell</th>
-              <th>Proposed fix</th>
+              <th>{t("home.demo.keep")}</th>
+              <th>{t("home.demo.issue")}</th>
+              <th>{t("home.demo.sheet")}</th>
+              <th>{t("home.demo.cell")}</th>
+              <th>{t("home.demo.fix")}</th>
             </tr>
           </thead>
           <tbody>
             <tr className={kept ? "row-fixed" : "row-risk"}>
               <td>
-                <span className={`patch-btn ${kept ? "is-done" : "is-pulse"}`}>{kept ? "Kept" : "Skipped"}</span>
+                <span className={`patch-btn ${kept ? "is-done" : "is-pulse"}`}>{kept ? t("home.demo.kept") : t("home.demo.skipped")}</span>
               </td>
-              <td>Extra spaces in label</td>
+              <td>{t("risk.WHITESPACE")}</td>
               <td>Cash</td>
               <td>A12</td>
-              <td>Clean up extra spaces</td>
+              <td>{t("tool.T007.name")}</td>
             </tr>
             <tr>
               <td>
-                <span className="patch-btn">Kept</span>
+                <span className="patch-btn">{t("home.demo.kept")}</span>
               </td>
-              <td>Full-width digits</td>
+              <td>{t("risk.UNICODE_FULLWIDTH")}</td>
               <td>Forecast</td>
               <td>E4</td>
-              <td>Normalize full-width</td>
+              <td>{t("tool.T009.name")}</td>
             </tr>
             <tr>
               <td>
-                <span className="patch-btn">Review</span>
+                <span className="patch-btn">{t("home.demo.review")}</span>
               </td>
-              <td>Circular formula chain</td>
+              <td>{t("risk.CIRCULAR_REF")}</td>
               <td>Summary</td>
               <td>B2</td>
-              <td>Flagged — no auto rewrite</td>
+              <td>{t("tool.T012.name")}</td>
             </tr>
             <tr>
               <td>
-                <span className="patch-btn">Review</span>
+                <span className="patch-btn">{t("home.demo.review")}</span>
               </td>
-              <td>Link to another workbook</td>
+              <td>{t("risk.EXTERNAL_LINK")}</td>
               <td>P&amp;L</td>
               <td>G40</td>
-              <td>Optional: save as values</td>
+              <td>{t("tool.T003.name")}</td>
             </tr>
           </tbody>
         </table>
@@ -159,16 +160,13 @@ export default function HomePage() {
               <div className="hero__text span-5">
                 <p className="hero__kicker">
                   <span className="dot" aria-hidden="true" />
-                  Original file stays untouched
+                  {t("home.kicker")}
                 </p>
-                <h1 id="hero-h">Clear spreadsheet checks for finance teams</h1>
-                <p className="hero__lead">
-                  Find broken formulas, messy text, and risky links. Preview every proposed fix, keep only what you want,
-                  then download a clean copy.
-                </p>
+                <h1 id="hero-h">{t("home.hero.h1")}</h1>
+                <p className="hero__lead">{t("home.hero.lead")}</p>
                 <div className="btn-row">
                   <Link className="btn btn--primary" href="/analyze">
-                    Start a workbook scan
+                    {t("home.cta.scan")}
                     <svg className="m-arrow" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
                       <path
                         d="M3 8h10M9 4l4 4-4 4"
@@ -181,7 +179,7 @@ export default function HomePage() {
                     </svg>
                   </Link>
                   <Link className="btn btn--secondary" href="/#how">
-                    See how it works
+                    {t("home.cta.how")}
                   </Link>
                 </div>
               </div>
@@ -205,9 +203,9 @@ export default function HomePage() {
         <section className="section" id="product" aria-labelledby="product-h">
           <div className="wrap">
             <div className="section-head">
-              <h2 id="product-h">One place to review every fix</h2>
+              <h2 id="product-h">{t("home.product.h2")}</h2>
               <p className="measure" style={{ color: "var(--p-muted)", marginTop: 16, fontSize: 16, lineHeight: 1.55 }}>
-                See the issue list, the formula map, and the before → after list together. Tick the cell changes you want to keep. The frame below is an illustration — your real workbook opens after you scan.
+                {t("home.product.lead")}
               </p>
             </div>
             <div style={{ marginTop: 48 }}>
@@ -219,46 +217,67 @@ export default function HomePage() {
         <section className="section ground-surface" id="features" aria-labelledby="features-h">
           <div className="wrap">
             <div className="section-head">
-              <h2 id="features-h">What you get on every scan</h2>
+              <h2 id="features-h">{t("home.features.h2")}</h2>
               <p className="measure" style={{ color: "var(--p-muted)", marginTop: 16, fontSize: 16, lineHeight: 1.55 }}>
-                A formula map, a ranked issue list, a preview of proposed fixes, and a choice of private or server scan.
+                {t("home.features.lead")}
               </p>
             </div>
             <div className="feat-grid">
               <article className="feat-card m-nolift">
+                <div className="feat-card__viz feat-patch" aria-hidden="true">
+                  <div className="feat-patch__row is-minus">− 全角１２３</div>
+                  <div className="feat-patch__row is-plus">+ 123</div>
+                  <div className="feat-patch__q mono">T007 · T009 · T010 · T013</div>
+                </div>
+                <div className="feat-card__body">
+                  <h3>{t("home.feat.hygiene.title")}</h3>
+                  <p>{t("home.feat.hygiene.body")}</p>
+                </div>
+              </article>
+              <article className="feat-card m-nolift">
                 <div className="feat-card__viz feat-graph" aria-hidden="true">
                   <span className="feat-graph__n">A1</span>
                   <span className="feat-graph__line" />
-                  <span className="feat-graph__n">B4</span>
+                  <span className="feat-graph__n">Book2</span>
                   <span className="feat-graph__line" />
                   <span className="feat-graph__n is-hot">D9</span>
-                  <span className="feat-graph__cycle">cycle</span>
+                  <span className="feat-graph__cycle">cross-file</span>
                 </div>
                 <div className="feat-card__body">
-                  <h3>Formula map</h3>
-                  <p>See which cells feed which, including links across sheets and other workbooks.</p>
+                  <h3>{t("home.feat.map.title")}</h3>
+                  <p>{t("home.feat.map.body")}</p>
                 </div>
               </article>
               <article className="feat-card m-nolift">
                 <div className="feat-card__viz feat-risks" aria-hidden="true">
-                  <span className="chip chip-crit">critical</span>
-                  <span className="chip chip-warn">warning</span>
-                  <div className="feat-risks__list mono">#REF! · circular · volatile · #DIV/0!</div>
+                  <span className="chip chip-warn">B2 100→105</span>
+                  <span className="chip chip-crit">C4 #N/A→0</span>
+                  <div className="feat-risks__list mono">recalc · value diff · copy only</div>
                 </div>
                 <div className="feat-card__body">
-                  <h3>Ranked issues</h3>
-                  <p>Problems are ordered by severity so you can start with what matters most.</p>
+                  <h3>{t("home.feat.recalc.title")}</h3>
+                  <p>{t("home.feat.recalc.body")}</p>
                 </div>
               </article>
               <article className="feat-card m-nolift">
-                <div className="feat-card__viz feat-patch" aria-hidden="true">
-                  <div className="feat-patch__row is-minus">− cell D14 · before</div>
-                  <div className="feat-patch__row is-plus">+ cell D14 · after</div>
-                  <div className="feat-patch__q mono">kept: 4 changes</div>
+                <div className="feat-card__viz feat-modes" aria-hidden="true">
+                  <div className="feat-modes__pill is-on">patch.json · reverse log</div>
+                  <div className="feat-modes__pill">経理 · 予算 · 請求</div>
                 </div>
                 <div className="feat-card__body">
-                  <h3>Preview before download</h3>
-                  <p>Every proposed cell change shows before and after. Keep or skip, then download a copy.</p>
+                  <h3>{t("home.feat.audit.title")}</h3>
+                  <p>{t("home.feat.audit.body")}</p>
+                </div>
+              </article>
+              <article className="feat-card m-nolift">
+                <div className="feat-card__viz feat-modes" aria-hidden="true">
+                  <div className="feat-modes__pill is-on">{t("pack.keiri.name")}</div>
+                  <div className="feat-modes__pill">{t("pack.yosan.name")}</div>
+                  <div className="feat-modes__pill">{t("pack.seikyu.name")}</div>
+                </div>
+                <div className="feat-card__body">
+                  <h3>{t("home.feat.packs.title")}</h3>
+                  <p>{t("home.feat.packs.body")}</p>
                 </div>
               </article>
               <article className="feat-card m-nolift">
@@ -267,8 +286,8 @@ export default function HomePage() {
                   <div className="feat-modes__pill">server · for larger files</div>
                 </div>
                 <div className="feat-card__body">
-                  <h3>Private or server</h3>
-                  <p>Keep sensitive books on your device, or use the server for bigger batches.</p>
+                  <h3>{t("up.mode")}</h3>
+                  <p>{t("dash.local.desc")}</p>
                 </div>
               </article>
             </div>
@@ -285,30 +304,30 @@ export default function HomePage() {
           <div className="wrap claim-layout">
             <div>
               <h2 id="claim-h" className="mo-la__type">
-                Your original stays safe
+                {t("home.claim.h2")}
               </h2>
-              <p className="mo-la__sub">Fixes always land on a copy. Server downloads include a change log you can reverse.</p>
+              <p className="mo-la__sub">{t("home.claim.sub")}</p>
             </div>
             <ul className="claim-facts">
               <li>
                 <span className="claim-facts__k mono">01</span>
                 <div>
-                  <strong>Change log with every server apply</strong>
-                  <p>A reverse log ships with the download so you can undo that apply on the server.</p>
+                  <strong>{t("home.claim.1.title")}</strong>
+                  <p>{t("home.claim.1.body")}</p>
                 </div>
               </li>
               <li>
                 <span className="claim-facts__k mono">02</span>
                 <div>
-                  <strong>Original is never overwritten</strong>
-                  <p>Uploads stay read-only. You always download a separate fixed copy.</p>
+                  <strong>{t("home.claim.2.title")}</strong>
+                  <p>{t("home.claim.2.body")}</p>
                 </div>
               </li>
               <li>
                 <span className="claim-facts__k mono">03</span>
                 <div>
-                  <strong>Clear history</strong>
-                  <p>Health, issues found, and which tools ran are recorded with each download.</p>
+                  <strong>{t("home.claim.3.title")}</strong>
+                  <p>{t("home.claim.3.body")}</p>
                 </div>
               </li>
             </ul>
@@ -318,9 +337,9 @@ export default function HomePage() {
         <section className="section ground-surface" id="work" aria-labelledby="work-h">
           <div className="wrap">
             <div className="section-head">
-              <h2 id="work-h">Your recent scans</h2>
+              <h2 id="work-h">{t("home.work.h2")}</h2>
               <p className="measure" style={{ color: "var(--p-muted)", marginTop: 16, fontSize: 16, lineHeight: 1.55 }}>
-                Health, risk count and status for the last workbooks you opened in this workspace.
+                {t("home.work.lead")}
               </p>
             </div>
             <div className="work-grid">
@@ -357,30 +376,30 @@ export default function HomePage() {
                   </div>
                 ) : (
                   <div className="work-empty">
-                    <p className="work-empty__title">No scans yet</p>
-                    <p className="work-empty__body">Start a workbook scan to land health scores and risks in this list.</p>
+                    <p className="work-empty__title">{t("home.work.empty.title")}</p>
+                    <p className="work-empty__body">{t("home.work.empty.body")}</p>
                     <Link className="btn btn--primary" href="/analyze">
-                      Start a workbook scan
+                      {t("home.cta.scan")}
                     </Link>
                   </div>
                 )}
               </div>
               <div className="panel p-5">
-                <div className="mono text-[12px] text-[color:var(--p-accent)] mb-3">POLICY</div>
+                <div className="mono text-[12px] text-[color:var(--p-accent)] mb-3">{t("home.policy.kicker")}</div>
                 <h3 style={{ fontSize: 22, fontWeight: 500, margin: "0 0 10px", letterSpacing: "var(--display-tracking)" }}>
-                  Originals stay untouched
+                  {t("home.policy.title")}
                 </h3>
                 <p style={{ margin: 0, color: "var(--p-muted)", fontSize: 16, lineHeight: 1.55 }}>
-                  Uploads are read-only. Fixes download as a separate copy. Private mode keeps the file on your device.
+                  {t("home.policy.body")}
                 </p>
                 <div className="mt-6 grid grid-cols-2 gap-3">
                   <div className="xray-hero-ui__pill">
                     <b>{fmtNum(data?.stats.totalAnalyses ?? 0)}</b>
-                    <span>analyses</span>
+                    <span>{t("home.policy.analyses")}</span>
                   </div>
                   <div className="xray-hero-ui__pill">
                     <b>{fmtNum(data?.stats.applied ?? 0)}</b>
-                    <span>patches applied</span>
+                    <span>{t("home.policy.patches")}</span>
                   </div>
                 </div>
               </div>
@@ -396,32 +415,32 @@ export default function HomePage() {
           <div className="closing__links">
             <div className="grid">
               <div className="footer__col span-4">
-                <p className="t-label">Product</p>
+                <p className="t-label">{t("home.footer.product")}</p>
                 <ul>
                   <li>
-                    <Link href="/#how">How it works</Link>
+                    <Link href="/#how">{t("home.footer.how")}</Link>
                   </li>
                   <li>
-                    <Link href="/#product">Workbench</Link>
+                    <Link href="/#product">{t("home.footer.workbench")}</Link>
                   </li>
                   <li>
-                    <Link href="/analyze">New analysis</Link>
+                    <Link href="/analyze">{t("home.footer.new")}</Link>
                   </li>
                 </ul>
               </div>
               <div className="footer__col span-4">
-                <p className="t-label">Workspace</p>
+                <p className="t-label">{t("home.footer.workspace")}</p>
                 <ul>
                   <li>
-                    <Link href="/#work">Your scans</Link>
+                    <Link href="/#work">{t("home.footer.scans")}</Link>
                   </li>
                   <li>
-                    <Link href="/settings">Rules &amp; settings</Link>
+                    <Link href="/settings">{t("home.footer.settings")}</Link>
                   </li>
                 </ul>
               </div>
               <div className="footer__col span-4">
-                <p className="t-label">Contact</p>
+                <p className="t-label">{t("home.footer.contact")}</p>
                 <ul>
                   <li>
                     <a href="mailto:audit@xray-excel.example">audit@xray-excel.example</a>
@@ -432,7 +451,7 @@ export default function HomePage() {
             <div className="footer__legal">
               <span className="xray-mark" aria-hidden="true" style={{ width: 22, height: 22 }} />
               <span>X-RAY://EXCEL</span>
-              <span style={{ color: "var(--p-muted)" }}>Same inputs, same results · originals stay safe</span>
+              <span style={{ color: "var(--p-muted)" }}>{t("home.footer.legal")}</span>
             </div>
           </div>
         </div>
