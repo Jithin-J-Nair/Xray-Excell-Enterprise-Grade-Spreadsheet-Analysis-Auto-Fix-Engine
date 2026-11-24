@@ -41,13 +41,12 @@ export function HowItWorks() {
               Three stages, one pass. No rewrite of the source file until you accept a patch.
             </p>
           </div>
-          <div className="how-track how-track--stack" role="list">
+          <div className="how-track how-track--stack">
             {STEPS.map((s, i) => (
               <button
                 key={s.n}
                 type="button"
                 className={`how-step ${i === active ? "is-active" : ""}`}
-                role="listitem"
                 onClick={() => setActive(i)}
                 aria-pressed={i === active}
               >
