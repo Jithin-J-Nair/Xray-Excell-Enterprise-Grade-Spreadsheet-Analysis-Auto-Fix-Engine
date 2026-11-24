@@ -1,167 +1,153 @@
-# X-RAY://EXCEL v2
+# X-RAY://EXCEL
 
-**Find spreadsheet problems. Preview every fix. Keep the original safe.** Scan `.xlsx .xlsm .xlsb .xls .csv .tsv .json .ndjson` for broken formulas, messy text, and risky links. Download a fixed copy — the source file is never overwritten.
-
-表計算の問題を見つけ、修正を確認してから、原本を安全に保つ。壊れた数式・余分な空白・危険なリンクを検出し、修正コピーをダウンロード。原本は上書きしません。
-
-### Production scope (honest)
-
-**Does:** structural scan, ranked issues, previewable fix tools T001–T013 (including break-circular T012), per-change keep/skip for cell/formula/name diffs, private-mode original restore via browser storage, optional Extra polish (formatting / LibreOffice or Excel recalc on server).
-
-**Does not:** prove financial correctness, embed a full Excel calculation engine in the main workbench, repair VBA / Power Query / pivots / charts, or execute custom user-uploaded rules.
+**Language / 言語:** [English](README.md) · [日本語](README.ja.md)
 
 ---
 
-## 1. Architecture
+**Excel tangle finder for finance and operations teams.**  
+Scan messy workbooks for structural problems. Preview every proposed fix. Keep only what you accept. Download a cleaned copy — the original file is never overwritten.
 
-```
-┌────────────────────────── Browser (Next.js 16 · React 19 · Tailwind v4) ─────┐
-│ Dashboard · New Analysis · Analysis (Overview / Graph / Risks / Sheets /      │
-│ Workbench / Export) · Rules & Settings · EN/JP i18n                           │
-│ Local Mode: parseFile() + analyzeAll() run 100% in-browser (same TS engine)   │
-└──────────────▲───────────────────────────────────────────────────────────────┘
-               │ JSON / multipart / chunked streams
-┌──────────────┴───────────── API (Next.js route handlers, Node runtime) ──────┐
-│ POST /api/upload                 POST /api/analysis/:id/preview              │
-│ POST /api/analysis               POST /api/analysis/:id/apply                │
-│ POST /api/analysis/import        GET  /api/jobs/:id                          │
-│ GET  /api/analysis/:id(/status)  GET  /api/download/:fileId  (stream+RFC5987)│
-│ POST /api/undo/:applyId          GET/POST /api/rules                         │
-│ POST /api/samples                GET  /api/dashboard · GET /api/health (live) │
-│                              GET  /api/ready (DB + storage readiness)         │
-├───────────────────────────────────────────────────────────────────────────────┤
-│ Isomorphic Excel Engine (src/lib/excel)                                       │
-│  parse.ts      → bytes → WorkbookModel (SheetJS; Shift_JIS→UTF-8 detection)   │
-│  formula.ts    → tokenizer, ref extraction, R1C1 abstract/instantiate         │
-│  analyze.ts    → 18 finding types, dependency graph, Tarjan SCC cycles        │
-│  transform.ts  → 12 deterministic rules T001–T013 with cell-level diffs       │
-│  serialize.ts  → XLSX (formulas/merges/names preserved) · CSV+ BOM · JSON ·   │
-│                  NDJSON · localized MD report                                 │
-│  samples.ts    → generated "monster" + JP messy workbooks (QA/demo)           │
-├───────────────────────────────────────────────────────────────────────────────┤
-│ PostgreSQL (Drizzle): uploads · files · analyses · previews · jobs ·          │
-│ audit_logs · custom_rules        FS object store: .data/{uploads,exports}     │
-└───────────────────────────────────────────────────────────────────────────────┘
-```
+> Not an Excel replacement. Not a financial auditor. Not a full calculation engine in the main workbench.
 
-**Determinism guarantee:** identical `(model, tools, options)` always produce identical diffs and exports. Originals are immutable; every apply writes to a copy, stores a forward+reverse patch, and can be reverted byte-identically via undo.
+---
 
-## 2. API contracts
+## What it does
 
-| Endpoint | Body → Response |
+| Capability | What you get |
 |---|---|
-| `POST /api/upload` | multipart `files[]` → `{ uploadId, files:[{id,name,size}], status }` |
-| `POST /api/analysis` | `{ uploadId, options:{resolveCrossFile, language} }` → `{ analysisId, status }` |
-| `POST /api/analysis/import` | local mode: `{ name, language, result }` → `{ analysisId }` |
-| `GET /api/analysis/:id/status` | → `{ status, progress, statusText, log[], metrics }` |
-| `GET /api/analysis/:id` | → full analysis + source files + jobs + audit trail |
-| `POST /api/analysis/:id/preview` | `{ tools:[T0xx], options }` → `{ previewId, diffs[], summary }` |
-| `POST /api/analysis/:id/apply` | `{ previewId, exportFormats:["xlsx","csv","json","ndjson","md"] }` → `{ jobId }` · local: `{ localRecord:true,… }` |
-| `GET /api/jobs/:id` | → `{ status, progress, outputs:[{format,fileId,name,size}], summary }` |
-| `GET /api/outputs/:outputId/download` | **binary stream** of a generated export: exact MIME, `Content-Disposition: attachment; filename=…; filename*=UTF-8''…`, `Cache-Control: no-store` |
-| `GET /api/download/:fileId` | chunked stream, correct MIME, `filename*=UTF-8''…`, `X-Content-SHA256` |
-| `POST /api/undo/:applyId` | → `{ status:"reverted", fileId }` (restored original) |
-| `GET /api/rules` | built-in rule registry (custom executable rules are not implemented; POST returns 501) |
-| `POST /api/samples` | `{ kind:"monster"\|"jp" }` → generates a messy demo workbook |
+| **Structural scan** | 18 finding types: circular refs, external links, volatile functions, full-width text, dates/numbers as text, merges, duplicates, and more |
+| **Japan hygiene pack** | One click in Fix & preview enables spaces, full-width, date-as-text, and number-as-text tools (T007 / T009 / T010 / T013) when findings exist |
+| **Cross-file formula map** | Upload linked workbooks together; filter the dependency graph to cross-file / external edges only |
+| **Preview → keep → download** | Cell-level before/after diffs; tick changes to keep; apply writes a copy only |
+| **Role check packs** | Overview filters for Accounting (経理), Budget (予算), and Billing (請求) — structural views, not finance sign-off |
+| **Audit & change pack** | Activity log plus reverse change log (patch JSON) on every server apply; undo restores the upload |
+| **Extra polish (optional)** | Formatting / number-format proposals; LibreOffice or Windows Excel COM recalculation on a **copy**, with a formula **value-diff** table |
 
-Structured errors: `{ errorCode, message, retryable, details? }`.
+### Honest limits
 
-## 3. Deterministic rule registry
+- Does **not** prove financial or business correctness  
+- Does **not** run Excel’s full calculation engine inside the main Fix & preview flow  
+- Does **not** repair VBA, Power Query, pivots, charts, or custom uploaded rules  
+- Recalculation needs LibreOffice (`soffice`) or Windows desktop Excel; LibreOffice ≠ Excel parity  
 
-| ID | Group | Rule | Safety |
-|---|---|---|---|
-| T001 | organize | Extract repeated hard-coded literals into a **Parameters** sheet + named ranges | review |
-| T002 | organize | Align deviating column formulas to the majority R1C1 pattern | review |
-| T003 | mitigate | Snapshot external-workbook links to values + `SourceData` relink log | review |
-| T004 | mitigate | Freeze volatile functions (NOW/TODAY/RAND/OFFSET/INDIRECT…) to cached values | review |
-| T005 | organize | Unmerge ranges, fill with anchor values | review |
-| T006 | organize | Remove broken (`#REF!`) / duplicate named ranges | safe |
-| T007 | clean | Trim whitespace, NBSP / ideographic-space → space | safe |
-| T008 | clean | Remove exact duplicate rows | review |
-| T009 | clean | Full-width → half-width, NFC normalization | safe |
-| T010 | clean | Parse date text (`YYYY/MM/DD`, `YYYY-MM-DD`, `YYYY年M月D日`) into date cells | safe |
-| T011 | mitigate | Wrap error-producing formulas in `IFERROR`; blank error literals | review |
-| T013 | clean | Coerce comma-grouped numeric text to numbers | safe |
+---
 
-**Auto-Fix (conservative)** = `T007 T009` only. `T002` / `T005` / `T011` / `T003` are review-first (structural consensus, layout changes, error masking, and live-link destruction are not auto-selected). Every diff carries `{ sheet, cell, before, after, ruleId, reason, confidence, riskDelta }` where `confidence` is a structural match score, not calibrated correctness probability. Overview scores are **Structural Health / Detected Risk** — not financial correctness.
-
-## 4. Detected finding types (18)
-
-`CIRCULAR_REF` (Tarjan SCC) · `VOLATILE_FUNCTION` · `EXTERNAL_LINK` · `HARDCODED_NUMBER` · `MERGED_CELLS` · `HIDDEN_SHEET` (incl. referenced hidden sheets) · `INCONSISTENT_FORMULA` · `BROKEN_NAMED_RANGE` · `ERROR_CELL` · `DUPLICATE_ROWS` · `MIXED_TYPES` · `WHITESPACE` · `UNICODE_FULLWIDTH` · `DATE_AS_TEXT` · `NUMBER_AS_TEXT` · `ENCODING` (mojibake/Shift_JIS) · `EMPTY_SHEET` · `LONG_FORMULA`.
-
-## 5. Demo script (end-to-end, ~3 min)
-
-1. `npm run dev` (or the platform preview) → open **Dashboard**.
-2. Click **Generate monster workbook** — 22 sheets with circular refs, an unresolved `[Budget2023.xlsx]` link, volatile functions, duplicates, hidden/very-hidden sheets, broken named ranges.
-3. Watch the **scan terminal** stream engine logs until analysis completes.
-4. **Overview**: health donut, risk distribution, sheet inventory. **Dependency Graph**: pan/zoom, click nodes, note the pink circular path. **Risks**: filter by severity; each finding shows its auto-fix rule id. **Sheets & Cells**: toggle formula view; risky cells glow red.
-5. **Tools & Preview**: leave conservative Auto-Fix defaults (trim/Unicode) or opt into review-first tools → **Run preview** → inspect cell-level before→after diffs and the detected-risk-score delta.
-6. Pick formats (`xlsx` + `csv` + `md`) → **Apply & generate exports** → download the fixed workbook (formulas preserved), CSV (UTF-8 BOM), and the audit report.
-7. **Export & Audit**: download the reverse patch, then **Undo** — a byte-identical restored original is produced, and the job is marked reverted.
-8. 日本語デモ: **日本語メシーブック** generates 全角文字・日付文字列・カンマ数値・結合セル・非表示シート — same flow works fully in JP (language toggle in header).
-
-## 6. Run & develop
+## Quick start
 
 ```bash
 npm install
-npx drizzle-kit push   # create tables (PostgreSQL via DATABASE_URL)
-npm run dev
+npx drizzle-kit push    # PostgreSQL via DATABASE_URL
+npm run dev             # http://localhost:3000
 ```
 
-For a persistent Node deployment, run the web server and the durable database-polling worker as separate processes:
+1. Open the app → toggle **EN / JP** in the header (persists in the browser).  
+2. **Start a workbook scan** — or generate the monster / Japanese sample.  
+3. Review **Overview** (health + role packs), **Formula map**, **Issues**, then **Fix & preview**.  
+4. Use **Japan hygiene** or **Quick clean**, run **Preview changes**, keep or skip rows, **Apply & download**.  
+5. On server scans, optional **Extra polish → Recalculate formulas** shows which cached formula values moved on the copy.
 
-```bash
-npm run build
-npm start
-npm run worker
+Private mode keeps bytes on the device. Server mode supports larger batches and durable undo.
+
+---
+
+## Architecture
+
+```
+Browser (Next.js · React · Tailwind)
+  Dashboard · Scan · Analysis tabs · EN/JP i18n
+  Local mode: same TypeScript engine in-browser
+        │
+API (route handlers)
+  upload · analysis · preview · apply · jobs · download · undo · samples
+        │
+Isomorphic engine (src/lib/excel)
+  parse → analyze (18 risks + graph) → transform (T001–T013) → serialize
+        │
+PostgreSQL (Drizzle) + filesystem object store (.data/)
 ```
 
-The worker scans queued analyses/apply exports and claims each job atomically, so a worker and a request-triggered runner cannot both process the same queued record. Request-scoped enhancement/recalculation jobs are never reclaimed as apply work — stale ones fail closed. Active runners refresh database heartbeats; the worker requeues abandoned durable work after `XRAY_JOB_STALE_MS` (default 5 minutes, bounded to 1–60 minutes) and periodically purges server uploads older than `XRAY_RETENTION_DAYS` (default 30). Configure `XRAY_JOB_HEARTBEAT_MS` (default 15 seconds), `XRAY_WORKER_POLL_MS`, and `XRAY_WORKER_BATCH_SIZE`. Set `XRAY_DATA_DIR` to a persistent mounted directory in production; the default `.data` directory is only durable when the host filesystem itself is persistent. Configure the reverse proxy/platform with a matching request-body limit as defense in depth; upload and local-import APIs require `Content-Length` and reject oversized declared bodies before parsing. Configure upload budgets with `XRAY_MAX_FILE_BYTES`.
+**Determinism:** the same model, tools, and options always produce the same diffs and exports. Applies never mutate the upload; undo restores a byte-identical original on the server (private mode re-downloads originals kept in the browser when available).
 
-## Tests
+---
+
+## Fix tools (T001–T013)
+
+| ID | Group | Action | Safety |
+|---|---|---|---|
+| T001 | organize | Move repeated literals to a Parameters sheet | review |
+| T002 | organize | Align column formulas to the majority pattern | review |
+| T003 | mitigate | Replace live external links with saved values | review |
+| T004 | mitigate | Freeze volatile functions to cached values | review |
+| T005 | organize | Unmerge cells | review |
+| T006 | organize | Remove broken / duplicate named ranges | usually safe |
+| T007 | clean | Trim whitespace (incl. invisible spaces) | usually safe · Quick clean · Japan hygiene |
+| T008 | clean | Remove exact duplicate rows | review |
+| T009 | clean | Full-width → half-width (NFC) | usually safe · Quick clean · Japan hygiene |
+| T010 | clean | Date text → real date cells | usually safe · Japan hygiene |
+| T011 | mitigate | Wrap errors in IFERROR (masks, does not fix logic) | review |
+| T012 | mitigate | Break circular chains by freezing one cell per cycle | review |
+| T013 | clean | Numeric text → real numbers | usually safe · Japan hygiene |
+
+**Quick clean** = T007 + T009 only.  
+**Japan hygiene** = T007 + T009 + T010 + T013 when those tools have findings.
+
+---
+
+## Finding types (18)
+
+`CIRCULAR_REF` · `VOLATILE_FUNCTION` · `EXTERNAL_LINK` · `HARDCODED_NUMBER` · `MERGED_CELLS` · `HIDDEN_SHEET` · `INCONSISTENT_FORMULA` · `BROKEN_NAMED_RANGE` · `ERROR_CELL` · `DUPLICATE_ROWS` · `MIXED_TYPES` · `WHITESPACE` · `UNICODE_FULLWIDTH` · `DATE_AS_TEXT` · `NUMBER_AS_TEXT` · `ENCODING` · `EMPTY_SHEET` · `LONG_FORMULA`
+
+---
+
+## API surface (summary)
+
+| Method | Path | Purpose |
+|---|---|---|
+| `POST` | `/api/upload` | Multipart upload |
+| `POST` | `/api/analysis` | Start server scan |
+| `POST` | `/api/analysis/import` | Persist a local-mode result |
+| `GET` | `/api/analysis/:id` | Full result + jobs + audit |
+| `POST` | `/api/analysis/:id/preview` | Tool preview diffs |
+| `POST` | `/api/analysis/:id/apply` | Apply kept changes → export job |
+| `POST` | `/api/analysis/:id/enhancement` | Extra polish / recalculate |
+| `GET` | `/api/jobs/:id` | Job status + outputs |
+| `GET` | `/api/outputs/:id/download` | Binary download |
+| `POST` | `/api/undo/:applyId` | Restore original |
+| `POST` | `/api/samples` | `monster` or `jp` demo workbook |
+
+Errors: `{ errorCode, message, retryable, details? }`.
+
+---
+
+## Develop & test
 
 ```bash
-npm run test:unit          # pure engine, parser, serializer, graph and storage tests
-npm run test:integration   # live PostgreSQL + real file/API XLSX round-trip
-npm run validate:fixes     # full live upload → analysis → preview → apply → download smoke test; app must be running
 npm run typecheck
 npm run lint
+npm run test:unit
+npm run test:integration   # needs PostgreSQL
 npm run build
+npm start
+npm run worker             # durable job poller for production
 ```
 
-The integration tests need a reachable PostgreSQL database. The end-to-end validation script also needs the app running at `BASE_URL` (default `http://localhost:3000`). These commands have not been reported as passing unless CI output confirms it.
+Key unit coverage: formula parsing, transforms (incl. keep/skip), graph filters (circular / external / cross-file), Japan hygiene selection, role packs, value diffs (`tests/japan-top5.test.ts`).
 
-- `tests/formula.test.ts` — tokenizer, external references, function/ref disambiguation, R1C1 relocation and literal replacement
-- `tests/transform.test.ts` — deterministic rule behavior, immutability, and refusal to auto-fix truncated models
-- `tests/parse.test.ts` — cell-budget rejection and number-format parsing
-- `tests/serialize.test.ts` — formula, merge, defined-name, basic-style, dimensions, CSV/NDJSON and truncated-export checks
-- `tests/graph-state.test.ts` — toggle state machine, graph filters, node cap and layout invariants
-- `tests/storage.test.ts` — storage-root traversal protection
-- `tests/download.test.ts` — live PostgreSQL integration: real XLSX bytes, exact Content-Length despite stale DB size, formulas, number formats, merges, hidden sheets and filename parsing
+---
 
-Server downloads use `src/lib/download.ts` (`fetch → blob → object URL → anchor click`). Browser-local exports serialize and download in the client without sending workbook bytes to the server.
+## Production notes
 
-## Production deployment security
+- Set `XRAY_BASIC_AUTH_USER` and `XRAY_BASIC_AUTH_PASSWORD` (fail-closed 503 if missing).  
+- Persist `XRAY_DATA_DIR`; tune retention / job heartbeats via `XRAY_*` env vars.  
+- Use HTTPS; Basic Auth is a shared gate, not multi-user IAM.  
+- XLSX export refuses unsupported OOXML features rather than silently dropping them.  
 
-All pages and API routes (except `/api/health` liveness, `/api/ready` readiness, and static assets) are protected by a shared HTTP Basic Auth gate. **Production fails closed with HTTP 503 if either credential is missing.** Set both environment variables on the server:
+Corpus / release evidence: `docs/RELEASE_BENCHMARK.md`.
 
-```bash
-XRAY_BASIC_AUTH_USER=your-private-username
-XRAY_BASIC_AUTH_PASSWORD=use-a-long-random-secret
-```
+---
 
-Use HTTPS only; Basic Auth is not safe over plain HTTP. This is a single shared credential, not multi-user identity or per-user authorization. For public/multi-user deployment, put the app behind an identity-aware gateway and distributed request quotas; do not expose it directly. Keep `XRAY_DATA_DIR` on persistent storage and restrict filesystem/database access. Do not use the CI-only credentials shown in the workflow for a real deployment.
+## License
 
-## Workbook fidelity and safety limits
+MIT — see repository license file.
 
-For `.xlsx` files, the workbook model preserves cell values/formulas, number formats, basic font/fill/border/alignment styles, row heights, column widths, merges, defined names, and hidden/very-hidden sheet state. The parser refuses files exceeding the configured model cell budget instead of returning a partial workbook. Legacy `.xls`/`.xlsb` inputs do not have the same style-fidelity guarantee.
-
-This is not a byte-for-byte Excel editor. Before reconstructing XLSX files, the parser inspects OOXML package parts and worksheet XML and refuses export when it detects features the reduced model cannot preserve, including conditional formatting, data validation rules, hyperlinks, auto-filters, Excel tables, charts/drawings/images, pivot tables/caches, slicers, external data connections/query tables, comments, embedded objects/controls, worksheet/workbook protection, frozen panes, workbook/worksheet extension data, VBA macros, and custom XML. This is a safety block, not a claim that those features are repaired. Validate business-critical workbooks in desktop Excel before using repaired exports.
-
-**Supported upload formats:** `.xlsx .xlsm .xlsb .xls .csv .tsv .json .ndjson` (see `supportedExtensions()`). **Recalc engines:** LibreOffice Calc when `soffice` is installed (CI-proven); Microsoft Excel COM on Windows only (`npm run verify:excel-com` — not claimed by Linux CI). LibreOffice ≠ Excel parity.
-
-**Phase 3 prove gate:** `npm run verify:corpus` generates ≥30 in-memory workbooks (formulas, JP locale, messy text, structure, blocked hyperlinks) and checks parse / export / LibreOffice. Latest numbers: `docs/RELEASE_BENCHMARK.md`. Portfolio demo path is documented there.
-
-## 7. Roadmap (frozen after Phase 3)
-
-Feature expansion is frozen after the Phase 1–3 trust / reliability / prove gates. Do not resume the old endless enhancement roadmap; ship the portfolio release instead.
+**Language / 言語:** [English](README.md) · [日本語](README.ja.md)

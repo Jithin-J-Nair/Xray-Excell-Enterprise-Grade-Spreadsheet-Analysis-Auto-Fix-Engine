@@ -12,6 +12,14 @@ const en: Dict = {
   "nav.new": "New scan",
   "nav.settings": "Fix tools",
   "nav.docs": "Docs",
+  "nav.how": "How it works",
+  "nav.workbench": "Workbench",
+  "nav.features": "Capabilities",
+  "nav.fixit": "Start",
+  "nav.skip": "Skip to content",
+  "nav.main": "Main",
+  "nav.online": "ONLINE",
+  "nav.engine.online": "Engine online",
   "dash.hero.title": "See through your spreadsheets.",
   "dash.hero.sub": "Scan Excel files for broken formulas, messy text, and risky links. Preview every change, then download a fixed copy — your original is never overwritten.",
   "dash.cta.scan": "Start a new scan",
@@ -341,6 +349,14 @@ const jp: Dict = {
   "nav.new": "新規スキャン",
   "nav.settings": "修正ツール",
   "nav.docs": "ドキュメント",
+  "nav.how": "使い方",
+  "nav.workbench": "作業画面",
+  "nav.features": "できること",
+  "nav.fixit": "始める",
+  "nav.skip": "本文へスキップ",
+  "nav.main": "メイン",
+  "nav.online": "稼働中",
+  "nav.engine.online": "エンジン稼働中",
   "dash.hero.title": "スプレッドシートを、透視する。",
   "dash.hero.sub": "壊れた数式、余分な空白、危険なリンクを検出。変更をすべて確認してから修正コピーをダウンロード。原本は上書きしません。",
   "dash.cta.scan": "新規スキャンを開始",
@@ -692,7 +708,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     try {
       localStorage.setItem("xray-lang", l);
     } catch {}
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = l === "jp" ? "ja" : "en";
+    }
   };
+  useEffect(() => {
+    document.documentElement.lang = lang === "jp" ? "ja" : "en";
+  }, [lang]);
   const t = useMemo(
     () => (key: string, vars?: Record<string, string | number>) => {
       let s = DICTS[lang][key] ?? DICTS.en[key] ?? key;
