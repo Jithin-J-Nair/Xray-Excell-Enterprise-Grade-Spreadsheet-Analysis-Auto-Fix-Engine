@@ -92,6 +92,8 @@ export function WorkbenchTab({
 
   useEffect(() => {
     if (!focusToolId) return;
+    // One-shot sync from Risks "Fix" jump: enable that tool and clear stale preview.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setToolStates((prev) =>
       prev.map((s) => (s.id === focusToolId && s.available ? { ...s, enabled: true } : s))
     );
