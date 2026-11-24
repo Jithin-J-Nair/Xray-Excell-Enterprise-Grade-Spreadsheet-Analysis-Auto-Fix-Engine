@@ -1,61 +1,75 @@
 "use client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ScanSearch, LayoutDashboard, Upload, Settings2, Languages } from "lucide-react";
+import { Languages } from "lucide-react";
 import { useI18n } from "@/components/i18n";
+import { BrandLogo } from "@/components/brand-logo";
 
 export function Header() {
   const { t, lang, setLang } = useI18n();
   const pathname = usePathname();
-  const items = [
-    { href: "/", label: t("nav.dashboard"), icon: LayoutDashboard },
-    { href: "/analyze", label: t("nav.new"), icon: Upload },
-    { href: "/settings", label: t("nav.settings"), icon: Settings2 },
-  ];
+  const marketing = pathname === "/";
+
+  const items = marketing
+    ? [
+        { href: "/#how", label: "How it works" },
+        { href: "/#product", label: "Workbench" },
+        { href: "/#features", label: "Checks" },
+        { href: "/#work", label: "Your scans" },
+      ]
+    : [
+        { href: "/", label: t("nav.dashboard") },
+        { href: "/analyze", label: t("nav.new") },
+        { href: "/settings", label: t("nav.settings") },
+      ];
+
   return (
-    <header className="sticky top-0 z-50 border-b border-edge/70 bg-void/80 backdrop-blur-md">
-      <div className="max-w-[1400px] mx-auto px-5 h-14 flex items-center gap-6">
-        <Link href="/" className="flex items-center gap-2.5 group">
-          <span className="relative flex items-center justify-center w-8 h-8 rounded-lg border border-accent/40 bg-accent/10">
-            <ScanSearch size={17} className="text-accent" />
-          </span>
-          <span className="mono font-bold tracking-tight text-[15px]">
-            <span className="text-accent glow-text">X-RAY</span>
-            <span className="text-dim">://</span>
-            <span>EXCEL</span>
-            <span className="ml-1.5 text-[10px] text-dim font-normal">v2</span>
-          </span>
-        </Link>
-        <nav className="flex items-center gap-1 text-sm">
+    <header className="xray-nav">
+      <div className="xray-nav__bar">
+        <a className="skip-link" href="#top">
+          Skip to content
+        </a>
+        <BrandLogo />
+        <nav className="xray-nav__links" aria-label="Main">
           {items.map((it) => {
-            const active = it.href === "/" ? pathname === "/" : pathname.startsWith(it.href);
+            const active =
+              it.href === "/"
+                ? pathname === "/"
+                : it.href.startsWith("/#")
+                  ? false
+                  : pathname.startsWith(it.href);
             return (
-              <Link
-                key={it.href}
-                href={it.href}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${
-                  active ? "bg-accent/10 text-accent border border-accent/25" : "text-dim hover:text-txt hover:bg-white/5 border border-transparent"
-                }`}
-              >
-                <it.icon size={14} />
+              <Link key={it.href} href={it.href} aria-current={active ? "page" : undefined}>
                 {it.label}
               </Link>
             );
           })}
         </nav>
-        <div className="ml-auto flex items-center gap-3">
-          <div className="hidden md:flex items-center gap-1.5 text-[10px] mono text-ok border border-ok/30 bg-ok/5 rounded-full px-2.5 py-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-ok pulse-dot" />
-            ENGINE ONLINE
+        <div className="xray-nav__actions">
+          <div
+            className="xray-engine"
+            title="Engine online"
+            style={{
+              color: "var(--color-ok)",
+              border: "1px solid color-mix(in oklab, var(--color-ok) 35%, transparent)",
+            }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ background: "var(--color-ok)" }} />
+            <span className="xray-engine__label">ONLINE</span>
           </div>
           <button
+            type="button"
             onClick={() => setLang(lang === "en" ? "jp" : "en")}
-            className="btn-ghost btn !py-1.5 !px-3 text-xs mono"
+            className="btn btn--secondary xray-lang"
             aria-label="Toggle language"
           >
             <Languages size={13} />
-            {lang === "en" ? "EN / 日本語" : "日本語 / EN"}
+            <span>{lang === "en" ? "EN" : "JP"}</span>
           </button>
+          <Link href="/analyze" className="btn btn--primary xray-cta">
+            Start a workbook scan
+          </Link>
         </div>
       </div>
     </header>

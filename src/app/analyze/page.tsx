@@ -112,12 +112,16 @@ export default function AnalyzePage() {
   };
 
   return (
-    <div className="relative">
-      <div className="grid-bg absolute inset-x-0 top-0 h-[320px] pointer-events-none" />
-      <div className="max-w-3xl mx-auto px-5 pt-12 pb-20 relative">
+    <main id="top" className="relative">
+      <div className="max-w-3xl mx-auto px-5 pt-14 pb-20 relative">
         <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <h1 className="text-3xl font-black tracking-tight mb-2">{t("nav.new")}</h1>
-          <p className="text-dim text-sm mb-8">{t("app.tagline")}</p>
+          <p className="mono text-[12px] tracking-wide text-[color:var(--p-accent)] mb-3">NEW ANALYSIS</p>
+          <h1 className="text-3xl md:text-4xl font-medium tracking-tight mb-2" style={{ letterSpacing: "var(--display-tracking)" }}>
+            Start a workbook scan
+          </h1>
+          <p className="text-dim text-base mb-8 max-w-xl leading-relaxed">
+            Drop .xlsx or .xlsm files. The original stays read-only; patches land on a derived copy.
+          </p>
 
           {/* dropzone */}
           <div
@@ -132,8 +136,8 @@ export default function AnalyzePage() {
               addFiles(e.dataTransfer.files);
             }}
             onClick={() => inputRef.current?.click()}
-            className={`reticle cursor-pointer rounded-2xl border-2 border-dashed p-12 text-center transition-all ${
-              drag ? "border-accent bg-accent/10 scale-[1.01]" : "border-edge2 hover:border-accent/50 hover:bg-accent/5"
+            className={`cursor-pointer rounded-lg border border-dashed p-12 text-center transition-all ${
+              drag ? "border-accent bg-accent/10" : "border-edge2 hover:border-accent/50 hover:bg-[color:color-mix(in_oklab,var(--p-ink)_3%,transparent)]"
             }`}
           >
             <input
@@ -246,6 +250,6 @@ export default function AnalyzePage() {
           </div>
         </motion.div>
       </div>
-    </div>
+    </main>
   );
 }

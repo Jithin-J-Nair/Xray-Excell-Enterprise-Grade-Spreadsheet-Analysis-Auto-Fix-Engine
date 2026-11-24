@@ -5,3 +5,9 @@ tsconfig.tsbuildinfo
 next-env.d.ts
 *.log
 .DS_Store
+
+.agents/
+AGENTS.md
+package-lock.json
+tsconfig.tsbuildinfo
+node_modules/
