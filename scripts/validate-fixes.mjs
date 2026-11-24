@@ -160,12 +160,26 @@ async function runCase(label, getUploadId, tools, verifyDownloaded) {
       ndjson: "application/x-ndjson; charset=utf-8",
       md: "text/markdown; charset=utf-8",
     }[format];
-    check(`${label}: ${format.toUpperCase()} download headers + byte length`,
+    // Next.js 16.4.5+ strips Content-Length from every Route Handler Response
+    // (GHSA-pc58-hwjq-p385 / vercel#101120). Match the browser client in
+    // src/lib/download.ts: require an exact length only when Content-Length is
+    // present and the body is not content-encoded; otherwise verify status,
+    // MIME, and a non-empty body.
+    const otherCt = otherRes.headers.get("content-type");
+    const otherCl = otherRes.headers.get("content-length");
+    const otherEnc = otherRes.headers.get("content-encoding");
+    const lengthOk =
+      otherCl === null || otherEnc
+        ? true
+        : otherCl === String(otherBytes.length);
+    check(
+      `${label}: ${format.toUpperCase()} download headers + byte length`,
       otherRes.status === 200 &&
-      otherRes.headers.get("content-type") === expectedMime &&
-      otherRes.headers.get("content-length") === String(otherBytes.length) &&
-      otherBytes.length > 0,
-      `bytes=${otherBytes.length}`);
+        otherCt === expectedMime &&
+        lengthOk &&
+        otherBytes.length > 0,
+      `bytes=${otherBytes.length} ct=${otherCt} cl=${otherCl ?? "omitted"} enc=${otherEnc ?? "identity"}`
+    );
     try {
       if (format === "csv") {
         if (!otherText.startsWith("\uFEFF") || !otherText.includes("\n")) throw new Error("CSV missing UTF-8 BOM or rows");

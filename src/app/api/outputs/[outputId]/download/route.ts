@@ -32,6 +32,10 @@ export function contentDisposition(name: string): string {
  * GET /api/outputs/:outputId/download — streams a generated export file.
  * The response length is taken from the physical file, not cached DB metadata,
  * so stale metadata cannot cause clients to truncate or wait for the response.
+ *
+ * Note: Next.js 16.4.5+ currently strips Content-Length from Route Handler
+ * responses (vercel/next.js#101120). We still set it so a future framework
+ * fix restores download progress; clients must tolerate a missing length.
  */
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ outputId: string }> }) {
   const { outputId } = await ctx.params;
