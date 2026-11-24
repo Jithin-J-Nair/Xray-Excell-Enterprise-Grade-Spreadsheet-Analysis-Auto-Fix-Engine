@@ -7,7 +7,7 @@ import { Panel, PanelTitle, Switch, fmtBytes, fmtNum } from "@/components/ui";
 import { toast } from "@/components/toast";
 import { downloadOutput, saveBlob } from "@/lib/download";
 import type { AnalysisDetail } from "./shared";
-import { TOOLS, AUTOFIX_TOOLS, applyDiffSelection, diffKey, isSelectableDiff } from "@/lib/excel/transform";
+import { TOOLS, AUTOFIX_TOOLS, DESTRUCTIVE_TOOLS, applyDiffSelection, diffKey, isSelectableDiff } from "@/lib/excel/transform";
 import { autoFixSelection, computeToolStates, enabledToolIds, reconcile, toggleTool, type ToolState } from "@/lib/excel/tool-state";
 import type { Diff } from "@/lib/excel/types";
 
@@ -263,6 +263,11 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
   const apply = async () => {
     if (!preview) return;
     setErr(null);
+    const destructive = preview.tools.filter((id) => DESTRUCTIVE_TOOLS.has(id));
+    if (destructive.length) {
+      const labels = destructive.map((id) => t(`tool.${id}.name`)).join(", ");
+      if (!window.confirm(t("wb.apply.destructive", { tools: labels }))) return;
+    }
     if (isLocal) {
       await applyLocal();
       return;
@@ -485,7 +490,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
                         </tr>
                       </thead>
                       <tbody>
-                        {filteredDiffs.slice(0, 600).map((d, i) => {
+                        {filteredDiffs.slice(0, 2000).map((d, i) => {
                           const key = diffKey(d);
                           const selectable = isSelectableDiff(d);
                           const checked = selectable ? acceptedKeys.has(key) : true;

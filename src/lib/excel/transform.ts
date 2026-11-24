@@ -8,6 +8,10 @@ import {
   parseFormula,
   replaceNumberLiteral,
 } from "./formula";
+import { tarjan } from "./analyze";
+
+/** Tools that can destroy live links, hide errors, or rewrite formulas/rows. Require confirm before apply. */
+export const DESTRUCTIVE_TOOLS = new Set(["T002", "T003", "T004", "T005", "T008", "T011", "T012"]);
 
 export const TOOLS: ToolDef[] = [
   // Review-first: unmerge and formula-pattern rewrites can change layout/intent.
@@ -25,6 +29,8 @@ export const TOOLS: ToolDef[] = [
   { id: "T004", group: "mitigate", name: "Freeze changing formulas", desc: "Replaces NOW, TODAY, RAND, OFFSET, and INDIRECT with their last saved values so results stay stable when you reopen the file.", safeDefault: false, autoFix: false, targets: ["VOLATILE_FUNCTION"], nameKey: "tool.T004.name", descKey: "tool.T004.desc" },
   // Masks errors; never Auto-Fix.
   { id: "T011", group: "mitigate", name: "Hide formula errors", desc: "Wraps formulas that currently show errors in IFERROR, or blanks static error text. This hides the error — it does not fix the underlying calculation.", safeDefault: false, autoFix: false, targets: ["ERROR_CELL"], nameKey: "tool.T011.name", descKey: "tool.T011.desc" },
+  // Breaks circular chains by freezing one cell — review-first.
+  { id: "T012", group: "mitigate", name: "Break circular formulas", desc: "Finds circular formula chains and freezes one cell in each chain to its last saved value so Excel can calculate again. Review first — this does not invent the correct formula.", safeDefault: false, autoFix: false, targets: ["CIRCULAR_REF"], nameKey: "tool.T012.name", descKey: "tool.T012.desc" },
 ];
 
 export const AUTOFIX_TOOLS = TOOLS.filter((t) => t.autoFix).map((t) => t.id);
@@ -33,7 +39,7 @@ export function toolById(id: string): ToolDef | undefined {
   return TOOLS.find((t) => t.id === id);
 }
 
-const MAX_DIFFS = 2000;
+const MAX_DIFFS = 5000;
 const DATE_TEXT = /^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$|^(\d{4})年(\d{1,2})月(\d{1,2})日(?:[（(][日月火水木金土][)）])?$/;
 const COMMA_NUM = /^(-?\d{1,3}(?:,\d{3})+)(?:\.(\d+))?$/;
 
@@ -314,6 +320,87 @@ function t004FreezeVolatile(models: WorkbookModel[], ctx: Ctx) {
   });
 }
 
+const CYCLE_RANGE_CAP = 40;
+
+/** Break each circular SCC by freezing one formula cell to its last saved value. */
+function t012BreakCircular(models: WorkbookModel[], ctx: Ctx) {
+  for (const m of models) {
+    const depMap = new Map<string, Set<string>>();
+    const cellAt = (sheetName: string, addr: string) => {
+      const sheet = m.sheets.find((s) => s.name === sheetName);
+      if (!sheet) return undefined;
+      return sheet.cells[addr] ?? sheet.cells[addr.toUpperCase()] ?? sheet.cells[addr.toLowerCase()];
+    };
+    const keyOf = (sheetName: string, addr: string) => `${sheetName}!${addr.toUpperCase()}`;
+
+    for (const sheet of m.sheets) {
+      for (const addr of Object.keys(sheet.cells)) {
+        const cell = sheet.cells[addr];
+        if (!cell.f) continue;
+        const from = keyOf(sheet.name, addr);
+        const deps = new Set<string>();
+        const parsed = parseFormula(cell.f);
+        for (const ref of parsed.refs) {
+          if (ref.book != null) continue;
+          const targetSheet = ref.sheet ?? sheet.name;
+          const span = (ref.r2 - ref.r1 + 1) * (ref.c2 - ref.c1 + 1);
+          if (span > CYCLE_RANGE_CAP) {
+            deps.add(keyOf(targetSheet, addrOf(ref.r1, ref.c1)));
+            continue;
+          }
+          for (let r = ref.r1; r <= ref.r2; r++) {
+            for (let c = ref.c1; c <= ref.c2; c++) {
+              deps.add(keyOf(targetSheet, addrOf(r, c)));
+            }
+          }
+        }
+        depMap.set(from, deps);
+      }
+    }
+
+    for (const comp of tarjan(depMap)) {
+      if (comp.length === 1 && !depMap.get(comp[0])?.has(comp[0])) continue;
+      let picked: { sheet: string; addr: string; cell: CellModel } | null = null;
+      for (const preferCached of [true, false]) {
+        for (const id of comp) {
+          const bang = id.lastIndexOf("!");
+          if (bang < 0) continue;
+          const sheetName = id.slice(0, bang);
+          const addr = id.slice(bang + 1);
+          const cell = cellAt(sheetName, addr);
+          if (!cell?.f) continue;
+          if (preferCached && (cell.v === null || cell.v === undefined || cell.t === "e")) continue;
+          picked = { sheet: sheetName, addr: addr.toUpperCase(), cell };
+          break;
+        }
+        if (picked) break;
+      }
+      if (!picked) continue;
+      const before = `=${picked.cell.f}`;
+      delete picked.cell.f;
+      if (picked.cell.v === null || picked.cell.v === undefined || picked.cell.t === "e") {
+        picked.cell.t = "s";
+        picked.cell.v = "";
+      }
+      pushDiff(ctx, {
+        sheet: picked.sheet,
+        cell: picked.addr,
+        before,
+        after:
+          typeof picked.cell.v === "string" || typeof picked.cell.v === "number"
+            ? picked.cell.v
+            : String(picked.cell.v ?? ""),
+        kind: "formula",
+        ruleId: "T012",
+        reason: `Broke a circular chain of ${comp.length} cell(s) by freezing this cell to its last saved value`,
+        params: { cycleSize: comp.length },
+        confidence: 0.85,
+        riskDelta: "down",
+      });
+    }
+  }
+}
+
 function t003SnapshotExternal(models: WorkbookModel[], ctx: Ctx) {
   for (const m of models) {
     const snapshots: { sheet: string; cell: string; ref: string; value: unknown }[] = [];
@@ -541,11 +628,12 @@ const RULES: Record<string, (models: WorkbookModel[], ctx: Ctx, opts: TransformO
   T009: (m, c) => t009Unicode(m, c),
   T010: (m, c) => t010Dates(m, c),
   T011: (m, c) => t011GuardErrors(m, c),
+  T012: (m, c) => t012BreakCircular(m, c),
   T013: (m, c) => t013Numbers(m, c),
 };
 
 /** Order matters: textual cleaning first, then structural, then formula rewrites. */
-const EXECUTION_ORDER = ["T007", "T009", "T010", "T013", "T008", "T005", "T006", "T011", "T002", "T003", "T004", "T001"];
+const EXECUTION_ORDER = ["T007", "T009", "T010", "T013", "T008", "T005", "T006", "T011", "T002", "T003", "T004", "T012", "T001"];
 
 /**
  * Fail closed if a recorded cell/formula diff does not match the transformed model.
@@ -632,16 +720,27 @@ export function diffKey(d: Diff): string {
 }
 
 export function isSelectableDiff(d: Diff): boolean {
-  return d.kind === "value" || d.kind === "formula";
+  return d.kind === "value" || d.kind === "formula" || d.kind === "name";
 }
 
 /**
- * Undo selected value/formula diffs on an already-transformed model.
- * Structure / name / row changes cannot be skipped cell-by-cell — turn the tool off instead.
+ * Undo selected value/formula/name diffs on an already-transformed model.
+ * Structure / row changes cannot be skipped one-by-one — turn the tool off instead.
  */
 export function revertDiffs(models: WorkbookModel[], diffs: Diff[]): void {
   for (const diff of diffs) {
     if (!isSelectableDiff(diff)) continue;
+    if (diff.kind === "name") {
+      const before = String(diff.before ?? "");
+      const match = /^(.+?)\s*→\s*(.+)$/.exec(before);
+      if (!match || !models[0]) continue;
+      const name = match[1].trim();
+      const ref = match[2].trim();
+      if (!models[0].names.some((n) => n.name.toLowerCase() === name.toLowerCase())) {
+        models[0].names.push({ name, ref, broken: /#REF/i.test(ref) });
+      }
+      continue;
+    }
     const sheet = models.flatMap((m) => m.sheets).find((s) => s.name === diff.sheet);
     if (!sheet) continue;
     const cell = sheet.cells[diff.cell] ?? sheet.cells[diff.cell.toUpperCase()] ?? sheet.cells[diff.cell.toLowerCase()];

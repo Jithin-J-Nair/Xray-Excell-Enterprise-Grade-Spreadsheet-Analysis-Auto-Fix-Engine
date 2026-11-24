@@ -61,7 +61,7 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ applyId: 
         mode: "local",
         restoredBytes: false,
         message:
-          "Local mode: original never left the client. This marks the apply as reverted in the audit trail only; no file was restored server-side.",
+          "Private mode: the server never held your original. This marks the apply as reverted in history. The client restores original bytes from this browser when they are still stored.",
       });
     }
     const [original] = await db

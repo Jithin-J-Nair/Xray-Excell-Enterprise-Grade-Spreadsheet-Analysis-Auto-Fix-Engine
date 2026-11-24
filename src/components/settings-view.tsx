@@ -97,6 +97,11 @@ export function SettingsView({
         </div>
       </Panel>
 
+      <Panel className="mb-6 p-4">
+        <PanelTitle>{t("limits.title")}</PanelTitle>
+        <p className="px-1 pb-1 text-xs text-dim leading-relaxed">{t("limits.body")}</p>
+      </Panel>
+
       <Panel className="mt-6 p-5">
         <div className="flex items-center gap-2 mb-3">
           <ShieldCheck size={15} className="text-ok" />

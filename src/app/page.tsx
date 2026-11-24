@@ -68,7 +68,7 @@ function WorkbenchDemo() {
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16, gap: 12, alignItems: "flex-start" }}>
           <div>
             <div className="mono" style={{ fontSize: 12, color: "var(--p-muted)" }}>
-              PREVIEW · ORIGINAL STAYS SAFE
+              EXAMPLE PREVIEW · NOT A LIVE FILE
             </div>
             <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: "var(--display-tracking)" }}>ops_budget_Q3.xlsx</div>
           </div>
@@ -207,7 +207,7 @@ export default function HomePage() {
             <div className="section-head">
               <h2 id="product-h">One place to review every fix</h2>
               <p className="measure" style={{ color: "var(--p-muted)", marginTop: 16, fontSize: 16, lineHeight: 1.55 }}>
-                See the issue list, the formula map, and the before → after list together. Tick the cell changes you want to keep.
+                See the issue list, the formula map, and the before → after list together. Tick the cell changes you want to keep. The frame below is an illustration — your real workbook opens after you scan.
               </p>
             </div>
             <div style={{ marginTop: 48 }}>

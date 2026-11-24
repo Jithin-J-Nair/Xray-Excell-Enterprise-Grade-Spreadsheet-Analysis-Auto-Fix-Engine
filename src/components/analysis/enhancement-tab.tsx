@@ -60,7 +60,57 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
     setError(""); setNotice("");
   }
 
+  async function runLocalProfile() {
+    if (!detail.result) return;
+    setBusy("profile"); setError(""); setNotice("");
+    try {
+      const { allModels } = await import("@/lib/excel/analyze");
+      const { profileWorkbookQuality } = await import("@/lib/excel/enhancement/data-quality");
+      const { inspectNumberFormats } = await import("@/lib/excel/enhancement/format-repair");
+      const { proposeFormulaRepairs } = await import("@/lib/excel/enhancement/formula-repair");
+      const models = allModels(detail.result);
+      const files = models.map((model) => {
+        const quality = profileWorkbookQuality(model);
+        const formats = inspectNumberFormats(model, { currencyCode, minConfidence: 0.9 });
+        const formulas = proposeFormulaRepairs(model, { minConfidence: 0.9 });
+        return {
+          fileName: model.fileName,
+          quality: {
+            columns: quality.columns,
+            totalFindings: quality.findings.length,
+            findings: quality.findings.slice(0, 500),
+            truncated: quality.findings.length > 500,
+          },
+          numberFormats: {
+            totalFindings: formats.length,
+            findings: formats.slice(0, 500),
+            truncated: formats.length > 500,
+          },
+          formulaRepairs: {
+            totalProposals: formulas.proposals.length,
+            proposals: formulas.proposals.slice(0, 500),
+            truncated: formulas.proposals.length > 500,
+          },
+        } as ProfileFile;
+      });
+      setProfile(files);
+      setNotice("Read-only profile finished on this device. Apply, verify, and recalculate still need a server scan.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function request(action: Action, extra: Record<string, unknown> = {}) {
+    if (detail.mode === "local") {
+      if (action === "profile") {
+        await runLocalProfile();
+        return;
+      }
+      setError("Apply, verify, recalculate, and undo for Extra polish need a server scan. Private mode can only run the read-only profile on this device.");
+      return;
+    }
     setBusy(action); setError(""); setNotice("");
     try {
       const response = await fetch("/api/analysis/" + detail.id + "/enhancement", {
@@ -123,7 +173,7 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
         {!serverReady && (
           <div className="mt-4 rounded-lg border border-warn/30 bg-warn/5 p-3 text-sm text-dim">
             {detail.mode === "local"
-              ? "Extra polish runs on server scans only. Private (on-device) mode does not use this panel yet."
+              ? "Private mode: you can run a read-only quality profile on this device. Apply, verify, and formula recalculation need a server scan."
               : "Wait for the server scan to finish before using these tools."}
           </div>
         )}

@@ -4,6 +4,12 @@
 
 表計算の問題を見つけ、修正を確認してから、原本を安全に保つ。壊れた数式・余分な空白・危険なリンクを検出し、修正コピーをダウンロード。原本は上書きしません。
 
+### Production scope (honest)
+
+**Does:** structural scan, ranked issues, previewable fix tools T001–T013 (including break-circular T012), per-change keep/skip for cell/formula/name diffs, private-mode original restore via browser storage, optional Extra polish (formatting / LibreOffice or Excel recalc on server).
+
+**Does not:** prove financial correctness, embed a full Excel calculation engine in the main workbench, repair VBA / Power Query / pivots / charts, or execute custom user-uploaded rules.
+
 ---
 
 ## 1. Architecture
