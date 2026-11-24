@@ -107,7 +107,7 @@ export default function Dashboard() {
       <div className="grid-bg absolute inset-x-0 top-0 h-[420px] pointer-events-none" />
       <div className="max-w-[1400px] mx-auto px-5 pt-14 pb-16 relative">
         {/* hero */}
-        <motion.section initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="text-center mb-12">
+        <motion.section initial={false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="text-center mb-12">
           <div className="inline-flex items-center gap-2 mono text-[10px] tracking-[0.25em] text-accent border border-accent/30 bg-accent/5 rounded-full px-4 py-1.5 mb-6">
             <ScanSearch size={12} />
             STATIC ANALYSIS · DEPENDENCY GRAPH · DETERMINISTIC REPAIR
@@ -140,7 +140,7 @@ export default function Dashboard() {
 
         {/* stat grid */}
         <motion.section
-          initial={{ opacity: 0, y: 18 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.55, delay: 0.15 }}
           className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-8"
@@ -158,7 +158,7 @@ export default function Dashboard() {
 
         <div className="grid lg:grid-cols-3 gap-4">
           {/* recent analyses */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="lg:col-span-2">
+          <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="lg:col-span-2">
             <Panel className="overflow-hidden">
               <PanelTitle right={<Activity size={14} className="text-dim" />}>{t("dash.recent")}</PanelTitle>
               {data?.recent.length ? (
@@ -198,7 +198,7 @@ export default function Dashboard() {
           </motion.div>
 
           {/* activity + policy */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="space-y-4">
+          <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }} className="space-y-4">
             <Panel>
               <PanelTitle>{t("dash.activity")}</PanelTitle>
               <div className="px-4 pb-4 space-y-2 max-h-[280px] overflow-y-auto">

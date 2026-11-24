@@ -115,7 +115,7 @@ export default function AnalyzePage() {
     <div className="relative">
       <div className="grid-bg absolute inset-x-0 top-0 h-[320px] pointer-events-none" />
       <div className="max-w-3xl mx-auto px-5 pt-12 pb-20 relative">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+        <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <h1 className="text-3xl font-black tracking-tight mb-2">{t("nav.new")}</h1>
           <p className="text-dim text-sm mb-8">{t("app.tagline")}</p>
 

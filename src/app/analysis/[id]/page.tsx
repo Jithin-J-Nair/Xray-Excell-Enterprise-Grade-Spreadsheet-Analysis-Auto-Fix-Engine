@@ -121,7 +121,7 @@ export default function AnalysisPage() {
       <div className="relative">
         <div className="grid-bg absolute inset-x-0 top-0 h-[300px] pointer-events-none" />
         <div className="max-w-3xl mx-auto px-5 pt-16 relative">
-          <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}>
+          <motion.div initial={false} animate={{ opacity: 1, y: 0 }}>
             <div className="flex items-center gap-3 mb-2">
               <StatusChip status={status?.status ?? "queued"} t={t} />
               <span className="mono text-xs text-dim">{id.slice(0, 8)}</span>
@@ -226,7 +226,7 @@ export default function AnalysisPage() {
       </div>
 
       <AnimatePresence mode="wait">
-        <motion.div key={tab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.22 }}>
+        <motion.div key={tab} initial={false} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.22 }}>
           {tab === "overview" && <OverviewTab detail={detail} />}
           {tab === "graph" && <GraphTab detail={detail} />}
           {tab === "risks" && <RisksTab detail={detail} />}
