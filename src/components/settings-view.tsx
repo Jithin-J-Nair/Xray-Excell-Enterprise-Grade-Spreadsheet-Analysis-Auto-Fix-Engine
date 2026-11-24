@@ -52,7 +52,7 @@ export function SettingsView({
                 <th className="w-56">{t("settings.col.name")}</th>
                 <th>{t("settings.col.desc")}</th>
                 <th className="w-32">{t("settings.col.safety")}</th>
-                <th className="w-24">Auto-Fix</th>
+                <th className="w-24">{t("wb.autofix")}</th>
               </tr>
             </thead>
             <tbody>
@@ -66,8 +66,10 @@ export function SettingsView({
                         {r.group}
                       </span>
                     </td>
-                    <td className="text-xs font-medium">{r.name}</td>
-                    <td className="text-[11.5px] text-dim leading-relaxed">{r.description}</td>
+                    <td className="text-xs font-medium">{t(`tool.${r.id}.name`) === `tool.${r.id}.name` ? r.name : t(`tool.${r.id}.name`)}</td>
+                    <td className="text-[11.5px] text-dim leading-relaxed">
+                      {t(`tool.${r.id}.desc`) === `tool.${r.id}.desc` ? r.description : t(`tool.${r.id}.desc`)}
+                    </td>
                     <td>
                       {r.safeDefault ? (
                         <span className="chip text-ok border-ok/35 bg-ok/10">

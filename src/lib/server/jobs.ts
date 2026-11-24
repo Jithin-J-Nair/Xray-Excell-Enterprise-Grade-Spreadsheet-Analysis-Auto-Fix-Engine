@@ -6,7 +6,7 @@ import { and, eq, sql } from "drizzle-orm";
 import type { AnalysisResult, WorkbookModel } from "@/lib/excel/types";
 import { parseFile } from "@/lib/excel/parse";
 import { allModels, analyzeAll, rescoreModel } from "@/lib/excel/analyze";
-import { applyTransforms, toolById } from "@/lib/excel/transform";
+import { applyDiffSelection, applyTransforms, toolById } from "@/lib/excel/transform";
 import {
   buildMarkdownReport,
   modelToJson,
@@ -191,7 +191,19 @@ export async function runApplyJob(jobId: string): Promise<void> {
 
     await db.update(jobs).set({ progress: 25 }).where(and(eq(jobs.id, jobId), eq(jobs.status, "running"), eq(jobs.leaseToken, leaseToken)));
     const before = models[0] ? rescoreModel(models[0], { language }) : 0;
-    const { models: patched, diffs, summary } = applyTransforms(models, tools, options);
+    const transformed = applyTransforms(models, tools, options);
+    const queuedSummary = (job.summary ?? {}) as { acceptedDiffKeys?: string[] };
+    let patched = transformed.models;
+    let diffs = transformed.diffs;
+    let summary = transformed.summary;
+    // When the client sent an accepted-change list, keep only those value/formula
+    // diffs (plus any structure/name/row changes, which cannot be skipped per cell).
+    if (Array.isArray(queuedSummary.acceptedDiffKeys)) {
+      const selected = applyDiffSelection(patched, diffs, queuedSummary.acceptedDiffKeys);
+      patched = selected.models;
+      diffs = selected.diffs;
+      summary = selected.summary;
+    }
     const after = patched[0] ? rescoreModel(patched[0], { language }) : 0;
     summary.riskScoreBefore = before;
     summary.riskScoreAfter = after;

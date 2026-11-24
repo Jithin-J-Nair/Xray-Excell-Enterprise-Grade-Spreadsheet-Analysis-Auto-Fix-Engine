@@ -6,12 +6,12 @@ import Link from "next/link";
 export function HugeCta() {
   return (
     <div className="closing__cta close--word huge-cta">
-      <p className="huge-cta__kicker mono">NEXT ACTION</p>
+      <p className="huge-cta__kicker mono">NEXT STEP</p>
       <h2 id="go-h" className="huge-cta__type" data-moment="liquid-type" data-moment-opts='{"strength":0.85}'>
-        Fix the workbook.
+        Clean up the workbook.
       </h2>
       <p className="huge-cta__lead">
-        Upload an .xlsx. Get a health score, a risk list and a reversible patch queue — originals stay immutable.
+        Upload an Excel file. Get a health score, a clear issue list, and a preview of fixes — then download a copy. Your original stays safe.
       </p>
       <Link className="btn btn--primary btn--xl btn--wide" href="/analyze">
         Start a workbook scan

@@ -11,20 +11,20 @@ import {
 
 export const TOOLS: ToolDef[] = [
   // Review-first: unmerge and formula-pattern rewrites can change layout/intent.
-  { id: "T005", group: "organize", name: "Unmerge cells", desc: "Unmerge all merged ranges and fill every cell with the anchor value so sorting, filtering and pivots work. Review-first: can alter layout and data semantics.", safeDefault: false, autoFix: false, targets: ["MERGED_CELLS"], nameKey: "tool.T005.name", descKey: "tool.T005.desc" },
-  { id: "T002", group: "organize", name: "Normalize inconsistent formulas", desc: "Detect the majority formula pattern per column range and rewrite deviating cells to match it. Review-first: structural consensus is not business correctness.", safeDefault: false, autoFix: false, targets: ["INCONSISTENT_FORMULA"], nameKey: "tool.T002.name", descKey: "tool.T002.desc" },
-  { id: "T001", group: "organize", name: "Extract hard-coded parameters", desc: "Repeated numeric literals inside formulas are moved to a Parameters sheet with named ranges; formulas reference the names.", safeDefault: false, autoFix: false, targets: ["HARDCODED_NUMBER"], nameKey: "tool.T001.name", descKey: "tool.T001.desc" },
-  { id: "T006", group: "organize", name: "Repair named ranges", desc: "Remove broken (#REF!) and duplicate named ranges so lookups stop erroring.", safeDefault: true, autoFix: false, targets: ["BROKEN_NAMED_RANGE"], nameKey: "tool.T006.name", descKey: "tool.T006.desc" },
-  { id: "T007", group: "clean", name: "Trim & normalize whitespace", desc: "Remove leading/trailing spaces, convert NBSP and ideographic spaces to normal spaces.", safeDefault: true, autoFix: true, targets: ["WHITESPACE"], nameKey: "tool.T007.name", descKey: "tool.T007.desc" },
-  { id: "T009", group: "clean", name: "Normalize Unicode (full-width → half-width)", desc: "Convert full-width romaji/digits to ASCII and normalize text to NFC for stable joins and exports.", safeDefault: true, autoFix: true, targets: ["UNICODE_FULLWIDTH"], nameKey: "tool.T009.name", descKey: "tool.T009.desc" },
-  { id: "T010", group: "clean", name: "Coerce dates stored as text", desc: "Parse YYYY/MM/DD, YYYY-MM-DD and Japanese YYYY年M月D日 strings into real date cells.", safeDefault: true, autoFix: false, targets: ["DATE_AS_TEXT"], nameKey: "tool.T010.name", descKey: "tool.T010.desc" },
-  { id: "T013", group: "clean", name: "Coerce numbers stored as text", desc: "Convert comma-grouped numeric text (1,234,567) into real numbers for math and pivots.", safeDefault: true, autoFix: false, targets: ["NUMBER_AS_TEXT"], nameKey: "tool.T013.name", descKey: "tool.T013.desc" },
-  { id: "T008", group: "clean", name: "Deduplicate rows", desc: "Remove exact duplicate data rows (first occurrence kept; remaining rows shift up).", safeDefault: false, autoFix: false, targets: ["DUPLICATE_ROWS"], nameKey: "tool.T008.name", descKey: "tool.T008.desc" },
+  { id: "T005", group: "organize", name: "Unmerge cells", desc: "Splits merged cells and copies the top-left value into each cell so filters and sorts work. Review first — layout can change.", safeDefault: false, autoFix: false, targets: ["MERGED_CELLS"], nameKey: "tool.T005.name", descKey: "tool.T005.desc" },
+  { id: "T002", group: "organize", name: "Align column formulas", desc: "When most cells in a column share one formula pattern, rewrites the odd ones to match. Review first — matching a pattern is not the same as being financially correct.", safeDefault: false, autoFix: false, targets: ["INCONSISTENT_FORMULA"], nameKey: "tool.T002.name", descKey: "tool.T002.desc" },
+  { id: "T001", group: "organize", name: "Move repeated numbers to Parameters", desc: "Finds the same number reused in many formulas and moves it to a Parameters sheet so you can change it in one place.", safeDefault: false, autoFix: false, targets: ["HARDCODED_NUMBER"], nameKey: "tool.T001.name", descKey: "tool.T001.desc" },
+  { id: "T006", group: "organize", name: "Fix broken named ranges", desc: "Removes named ranges that point nowhere (#REF!) or are duplicated, so lookups stop failing for that reason.", safeDefault: true, autoFix: false, targets: ["BROKEN_NAMED_RANGE"], nameKey: "tool.T006.name", descKey: "tool.T006.desc" },
+  { id: "T007", group: "clean", name: "Clean up extra spaces", desc: "Trims spaces at the start and end of text, including invisible non-breaking spaces. Safe for everyday cleanup.", safeDefault: true, autoFix: true, targets: ["WHITESPACE"], nameKey: "tool.T007.name", descKey: "tool.T007.desc" },
+  { id: "T009", group: "clean", name: "Normalize full-width characters", desc: "Converts full-width letters and digits to normal half-width text so matches and exports stay consistent.", safeDefault: true, autoFix: true, targets: ["UNICODE_FULLWIDTH"], nameKey: "tool.T009.name", descKey: "tool.T009.desc" },
+  { id: "T010", group: "clean", name: "Turn date text into real dates", desc: "Converts common date strings (YYYY/MM/DD, YYYY-MM-DD, and Japanese date text) into real Excel date cells.", safeDefault: true, autoFix: false, targets: ["DATE_AS_TEXT"], nameKey: "tool.T010.name", descKey: "tool.T010.desc" },
+  { id: "T013", group: "clean", name: "Turn number text into real numbers", desc: "Converts comma-grouped number text like 1,234,567 into real numbers you can sum and pivot.", safeDefault: true, autoFix: false, targets: ["NUMBER_AS_TEXT"], nameKey: "tool.T013.name", descKey: "tool.T013.desc" },
+  { id: "T008", group: "clean", name: "Remove duplicate rows", desc: "Deletes exact duplicate data rows (keeps the first). Review first — rows are removed and everything below shifts up.", safeDefault: false, autoFix: false, targets: ["DUPLICATE_ROWS"], nameKey: "tool.T008.name", descKey: "tool.T008.desc" },
   // Destructive to live-link behavior — never auto-selected.
-  { id: "T003", group: "mitigate", name: "Snapshot external links", desc: "DESTRUCTIVE: replaces external-workbook references with cached values and writes originals to a SourceData sheet. Live links stop updating.", safeDefault: false, autoFix: false, targets: ["EXTERNAL_LINK"], nameKey: "tool.T003.name", descKey: "tool.T003.desc" },
-  { id: "T004", group: "mitigate", name: "Freeze volatile functions", desc: "Replace NOW/TODAY/RAND/OFFSET/INDIRECT formulas with their last cached values for reproducible results.", safeDefault: false, autoFix: false, targets: ["VOLATILE_FUNCTION"], nameKey: "tool.T004.name", descKey: "tool.T004.desc" },
+  { id: "T003", group: "mitigate", name: "Replace live links with saved values", desc: "Replaces formulas that point at other workbooks with their last saved values, and logs the old links on a SourceData sheet. Live links will no longer update.", safeDefault: false, autoFix: false, targets: ["EXTERNAL_LINK"], nameKey: "tool.T003.name", descKey: "tool.T003.desc" },
+  { id: "T004", group: "mitigate", name: "Freeze changing formulas", desc: "Replaces NOW, TODAY, RAND, OFFSET, and INDIRECT with their last saved values so results stay stable when you reopen the file.", safeDefault: false, autoFix: false, targets: ["VOLATILE_FUNCTION"], nameKey: "tool.T004.name", descKey: "tool.T004.desc" },
   // Masks errors; never Auto-Fix.
-  { id: "T011", group: "mitigate", name: "Guard error cells (IFERROR)", desc: "Wrap formulas that currently evaluate to errors in IFERROR, or blank static error literals. Review-only: this masks failures; it does not repair the underlying calculation.", safeDefault: false, autoFix: false, targets: ["ERROR_CELL"], nameKey: "tool.T011.name", descKey: "tool.T011.desc" },
+  { id: "T011", group: "mitigate", name: "Hide formula errors", desc: "Wraps formulas that currently show errors in IFERROR, or blanks static error text. This hides the error — it does not fix the underlying calculation.", safeDefault: false, autoFix: false, targets: ["ERROR_CELL"], nameKey: "tool.T011.name", descKey: "tool.T011.desc" },
 ];
 
 export const AUTOFIX_TOOLS = TOOLS.filter((t) => t.autoFix).map((t) => t.id);
@@ -624,4 +624,86 @@ export function applyTransforms(
     risksResolved: 0,
   };
   return { models, diffs: ctx.diffs, summary };
+}
+
+/** Stable id for a single previewed change (used for per-change accept/skip). */
+export function diffKey(d: Diff): string {
+  return `${d.ruleId}|${d.sheet}|${d.cell}|${d.kind}|${String(d.before ?? "")}→${String(d.after ?? "")}`;
+}
+
+export function isSelectableDiff(d: Diff): boolean {
+  return d.kind === "value" || d.kind === "formula";
+}
+
+/**
+ * Undo selected value/formula diffs on an already-transformed model.
+ * Structure / name / row changes cannot be skipped cell-by-cell — turn the tool off instead.
+ */
+export function revertDiffs(models: WorkbookModel[], diffs: Diff[]): void {
+  for (const diff of diffs) {
+    if (!isSelectableDiff(diff)) continue;
+    const sheet = models.flatMap((m) => m.sheets).find((s) => s.name === diff.sheet);
+    if (!sheet) continue;
+    const cell = sheet.cells[diff.cell] ?? sheet.cells[diff.cell.toUpperCase()] ?? sheet.cells[diff.cell.toLowerCase()];
+    if (!cell) continue;
+    if (diff.kind === "formula") {
+      const before = diff.before == null ? "" : String(diff.before);
+      if (!before || before === "∅") {
+        delete cell.f;
+      } else {
+        cell.f = before.replace(/^=/, "");
+      }
+    } else {
+      if (diff.before === null) {
+        cell.v = "";
+        cell.t = "s";
+      } else if (typeof diff.before === "number") {
+        cell.v = diff.before;
+        cell.t = "n";
+      } else {
+        cell.v = diff.before;
+        cell.t = "s";
+      }
+    }
+  }
+}
+
+export function summarizeDiffs(diffs: Diff[]): TransformOutput["summary"] {
+  return {
+    cellsChanged: diffs.filter((d) => d.kind === "value").length,
+    formulasChanged: diffs.filter((d) => d.kind === "formula").length,
+    rowsRemoved: diffs.filter((d) => d.kind === "row").length,
+    namesFixed: diffs.filter((d) => d.kind === "name").length,
+    mergesRemoved: diffs.filter((d) => d.ruleId === "T005").length,
+    sheetsAdded: [
+      ...new Set(
+        diffs
+          .filter((d) => d.before === null && (d.sheet === "SourceData" || d.sheet === "Parameters"))
+          .map((d) => d.sheet)
+      ),
+    ],
+    byTool: diffs.reduce<Record<string, number>>((acc, d) => {
+      acc[d.ruleId] = (acc[d.ruleId] ?? 0) + 1;
+      return acc;
+    }, {}),
+    riskScoreBefore: -1,
+    riskScoreAfter: -1,
+    risksResolved: 0,
+  };
+}
+
+/**
+ * After a full transform, drop skipped value/formula changes and restore those cells.
+ * Non-selectable diffs (row / name / structure) always stay.
+ */
+export function applyDiffSelection(
+  models: WorkbookModel[],
+  diffs: Diff[],
+  acceptedKeys: Set<string> | string[]
+): { models: WorkbookModel[]; diffs: Diff[]; summary: TransformOutput["summary"] } {
+  const accepted = acceptedKeys instanceof Set ? acceptedKeys : new Set(acceptedKeys);
+  const skipped = diffs.filter((d) => isSelectableDiff(d) && !accepted.has(diffKey(d)));
+  if (skipped.length) revertDiffs(models, skipped);
+  const kept = diffs.filter((d) => !isSelectableDiff(d) || accepted.has(diffKey(d)));
+  return { models, diffs: kept, summary: summarizeDiffs(kept) };
 }

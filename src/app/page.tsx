@@ -46,11 +46,11 @@ function healthColor(h: number | null): string {
 }
 
 function WorkbenchDemo() {
-  const [accepted, setAccepted] = useState(false);
+  const [kept, setKept] = useState(true);
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduced) return;
-    const id = window.setInterval(() => setAccepted((v) => !v), 2800);
+    const id = window.setInterval(() => setKept((v) => !v), 2800);
     return () => window.clearInterval(id);
   }, []);
 
@@ -58,71 +58,76 @@ function WorkbenchDemo() {
     <div className="app-frame" data-m-loop="2.8">
       <aside className="app-frame__rail" aria-hidden="true">
         <div className="rail-item is-on">Overview</div>
-        <div className="rail-item">Risks</div>
-        <div className="rail-item">Graph</div>
-        <div className="rail-item">Patches</div>
+        <div className="rail-item">Issues</div>
+        <div className="rail-item">Formula map</div>
+        <div className="rail-item">Fix &amp; preview</div>
         <div className="rail-item">Sheets</div>
-        <div className="rail-item">Export</div>
+        <div className="rail-item">Download</div>
       </aside>
       <div className="app-frame__main">
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16, gap: 12, alignItems: "flex-start" }}>
           <div>
             <div className="mono" style={{ fontSize: 12, color: "var(--p-muted)" }}>
-              ANALYSIS · LOCAL COPY IMMUTABLE
+              PREVIEW · ORIGINAL STAYS SAFE
             </div>
             <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: "var(--display-tracking)" }}>ops_budget_Q3.xlsx</div>
           </div>
           <div className="mono" style={{ fontSize: 28, color: "var(--color-ok)", fontWeight: 500 }}>
-            {accepted ? "86" : "81"}
+            {kept ? "86" : "81"}
           </div>
         </div>
         <table className="app-frame__table">
           <thead>
             <tr>
-              <th>Finding</th>
+              <th>Keep</th>
+              <th>Issue</th>
               <th>Sheet</th>
               <th>Cell</th>
-              <th>Action</th>
+              <th>Proposed fix</th>
             </tr>
           </thead>
           <tbody>
-            <tr className={accepted ? "row-fixed" : "row-risk"}>
-              <td>{accepted ? "External link restored" : "Broken external link"}</td>
-              <td>Cash</td>
-              <td>C12</td>
+            <tr className={kept ? "row-fixed" : "row-risk"}>
               <td>
-                <span className={`patch-btn ${accepted ? "is-done" : "is-pulse"}`}>{accepted ? "Undone available" : "Accept patch"}</span>
+                <span className={`patch-btn ${kept ? "is-done" : "is-pulse"}`}>{kept ? "Kept" : "Skipped"}</span>
               </td>
+              <td>Extra spaces in label</td>
+              <td>Cash</td>
+              <td>A12</td>
+              <td>Clean up extra spaces</td>
             </tr>
             <tr>
-              <td>Circular chain (3 cells)</td>
+              <td>
+                <span className="patch-btn">Kept</span>
+              </td>
+              <td>Full-width digits</td>
               <td>Forecast</td>
               <td>E4</td>
+              <td>Normalize full-width</td>
+            </tr>
+            <tr>
               <td>
                 <span className="patch-btn">Review</span>
               </td>
-            </tr>
-            <tr>
-              <td>Volatile NOW() in total</td>
+              <td>Circular formula chain</td>
               <td>Summary</td>
               <td>B2</td>
-              <td>
-                <span className="patch-btn">Accept patch</span>
-              </td>
+              <td>Flagged — no auto rewrite</td>
             </tr>
             <tr>
-              <td>Empty range in SUM</td>
+              <td>
+                <span className="patch-btn">Review</span>
+              </td>
+              <td>Link to another workbook</td>
               <td>P&amp;L</td>
               <td>G40</td>
-              <td>
-                <span className="patch-btn">Accept patch</span>
-              </td>
+              <td>Optional: save as values</td>
             </tr>
           </tbody>
         </table>
         <div className="workbench-diff mono" aria-hidden="true">
-          <div className="workbench-diff__minus">− =[old.xlsx]Cash!C12</div>
-          <div className="workbench-diff__plus">+ =&apos;[ops.xlsx]Cash&apos;!C12</div>
+          <div className="workbench-diff__minus">− &quot;  Cash total  &quot;</div>
+          <div className="workbench-diff__plus">+ &quot;Cash total&quot;</div>
         </div>
       </div>
     </div>
@@ -154,12 +159,12 @@ export default function HomePage() {
               <div className="hero__text span-5">
                 <p className="hero__kicker">
                   <span className="dot" aria-hidden="true" />
-                  Every change ships a reverse patch
+                  Original file stays untouched
                 </p>
-                <h1 id="hero-h">Spreadsheet analysis for finance teams</h1>
+                <h1 id="hero-h">Clear spreadsheet checks for finance teams</h1>
                 <p className="hero__lead">
-                  Scan .xlsx workbooks for broken formulas, circular refs and cross-file links, then apply reversible
-                  patches without rewriting the original file.
+                  Find broken formulas, messy text, and risky links. Preview every proposed fix, keep only what you want,
+                  then download a clean copy.
                 </p>
                 <div className="btn-row">
                   <Link className="btn btn--primary" href="/analyze">
@@ -200,9 +205,9 @@ export default function HomePage() {
         <section className="section" id="product" aria-labelledby="product-h">
           <div className="wrap">
             <div className="section-head">
-              <h2 id="product-h">The analysis workbench</h2>
+              <h2 id="product-h">One place to review every fix</h2>
               <p className="measure" style={{ color: "var(--p-muted)", marginTop: 16, fontSize: 16, lineHeight: 1.55 }}>
-                One window for the risk list, the formula graph and the patch queue. Accept or undo cell by cell.
+                See the issue list, the formula map, and the before → after list together. Tick the cell changes you want to keep.
               </p>
             </div>
             <div style={{ marginTop: 48 }}>
@@ -214,9 +219,9 @@ export default function HomePage() {
         <section className="section ground-surface" id="features" aria-labelledby="features-h">
           <div className="wrap">
             <div className="section-head">
-              <h2 id="features-h">Checks the engine runs</h2>
+              <h2 id="features-h">What you get on every scan</h2>
               <p className="measure" style={{ color: "var(--p-muted)", marginTop: 16, fontSize: 16, lineHeight: 1.55 }}>
-                Four passes on every upload: the graph, the risk list, the patch queue, and the scan mode.
+                A formula map, a ranked issue list, a preview of proposed fixes, and a choice of private or server scan.
               </p>
             </div>
             <div className="feat-grid">
@@ -230,8 +235,8 @@ export default function HomePage() {
                   <span className="feat-graph__cycle">cycle</span>
                 </div>
                 <div className="feat-card__body">
-                  <h3>Formula dependency graph</h3>
-                  <p>Trace every precedent and dependent across sheets and linked workbooks.</p>
+                  <h3>Formula map</h3>
+                  <p>See which cells feed which, including links across sheets and other workbooks.</p>
                 </div>
               </article>
               <article className="feat-card m-nolift">
@@ -241,29 +246,29 @@ export default function HomePage() {
                   <div className="feat-risks__list mono">#REF! · circular · volatile · #DIV/0!</div>
                 </div>
                 <div className="feat-card__body">
-                  <h3>Risk scoring</h3>
-                  <p>Rank findings by severity so the first fix is the one that matters.</p>
+                  <h3>Ranked issues</h3>
+                  <p>Problems are ordered by severity so you can start with what matters most.</p>
                 </div>
               </article>
               <article className="feat-card m-nolift">
                 <div className="feat-card__viz feat-patch" aria-hidden="true">
-                  <div className="feat-patch__row is-minus">− cell D14 · restore</div>
-                  <div className="feat-patch__row is-plus">+ cell D14 · forward</div>
-                  <div className="feat-patch__q mono">undo queue: 4</div>
+                  <div className="feat-patch__row is-minus">− cell D14 · before</div>
+                  <div className="feat-patch__row is-plus">+ cell D14 · after</div>
+                  <div className="feat-patch__q mono">kept: 4 changes</div>
                 </div>
                 <div className="feat-card__body">
-                  <h3>Reversible patches</h3>
-                  <p>Every accepted change writes its reverse. Undo is a first-class path.</p>
+                  <h3>Preview before download</h3>
+                  <p>Every proposed cell change shows before and after. Keep or skip, then download a copy.</p>
                 </div>
               </article>
               <article className="feat-card m-nolift">
                 <div className="feat-card__viz feat-modes" aria-hidden="true">
-                  <div className="feat-modes__pill is-on">local · on device</div>
-                  <div className="feat-modes__pill">server · worker fenced</div>
+                  <div className="feat-modes__pill is-on">private · on this device</div>
+                  <div className="feat-modes__pill">server · for larger files</div>
                 </div>
                 <div className="feat-card__body">
-                  <h3>Local or server scan</h3>
-                  <p>Run in the browser for private books, or on the worker for large batches.</p>
+                  <h3>Private or server</h3>
+                  <p>Keep sensitive books on your device, or use the server for bigger batches.</p>
                 </div>
               </article>
             </div>
@@ -280,30 +285,30 @@ export default function HomePage() {
           <div className="wrap claim-layout">
             <div>
               <h2 id="claim-h" className="mo-la__type">
-                Reverse every patch
+                Your original stays safe
               </h2>
-              <p className="mo-la__sub">The source workbook is never rewritten in place. Exports are copies with an audit trail.</p>
+              <p className="mo-la__sub">Fixes always land on a copy. Server downloads include a change log you can reverse.</p>
             </div>
             <ul className="claim-facts">
               <li>
                 <span className="claim-facts__k mono">01</span>
                 <div>
-                  <strong>Forward and reverse together</strong>
-                  <p>Every accepted change writes its undo patch in the same pass.</p>
+                  <strong>Change log with every server apply</strong>
+                  <p>A reverse log ships with the download so you can undo that apply on the server.</p>
                 </div>
               </li>
               <li>
                 <span className="claim-facts__k mono">02</span>
                 <div>
-                  <strong>Source stays read-only</strong>
-                  <p>Patches land on a derived copy. The upload is never rewritten in place.</p>
+                  <strong>Original is never overwritten</strong>
+                  <p>Uploads stay read-only. You always download a separate fixed copy.</p>
                 </div>
               </li>
               <li>
                 <span className="claim-facts__k mono">03</span>
                 <div>
-                  <strong>Audit on the export</strong>
-                  <p>Health, risks and applied tools travel with the downloaded workbook.</p>
+                  <strong>Clear history</strong>
+                  <p>Health, issues found, and which tools ran are recorded with each download.</p>
                 </div>
               </li>
             </ul>
@@ -363,10 +368,10 @@ export default function HomePage() {
               <div className="panel p-5">
                 <div className="mono text-[12px] text-[color:var(--p-accent)] mb-3">POLICY</div>
                 <h3 style={{ fontSize: 22, fontWeight: 500, margin: "0 0 10px", letterSpacing: "var(--display-tracking)" }}>
-                  Originals stay immutable
+                  Originals stay untouched
                 </h3>
                 <p style={{ margin: 0, color: "var(--p-muted)", fontSize: 16, lineHeight: 1.55 }}>
-                  Uploads are treated as read-only. Patches land on derived copies. Local mode keeps bytes on the device.
+                  Uploads are read-only. Fixes download as a separate copy. Private mode keeps the file on your device.
                 </p>
                 <div className="mt-6 grid grid-cols-2 gap-3">
                   <div className="xray-hero-ui__pill">
@@ -427,7 +432,7 @@ export default function HomePage() {
             <div className="footer__legal">
               <span className="xray-mark" aria-hidden="true" style={{ width: 22, height: 22 }} />
               <span>X-RAY://EXCEL</span>
-              <span style={{ color: "var(--p-muted)" }}>Deterministic spreadsheet analysis · originals immutable</span>
+              <span style={{ color: "var(--p-muted)" }}>Same inputs, same results · originals stay safe</span>
             </div>
           </div>
         </div>

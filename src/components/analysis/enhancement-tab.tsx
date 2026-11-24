@@ -111,18 +111,20 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
         <div className="flex items-start gap-3">
           <div className="rounded-xl border border-accent/30 bg-accent/10 p-3 text-accent"><Sparkles size={20} /></div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-bold">Enhancement Engine</h2>
-            <p className="text-sm text-dim mt-1">Profile data quality, preview conservative repairs, improve formatting, verify the exported workbook, and undo from a persisted recovery snapshot.</p>
+            <h2 className="text-lg font-bold">Extra polish</h2>
+            <p className="text-sm text-dim mt-1">Optional extras: check data quality, preview gentle cleanups, tidy formatting, verify the exported file, and undo from a saved recovery copy.</p>
             <div className="flex items-center gap-2 mt-3 text-xs text-dim">
               <ShieldCheck size={14} />
-              <span>Source files are never overwritten. Unsupported OOXML features are blocked rather than silently discarded.</span>
+              <span>Your original is never overwritten. Features we cannot handle safely are blocked instead of quietly dropped.</span>
             </div>
           </div>
         </div>
         {enhancementRunning && <div className="mt-4 rounded-lg border border-warn/30 bg-warn/5 p-3 text-sm text-dim">An enhancement, recalculation, or undo operation is already running for this analysis. Wait for it to finish before starting another operation.</div>}
         {!serverReady && (
           <div className="mt-4 rounded-lg border border-warn/30 bg-warn/5 p-3 text-sm text-dim">
-            {detail.mode === "local" ? "The enhancement API currently runs on server-mode analyses. Local/private browser-mode enhancements are not wired to this panel." : "Wait for the server analysis to complete before using enhancement tools."}
+            {detail.mode === "local"
+              ? "Extra polish runs on server scans only. Private (on-device) mode does not use this panel yet."
+              : "Wait for the server scan to finish before using these tools."}
           </div>
         )}
       </section>

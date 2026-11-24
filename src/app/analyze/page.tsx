@@ -115,12 +115,12 @@ export default function AnalyzePage() {
     <main id="top" className="relative">
       <div className="app-shell" style={{ maxWidth: 720 }}>
         <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <p className="mono text-[12px] tracking-wide text-[color:var(--p-accent)] mb-3">NEW ANALYSIS</p>
+          <p className="mono text-[12px] tracking-wide text-[color:var(--p-accent)] mb-3">NEW SCAN</p>
           <h1 className="text-3xl md:text-4xl font-medium tracking-tight mb-3" style={{ letterSpacing: "var(--display-tracking)" }}>
             Start a workbook scan
           </h1>
           <p className="text-dim text-base max-w-xl leading-relaxed" style={{ marginBottom: 40 }}>
-            Drop .xlsx or .xlsm files. The original stays read-only; patches land on a derived copy.
+            Drop .xlsx or .xlsm files. We never overwrite the original — fixes download as a separate copy.
           </p>
 
           {/* dropzone */}

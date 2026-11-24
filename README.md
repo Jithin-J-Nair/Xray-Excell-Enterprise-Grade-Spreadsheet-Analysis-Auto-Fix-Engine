@@ -1,8 +1,8 @@
 # X-RAY://EXCEL v2
 
-**Enterprise spreadsheet auditor, refactorer & data cleaner** — static analysis, deterministic repair, dependency graphs, risk scoring, reversible patches, and audit-ready exports for `.xlsx .xlsm .xlsb .xls .csv .tsv .json .ndjson`.
+**Find spreadsheet problems. Preview every fix. Keep the original safe.** Scan `.xlsx .xlsm .xlsb .xls .csv .tsv .json .ndjson` for broken formulas, messy text, and risky links. Download a fixed copy — the source file is never overwritten.
 
-エンタープライズ向けスプレッドシット監査・リファクタ・データクリーナー。静的解析、決定論的修復、依存グラフ、リスクスコア、可逆パッチ、監査対応エクスポート。
+表計算の問題を見つけ、修正を確認してから、原本を安全に保つ。壊れた数式・余分な空白・危険なリンクを検出し、修正コピーをダウンロード。原本は上書きしません。
 
 ---
 

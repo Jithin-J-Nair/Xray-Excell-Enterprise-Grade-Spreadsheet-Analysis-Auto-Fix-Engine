@@ -7,17 +7,17 @@ const STEPS = [
   {
     n: "01",
     title: "Upload the workbook",
-    body: "Drop .xlsx, .xlsm or a folder of linked files. The original stays read-only.",
+    body: "Drop an .xlsx, .xlsm, or a folder of linked files. The original stays read-only.",
   },
   {
     n: "02",
-    title: "Scan every formula",
-    body: "A beam walks the grid. Broken refs, circles and cross-file links get flagged.",
+    title: "See every issue",
+    body: "Broken refs, circular formulas, messy text, and cross-file links are listed and ranked.",
   },
   {
     n: "03",
-    title: "Patch and reverse",
-    body: "Accept a fix and the engine writes a forward patch plus its reverse undo.",
+    title: "Preview, keep, download",
+    body: "Tick the cell changes you want. Download a fixed copy — the source file is never overwritten.",
   },
 ];
 
@@ -38,7 +38,7 @@ export function HowItWorks() {
           <div className="section-head">
             <h2 id="how-h">How a workbook scan runs</h2>
             <p className="measure" style={{ color: "var(--p-muted)", marginTop: 16, fontSize: 16, lineHeight: 1.55 }}>
-              Three stages, one pass. No rewrite of the source file until you accept a patch.
+              Three steps. Nothing is written back to your original until you choose to download a copy.
             </p>
           </div>
           <div className="how-track how-track--stack">

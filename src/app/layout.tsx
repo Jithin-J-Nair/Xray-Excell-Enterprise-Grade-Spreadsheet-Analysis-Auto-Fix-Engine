@@ -7,9 +7,9 @@ import { Toaster } from "@/components/toast";
 import { TasteRuntime } from "@/components/taste-runtime";
 
 export const metadata: Metadata = {
-  title: "Spreadsheet analysis for finance teams — X-RAY://EXCEL",
+  title: "Clear spreadsheet checks for finance teams — X-RAY://EXCEL",
   description:
-    "Scan Excel workbooks for broken formulas, circular refs and cross-file links, then apply reversible patches. Originals stay immutable.",
+    "Find broken formulas, messy text, and risky links. Preview every fix, keep what you want, download a copy. Your original stays safe.",
   other: {
     "page-type": "software",
     "site-kind": "software",
