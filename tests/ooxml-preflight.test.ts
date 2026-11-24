@@ -1,6 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { detectOoxmlUnsupportedFeatures } from "../src/lib/excel/ooxml-preflight";
+import {
+  detectOoxmlUnsupportedFeatures,
+  hasActiveWorkbookProtection,
+  hasNonEngineExtensionData,
+} from "../src/lib/excel/ooxml-preflight";
 import ExcelJS from "exceljs";
 import { parseFile } from "../src/lib/excel/parse";
 
@@ -24,6 +28,26 @@ describe("relationship-aware OOXML preflight", () => {
       { path: "[Content_Types].xml", text: '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/></Types>' }
     ]);
     assert.ok(!features.includes("embedded objects"), features.join(", "));
+  });
+
+  it("ignores empty LibreOffice workbookProtection and LO-only extLst metadata", () => {
+    const libreOfficeWorkbook =
+      '<workbook><workbookProtection/><extLst><ext xmlns:loext="http://schemas.libreoffice.org/" uri="{7626C862-2A13-11E5-B345-FEFF819CDC9F}"><loext:extCalcPr stringRefSyntax="CalcA1ExcelA1"/></ext></extLst></workbook>';
+    assert.equal(hasActiveWorkbookProtection(libreOfficeWorkbook), false);
+    assert.equal(hasNonEngineExtensionData(libreOfficeWorkbook), false);
+    const features = detectOoxmlUnsupportedFeatures([{ path: "xl/workbook.xml", text: libreOfficeWorkbook }]);
+    assert.ok(!features.includes("workbook protection"), features.join(", "));
+    assert.ok(!features.includes("OOXML extension data"), features.join(", "));
+  });
+
+  it("still flags real workbook protection and non-LO extension lists", () => {
+    assert.equal(hasActiveWorkbookProtection('<workbook><workbookProtection lockStructure="1"/></workbook>'), true);
+    assert.equal(hasNonEngineExtensionData('<workbook><extLst><ext uri="{FF409A84-C7F8-4B4B-9C8A-EXAMPLE}"><x14:workbookPr/></ext></extLst></workbook>'), true);
+    const features = detectOoxmlUnsupportedFeatures([
+      { path: "xl/workbook.xml", text: '<workbook><workbookProtection workbookPassword="ABCD"/><extLst><ext uri="{FF409A84-C7F8-4B4B-9C8A-EXAMPLE}"><x14:workbookPr/></ext></extLst></workbook>' },
+    ]);
+    assert.ok(features.includes("workbook protection"), features.join(", "));
+    assert.ok(features.includes("OOXML extension data"), features.join(", "));
   });
 
   it("detects VBA, digital signatures, pivot caches, query tables and embedded objects", () => {

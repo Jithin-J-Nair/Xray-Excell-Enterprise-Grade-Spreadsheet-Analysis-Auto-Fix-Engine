@@ -58,6 +58,51 @@ function attribute(tag: string, name: string): string | undefined {
   return tag.match(new RegExp("(?:^|\\s)" + escaped + "\\s*=\\s*(['\"])(.*?)\\1", "i"))?.[2];
 }
 
+const LO_EXT_URI = /\{7626C862-2A13-11E5-B345-FEFF819CDC9F\}/i;
+const LO_NAMESPACE = /schemas\.libreoffice\.org/i;
+
+/**
+ * LibreOffice Calc writes empty <workbookProtection/> and LO-only extLst metadata when
+ * converting XLSX. Those are engine boilerplate, not active protection or business features.
+ */
+export function hasActiveWorkbookProtection(xml: string): boolean {
+  for (const match of xml.matchAll(/<(?:[A-Za-z0-9_]+:)?workbookProtection\b([^>]*?)(?:\/>|>)/gi)) {
+    const attrs = match[1] ?? "";
+    if (/\b(?:workbookPassword|revisionsPassword)\s*=\s*(['"])[^'"]*\1/i.test(attrs)) return true;
+    if (/\b(?:lockStructure|lockWindows|lockRevision)\s*=\s*(['"])(?:1|true)\1/i.test(attrs)) return true;
+  }
+  return false;
+}
+
+/** True when sheetProtection actually locks the sheet rather than being an empty placeholder. */
+export function hasActiveSheetProtection(xml: string): boolean {
+  for (const match of xml.matchAll(/<(?:[A-Za-z0-9_]+:)?sheetProtection\b([^>]*?)(?:\/>|>)/gi)) {
+    const attrs = match[1] ?? "";
+    if (/\bpassword\s*=\s*(['"])[^'"]*\1/i.test(attrs)) return true;
+    if (/\bsheet\s*=\s*(['"])(?:1|true)\1/i.test(attrs)) return true;
+    if (/\b(?:objects|scenarios|formatCells|formatColumns|formatRows|insertColumns|insertRows|insertHyperlinks|deleteColumns|deleteRows|selectLockedCells|sort|autoFilter|pivotTables|selectUnlockedCells)\s*=\s*(['"])(?:0|false)\1/i.test(attrs)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isLibreOfficeOnlyExt(fragment: string): boolean {
+  return LO_NAMESPACE.test(fragment) || LO_EXT_URI.test(fragment) || /\bloext:/i.test(fragment);
+}
+
+/**
+ * Returns true when the XML contains an extLst that is not solely LibreOffice Calc metadata.
+ * Empty or LO-only extension lists are ignored so native-engine recalculation does not
+ * falsely trip FEATURE_MARKERS_CHANGED / export blocks.
+ */
+export function hasNonEngineExtensionData(xml: string): boolean {
+  if (!/<(?:[A-Za-z0-9_]+:)?extLst\b/i.test(xml)) return false;
+  const extTags = [...xml.matchAll(/<(?:[A-Za-z0-9_]+:)?ext\b[^>]*?(?:\/>|>[\s\S]*?<\/(?:[A-Za-z0-9_]+:)?ext>)/gi)];
+  if (!extTags.length) return true; // extLst present but unparseable — fail closed
+  return extTags.some(match => !isLibreOfficeOnlyExt(match[0]));
+}
+
 /**
  * Conservative OOXML feature detector. It uses both part names and relationship/content-type
  * declarations because valid packages can rename relationship targets. Any returned feature is
@@ -76,13 +121,19 @@ export function detectOoxmlUnsupportedFeatures(entries: OoxmlPackageEntry[]): st
     }
     const text = entry.text ?? "";
     if (/^xl\/worksheets\/sheet\d+\.xml$/i.test(entry.path)) {
-      for (const [pattern, feature] of TAG_RULES) if (pattern.test(text)) features.add(feature);
-      if (/<(?:[A-Za-z0-9_]+:)?sheetProtection\b/i.test(text)) features.add("worksheet protection");
+      for (const [pattern, feature] of TAG_RULES) {
+        if (feature === "OOXML extension data") {
+          if (hasNonEngineExtensionData(text)) features.add(feature);
+          continue;
+        }
+        if (pattern.test(text)) features.add(feature);
+      }
+      if (hasActiveSheetProtection(text)) features.add("worksheet protection");
       if (/<(?:[A-Za-z0-9_]+:)?pane\b/i.test(text)) features.add("frozen panes");
     }
     if (/^xl\/workbook\.xml$/i.test(entry.path)) {
-      if (/<(?:[A-Za-z0-9_]+:)?workbookProtection\b/i.test(text)) features.add("workbook protection");
-      if (/<(?:[A-Za-z0-9_]+:)?extLst\b/i.test(text)) features.add("OOXML extension data");
+      if (hasActiveWorkbookProtection(text)) features.add("workbook protection");
+      if (hasNonEngineExtensionData(text)) features.add("OOXML extension data");
     }
     if (/\.rels$/i.test(entry.path)) {
       for (const match of text.matchAll(/<Relationship\b[^>]*>/gi)) {

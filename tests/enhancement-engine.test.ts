@@ -135,6 +135,23 @@ describe("recalculation structure verification", () => {
     assert.equal(report.ok, false);
     assert.ok(report.issues.some(issue => issue.code === "CELL_CONTENT_MISMATCH" && issue.cell === "B2"));
   });
+  it("ignores default reader styles that are not explicit user formatting", () => {
+    const before = fixture();
+    before.sheets[0].cells.A1.s = { font: { name: "Calibri", sz: 11 }, fill: { patternType: "none" } };
+    const after = structuredClone(before);
+    after.sheets[0].cells.A1.s = { patternType: "none" };
+    const report = verifyRecalculatedWorkbook(before, after);
+    assert.equal(report.ok, true, JSON.stringify(report.issues));
+  });
+  it("still rejects loss of an explicit non-default style during recalculation", () => {
+    const before = fixture();
+    before.sheets[0].cells.A1.s = { font: { bold: true, color: { rgb: "FF0000" } } };
+    const after = structuredClone(before);
+    delete after.sheets[0].cells.A1.s;
+    const report = verifyRecalculatedWorkbook(before, after);
+    assert.equal(report.ok, false);
+    assert.ok(report.issues.some(issue => issue.code === "STYLE_MISMATCH" && issue.cell === "A1"));
+  });
   it("fails closed when a workbook has unsupported OOXML features", async () => {
     const model = fixture();
     model.unsupportedFeatures = ["charts"];

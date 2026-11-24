@@ -1,6 +1,6 @@
 import * as XLSX from "@redoper1/xlsx-js-style";
 import type { WorkbookModel } from "../types";
-import { assertSafeZipContainer, parseFile } from "../parse";
+import { assertSafeZipContainer, meaningfulCellStyle, parseFile } from "../parse";
 import { workbookToXlsxBytes } from "../serialize";
 
 export interface VerificationIssue { code: string; message: string; sheet?: string; cell?: string }
@@ -180,7 +180,10 @@ export function verifyRecalculatedWorkbook(before: WorkbookModel, after: Workboo
       } else if (cell.t !== actual.t || stable(cell.v) !== stable(actual.v)) {
         issues.push({ code: "CELL_CONTENT_MISMATCH", message: "A non-formula cell value or type changed during recalculation.", sheet: source.name, cell: cell.a });
       }
-      if (cell.s && !containsExpected(actual.s ?? null, cell.s)) issues.push({ code: "STYLE_MISMATCH", message: "Explicit cell style properties changed during recalculation.", sheet: source.name, cell: cell.a });
+      const expectedStyle = meaningfulCellStyle(cell.s);
+      if (expectedStyle && !containsExpected(meaningfulCellStyle(actual.s) ?? null, expectedStyle)) {
+        issues.push({ code: "STYLE_MISMATCH", message: "Explicit cell style properties changed during recalculation.", sheet: source.name, cell: cell.a });
+      }
       if (cell.z && cell.z.toLowerCase() !== "general" && cell.z !== actual.z) issues.push({ code: "NUMBER_FORMAT_MISMATCH", message: "Explicit number format changed during recalculation.", sheet: source.name, cell: cell.a });
     }
     for (const cell of Object.values(output.cells)) {
@@ -259,7 +262,10 @@ export async function verifyWorkbookExport(model: WorkbookModel, exportedBytes?:
       if (!actual) { issues.push({ code: "CELL_MISSING", message: "Cell missing after export/reopen.", sheet: before.name, cell: cell.a }); continue; }
       // Readers may materialize default Excel styles ("General", empty fill/font records) for unstyled cells.
       // Only compare style metadata that was explicitly present in the source model.
-      if (cell.s && !containsExpected(actual.s ?? null, cell.s)) issues.push({ code: "STYLE_MISMATCH", message: "Explicit cell style properties changed during export/reopen.", sheet: before.name, cell: cell.a });
+      const expectedStyle = meaningfulCellStyle(cell.s);
+      if (expectedStyle && !containsExpected(meaningfulCellStyle(actual.s) ?? null, expectedStyle)) {
+        issues.push({ code: "STYLE_MISMATCH", message: "Explicit cell style properties changed during export/reopen.", sheet: before.name, cell: cell.a });
+      }
       const expectedFormat = cell.z && cell.z.toLowerCase() !== "general" ? cell.z : null;
       const actualFormat = actual.z && actual.z.toLowerCase() !== "general" ? actual.z : null;
       // Excel readers can assign a default display format to typed dates/numbers that had no

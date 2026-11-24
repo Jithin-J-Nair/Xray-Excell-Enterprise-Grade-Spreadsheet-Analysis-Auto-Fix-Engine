@@ -1,7 +1,12 @@
 // ── Workbook ingestion: bytes/text → WorkbookModel (isomorphic) ──────────────
 import * as XLSX from "@redoper1/xlsx-js-style";
 import type { CellModel, NamedRangeModel, SheetModel, WorkbookModel } from "./types";
-import { detectOoxmlUnsupportedFeatures } from "./ooxml-preflight";
+import {
+  detectOoxmlUnsupportedFeatures,
+  hasActiveSheetProtection,
+  hasActiveWorkbookProtection,
+  hasNonEngineExtensionData,
+} from "./ooxml-preflight";
 
 export const MAX_MODEL_CELLS = 60000;
 /** Prevent dense exports from expanding pathological sparse worksheet ranges. */
@@ -186,8 +191,6 @@ function detectUnsupportedPackageFeatures(wb: XLSX.WorkBook, model: WorkbookMode
     [/<(?:[A-Za-z0-9_]+:)?drawing\b|<(?:[A-Za-z0-9_]+:)?legacyDrawing\b/i, "drawings and embedded images"],
     [/<(?:[A-Za-z0-9_]+:)?oleObjects\b/i, "embedded objects"],
     [/<(?:[A-Za-z0-9_]+:)?controls\b/i, "form controls"],
-    [/<(?:[A-Za-z0-9_]+:)?sheetProtection\b/i, "worksheet protection"],
-    [/<(?:[A-Za-z0-9_]+:)?extLst\b/i, "worksheet extension data"],
     [/<(?:[A-Za-z0-9_]+:)?pane\b/i, "frozen panes"],
   ];
   const worksheetXmls: string[] = [];
@@ -198,6 +201,9 @@ function detectUnsupportedPackageFeatures(wb: XLSX.WorkBook, model: WorkbookMode
     for (const [pattern, feature] of worksheetTags) {
       if (pattern.test(xml)) features.add(feature);
     }
+    // Empty <sheetProtection/> is ignored; only active locks fail closed.
+    if (hasActiveSheetProtection(xml)) features.add("worksheet protection");
+    if (hasNonEngineExtensionData(xml)) features.add("worksheet extension data");
   }
 
   const metadataXml = rawZipText(raw, "xl/metadata.xml");
@@ -214,8 +220,9 @@ function detectUnsupportedPackageFeatures(wb: XLSX.WorkBook, model: WorkbookMode
   }
 
   const workbookXml = rawZipText(raw, "xl/workbook.xml");
-  if (/<(?:[A-Za-z0-9_]+:)?workbookProtection\b/i.test(workbookXml)) features.add("workbook protection");
-  if (/<(?:[A-Za-z0-9_]+:)?extLst\b/i.test(workbookXml)) features.add("workbook extension data");
+  // LibreOffice writes empty <workbookProtection/>; only active locks fail closed.
+  if (hasActiveWorkbookProtection(workbookXml)) features.add("workbook protection");
+  if (hasNonEngineExtensionData(workbookXml)) features.add("workbook extension data");
 
   for (const feature of detectOoxmlUnsupportedFeatures(paths.map(path => ({ path, text: rawZipText(raw, path) })))) features.add(feature);
 
@@ -350,7 +357,10 @@ function workbookToModel(wb: XLSX.WorkBook, fileId: string, fileName: string, en
         c.f = String(cell.f).replace(/^=/, "");
       }
       if (typeof cell.z === "string") c.z = cell.z;
-      if (cell.s && typeof cell.s === "object") c.s = cell.s as Record<string, unknown>;
+      if (cell.s && typeof cell.s === "object") {
+        const style = meaningfulCellStyle(cell.s);
+        if (style) c.s = style;
+      }
       sheet.cells[c.a] = c;
       budget--;
       if (parsed.r + 1 > sheet.rows) sheet.rows = parsed.r + 1;
@@ -411,46 +421,96 @@ function normalizeColor(value: unknown): unknown {
   return value;
 }
 
-/** Convert ExcelJS style objects into the style shape written by xlsx-js-style. */
-function normalizeCellStyle(value: unknown): Record<string, unknown> {
+function isNonePattern(value: unknown): boolean {
+  return value === "none" || value === "None";
+}
+
+/**
+ * Drop workbook-default / reader-noise styles so verification does not treat
+ * Calibri 11 + empty fill as an "explicit" user format that LibreOffice must preserve.
+ */
+export function meaningfulCellStyle(value: unknown): Record<string, unknown> | undefined {
   const source = record(value);
   const output: Record<string, unknown> = {};
+
+  // SheetJS sometimes materializes fill patternType at the cell-style root.
+  const rootPattern = source.patternType;
   const font = record(source.font);
   if (Object.keys(font).length) {
     const normalized = { ...font };
     if (typeof font.size === "number") normalized.sz = font.size;
     delete normalized.size;
     if (font.color) normalized.color = normalizeColor(font.color);
-    output.font = normalized;
+    const keys = Object.keys(normalized).filter(key => normalized[key] !== undefined && normalized[key] !== null && normalized[key] !== "");
+    const onlyDefaultFont =
+      keys.every(key => key === "name" || key === "sz" || key === "family" || key === "charset" || key === "scheme") &&
+      (normalized.name === undefined || /^calibri$/i.test(String(normalized.name))) &&
+      (normalized.sz === undefined || Number(normalized.sz) === 11);
+    if (!onlyDefaultFont && keys.length) {
+      const cleaned: Record<string, unknown> = {};
+      for (const key of keys) cleaned[key] = normalized[key];
+      output.font = cleaned;
+    }
   }
+
   const fill = record(source.fill);
-  if (Object.keys(fill).length) {
+  if (Object.keys(fill).length || typeof rootPattern === "string") {
     const normalized = { ...fill };
     if (typeof fill.pattern === "string") normalized.patternType = fill.pattern;
+    if (typeof rootPattern === "string" && normalized.patternType === undefined) normalized.patternType = rootPattern;
     delete normalized.type;
     delete normalized.pattern;
-    if (fill.fgColor) normalized.fgColor = normalizeColor(fill.fgColor);
-    if (fill.bgColor) normalized.bgColor = normalizeColor(fill.bgColor);
-    output.fill = normalized;
+    const hasColor = !!(normalized.fgColor || normalized.bgColor);
+    const pattern = normalized.patternType;
+    if (hasColor || (pattern !== undefined && !isNonePattern(pattern))) {
+      if (fill.fgColor) normalized.fgColor = normalizeColor(fill.fgColor);
+      if (fill.bgColor) normalized.bgColor = normalizeColor(fill.bgColor);
+      output.fill = normalized;
+    }
   }
+
   const border = record(source.border);
   if (Object.keys(border).length) {
     const normalized: Record<string, unknown> = {};
     for (const [sideName, sideValue] of Object.entries(border)) {
       const side = record(sideValue);
-      normalized[sideName] = side.color
-        ? { ...side, color: normalizeColor(side.color) }
-        : sideValue;
+      if (!Object.keys(side).length && (sideValue === undefined || sideValue === null || sideValue === "")) continue;
+      // Empty side objects ({}) are ExcelJS defaults, not explicit borders.
+      if (typeof sideValue === "object" && sideValue && !Object.keys(side).length) continue;
+      const hasSideStyle = typeof side.style === "string" || side.color !== undefined || typeof sideValue === "string";
+      if (!hasSideStyle && !Object.keys(side).length) continue;
+      normalized[sideName] = side.color ? { ...side, color: normalizeColor(side.color) } : sideValue;
     }
-    output.border = normalized;
+    if (Object.keys(normalized).length) output.border = normalized;
   }
+
   const alignment = record(source.alignment);
   if (Object.keys(alignment).length) {
     const normalized = { ...alignment };
     if (normalized.vertical === "middle") normalized.vertical = "center";
-    output.alignment = normalized;
+    // Ignore Excel's default general/bottom alignment with no wrapping.
+    const onlyDefaultAlignment =
+      Object.keys(normalized).every(key => ["horizontal", "vertical", "wrapText", "textRotation", "indent", "shrinkToFit"].includes(key)) &&
+      (normalized.horizontal === undefined || normalized.horizontal === "general") &&
+      (normalized.vertical === undefined || normalized.vertical === "bottom") &&
+      !normalized.wrapText &&
+      !normalized.shrinkToFit &&
+      (normalized.textRotation === undefined || normalized.textRotation === 0) &&
+      (normalized.indent === undefined || normalized.indent === 0);
+    if (!onlyDefaultAlignment) output.alignment = normalized;
   }
-  return output;
+
+  for (const [key, val] of Object.entries(source)) {
+    if (["font", "fill", "border", "alignment", "patternType"].includes(key)) continue;
+    if (val !== undefined && val !== null && val !== "") output[key] = val;
+  }
+
+  return Object.keys(output).length ? output : undefined;
+}
+
+/** Convert ExcelJS style objects into the style shape written by xlsx-js-style. */
+function normalizeCellStyle(value: unknown): Record<string, unknown> {
+  return meaningfulCellStyle(value) ?? {};
 }
 
 /** Enrich SheetJS cell data with styles/dimensions from ExcelJS. */
@@ -496,7 +556,8 @@ async function addStyleMetadata(model: WorkbookModel, bytes: Uint8Array): Promis
           if (!target) return;
           const style = normalizeCellStyle(cell.style);
           if (Object.keys(style).length) target.s = style;
-          if (typeof cell.numFmt === "string") target.z = cell.numFmt;
+          else delete target.s; // drop SheetJS default-fill noise when ExcelJS reports no explicit style
+          if (typeof cell.numFmt === "string" && cell.numFmt.toLowerCase() !== "general") target.z = cell.numFmt;
         });
       });
       const widths: { wch?: number; hidden?: boolean }[] = [];
