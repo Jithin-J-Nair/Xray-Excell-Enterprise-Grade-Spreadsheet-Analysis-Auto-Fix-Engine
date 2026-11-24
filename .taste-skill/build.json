@@ -1,0 +1,11 @@
+{
+ "page": null,
+ "url": "http://127.0.0.1:3000/",
+ "root": null,
+ "kind": "software",
+ "category": "spreadsheet analysis for finance and ops teams",
+ "primary": "Start a workbook scan",
+ "rounds": 3,
+ "start": "2026-11-24T13:09:47.289Z",
+ "by": "gate.mjs --start"
+}
