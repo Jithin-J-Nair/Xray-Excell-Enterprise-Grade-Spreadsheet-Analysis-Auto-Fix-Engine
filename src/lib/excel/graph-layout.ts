@@ -2,7 +2,7 @@
 import dagre from "dagre";
 import type { DependencyGraph, GraphEdge, GraphNode, Risk, Severity, RiskType } from "./types";
 
-export const GRAPH_NODE_CAP = 300;
+export const GRAPH_NODE_CAP = 800;
 export const NODE_W = 172;
 export const NODE_H = 28;
 

@@ -16,10 +16,10 @@ import type {
 import { VOLATILE_FUNCTIONS } from "./types";
 import { abstractFormula, addrOf, parseFormula } from "./formula";
 
-const CAP_RISK_PER_TYPE = 150;
-const CAP_FORMULAS = 3000;
-const CAP_GRAPH_NODES = 650;
-const CAP_GRAPH_EDGES = 1600;
+const CAP_RISK_PER_TYPE = 250;
+const CAP_FORMULAS = 5000;
+const CAP_GRAPH_NODES = 1200;
+const CAP_GRAPH_EDGES = 3000;
 const RANGE_EXPAND_CAP = 40;
 
 export interface FileMeta {
@@ -355,7 +355,7 @@ export function analyzeAll(models: WorkbookModel[], metas: FileMeta[], opts: Ana
     push(
       risk("CIRCULAR_REF", "critical", `Circular reference across ${comp.length} cell(s)`,
         comp.slice(0, 8).map((x) => x.split("::").pop()).join(" → ") + (comp.length > 8 ? " → …" : ""),
-        { sheet: loc[0], cell: loc[1], count: comp.length })
+        { sheet: loc[0], cell: loc[1], count: comp.length, ruleId: "T012" })
     );
   }
 

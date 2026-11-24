@@ -32,7 +32,7 @@ export async function POST(_req: NextRequest) {
     {
       errorCode: "CUSTOM_RULES_NOT_IMPLEMENTED",
       message:
-        "Custom rules are not executed by the transformation engine. Only the built-in T001–T013 registry runs in preview/apply.",
+        "Custom rules are intentionally not supported in this release. Only the built-in T001–T013 registry runs in preview/apply.",
       retryable: false,
     },
     { status: 501 }

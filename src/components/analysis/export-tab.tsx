@@ -37,11 +37,22 @@ export function ExportTab({ detail, reload }: { detail: AnalysisDetail; reload: 
     setUndoing(job.id);
     setErr(null);
     try {
+      if (detail.mode === "local") {
+        const { loadLocalOriginals } = await import("@/lib/local-originals");
+        const { saveBlob } = await import("@/lib/download");
+        const bundle = await loadLocalOriginals(detail.id);
+        if (!bundle?.files?.length) {
+          throw new Error(t("ex.undo.local.missing"));
+        }
+        for (const file of bundle.files) {
+          saveBlob(new Uint8Array(file.bytes), `original_${file.name}`, file.mime);
+        }
+      }
       const r = await fetch(`/api/undo/${job.id}`, { method: "POST" });
       const json = await r.json();
       if (!r.ok) throw new Error(json.message ?? "undo failed");
       if (detail.mode === "local" || json.mode === "local") {
-        toast(t("ex.undo.local.hint"), "ok");
+        toast(t("ex.undo.local.restored"), "ok");
       } else {
         toast(json.name ? `Restored ${json.name}` : t("ex.undone"), "ok");
       }
@@ -131,7 +142,7 @@ export function ExportTab({ detail, reload }: { detail: AnalysisDetail; reload: 
                           className="text-[10px] text-accent hover:underline mono flex items-center gap-1"
                         >
                           <ScrollText size={10} />
-                          {t("ex.patch")} (reversible)
+                          {t("ex.patch")}
                         </button>
                       )}
                       {j.reverted && j.undoFileId && (
@@ -147,7 +158,7 @@ export function ExportTab({ detail, reload }: { detail: AnalysisDetail; reload: 
                         <button
                           onClick={() => undo(j)}
                           disabled={undoing === j.id}
-                          title={detail.mode === "local" ? t("ex.undo.local.hint") : undefined}
+                          title={detail.mode === "local" ? t("ex.undo.local.title") : undefined}
                           className="ml-auto btn btn-danger !py-1 !px-2.5 text-[10px]"
                         >
                           {undoing === j.id ? <Loader2 size={11} className="animate-spin" /> : <Undo2 size={11} />}

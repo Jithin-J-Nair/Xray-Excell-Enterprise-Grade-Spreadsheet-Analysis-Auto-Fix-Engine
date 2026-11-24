@@ -77,13 +77,15 @@ export default function AnalyzePage() {
     setErr(null);
     try {
       if (mode === "local") {
-        // Parse + analyze fully in-browser with the isomorphic engine.
+        // Parse + analyze fully in-browser; keep original bytes for private-mode undo.
         const { parseFile } = await import("@/lib/excel/parse");
         const { analyzeAll } = await import("@/lib/excel/analyze");
         const models = [];
         const metas = [];
+        const originals: { name: string; mime?: string; bytes: Uint8Array }[] = [];
         for (const p of files) {
           const bytes = new Uint8Array(await p.file.arrayBuffer());
+          originals.push({ name: p.file.name, mime: p.file.type || undefined, bytes });
           const model = await parseFile(p.id, p.file.name, bytes);
           models.push(model);
           metas.push({ id: p.id, name: p.file.name, size: p.file.size, encoding: model.encoding });
@@ -96,6 +98,12 @@ export default function AnalyzePage() {
         });
         const json = await res.json();
         if (!res.ok) throw new Error(json.message ?? "import failed");
+        try {
+          const { saveLocalOriginals } = await import("@/lib/local-originals");
+          await saveLocalOriginals(json.analysisId, originals);
+        } catch {
+          /* IndexedDB optional — undo may fall back to audit-only */
+        }
         router.push(`/analysis/${json.analysisId}`);
         return;
       }
@@ -115,12 +123,12 @@ export default function AnalyzePage() {
     <main id="top" className="relative">
       <div className="app-shell" style={{ maxWidth: 720 }}>
         <motion.div initial={false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <p className="mono text-[12px] tracking-wide text-[color:var(--p-accent)] mb-3">NEW ANALYSIS</p>
+          <p className="mono text-[12px] tracking-wide text-[color:var(--p-accent)] mb-3">NEW SCAN</p>
           <h1 className="text-3xl md:text-4xl font-medium tracking-tight mb-3" style={{ letterSpacing: "var(--display-tracking)" }}>
             Start a workbook scan
           </h1>
           <p className="text-dim text-base max-w-xl leading-relaxed" style={{ marginBottom: 40 }}>
-            Drop .xlsx or .xlsm files. The original stays read-only; patches land on a derived copy.
+            Drop Excel or CSV files. We never overwrite the original — fixes download as a separate copy. Private mode also keeps the original here for Undo.
           </p>
 
           {/* dropzone */}

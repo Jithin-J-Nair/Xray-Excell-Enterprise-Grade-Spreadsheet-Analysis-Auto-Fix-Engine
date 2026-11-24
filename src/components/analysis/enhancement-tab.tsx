@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, Calculator, CheckCircle2, ClipboardCheck, Download, FileCheck2, Loader2, ShieldCheck, Sparkles, Undo2, WandSparkles } from "lucide-react";
 import type { AnalysisDetail } from "@/components/analysis/shared";
+import { downloadOutput } from "@/lib/download";
+import { toast } from "@/components/toast";
 
 type Action = "profile" | "preview" | "verify" | "apply" | "recalculate" | "undo";
 type Feature = "formatting" | "numberFormats" | "formulaRepairs";
@@ -44,6 +46,8 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
   const [recentJobId, setRecentJobId] = useState<string | null>(null);
 
   const serverReady = detail.mode === "server" && detail.status === "completed" && !!detail.result;
+  const localProfileReady = detail.mode === "local" && detail.status === "completed" && !!detail.result;
+  const profileReady = serverReady || localProfileReady;
   const enhancementRunning = detail.jobs.some(job => (job.kind === "enhancement" || job.kind === "recalculation") && job.status === "running");
   const undoableJob = useMemo(() => [...detail.jobs]
     .filter(job => job.kind === "enhancement" && job.status === "completed" && !job.reverted && !!job.patchFileId)
@@ -60,7 +64,57 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
     setError(""); setNotice("");
   }
 
+  async function runLocalProfile() {
+    if (!detail.result) return;
+    setBusy("profile"); setError(""); setNotice("");
+    try {
+      const { allModels } = await import("@/lib/excel/analyze");
+      const { profileWorkbookQuality } = await import("@/lib/excel/enhancement/data-quality");
+      const { inspectNumberFormats } = await import("@/lib/excel/enhancement/format-repair");
+      const { proposeFormulaRepairs } = await import("@/lib/excel/enhancement/formula-repair");
+      const models = allModels(detail.result);
+      const files = models.map((model) => {
+        const quality = profileWorkbookQuality(model);
+        const formats = inspectNumberFormats(model, { currencyCode, minConfidence: 0.9 });
+        const formulas = proposeFormulaRepairs(model, { minConfidence: 0.9 });
+        return {
+          fileName: model.fileName,
+          quality: {
+            columns: quality.columns,
+            totalFindings: quality.findings.length,
+            findings: quality.findings.slice(0, 500),
+            truncated: quality.findings.length > 500,
+          },
+          numberFormats: {
+            totalFindings: formats.length,
+            findings: formats.slice(0, 500),
+            truncated: formats.length > 500,
+          },
+          formulaRepairs: {
+            totalProposals: formulas.proposals.length,
+            proposals: formulas.proposals.slice(0, 500),
+            truncated: formulas.proposals.length > 500,
+          },
+        } as ProfileFile;
+      });
+      setProfile(files);
+      setNotice("Read-only profile finished on this device. Apply, verify, and recalculate still need a server scan.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function request(action: Action, extra: Record<string, unknown> = {}) {
+    if (detail.mode === "local") {
+      if (action === "profile") {
+        await runLocalProfile();
+        return;
+      }
+      setError("Apply, verify, recalculate, and undo for Extra polish need a server scan. Private mode can only run the read-only profile on this device.");
+      return;
+    }
     setBusy(action); setError(""); setNotice("");
     try {
       const response = await fetch("/api/analysis/" + detail.id + "/enhancement", {
@@ -111,18 +165,20 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
         <div className="flex items-start gap-3">
           <div className="rounded-xl border border-accent/30 bg-accent/10 p-3 text-accent"><Sparkles size={20} /></div>
           <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-bold">Enhancement Engine</h2>
-            <p className="text-sm text-dim mt-1">Profile data quality, preview conservative repairs, improve formatting, verify the exported workbook, and undo from a persisted recovery snapshot.</p>
+            <h2 className="text-lg font-bold">Extra polish</h2>
+            <p className="text-sm text-dim mt-1">Optional extras: check data quality, preview gentle cleanups, tidy formatting, verify the exported file, and undo from a saved recovery copy.</p>
             <div className="flex items-center gap-2 mt-3 text-xs text-dim">
               <ShieldCheck size={14} />
-              <span>Source files are never overwritten. Unsupported OOXML features are blocked rather than silently discarded.</span>
+              <span>Your original is never overwritten. Features we cannot handle safely are blocked instead of quietly dropped.</span>
             </div>
           </div>
         </div>
         {enhancementRunning && <div className="mt-4 rounded-lg border border-warn/30 bg-warn/5 p-3 text-sm text-dim">An enhancement, recalculation, or undo operation is already running for this analysis. Wait for it to finish before starting another operation.</div>}
         {!serverReady && (
           <div className="mt-4 rounded-lg border border-warn/30 bg-warn/5 p-3 text-sm text-dim">
-            {detail.mode === "local" ? "The enhancement API currently runs on server-mode analyses. Local/private browser-mode enhancements are not wired to this panel." : "Wait for the server analysis to complete before using enhancement tools."}
+            {detail.mode === "local"
+              ? "Private mode: you can run a read-only quality profile on this device. Apply, verify, and formula recalculation need a server scan."
+              : "Wait for the server scan to finish before using these tools."}
           </div>
         )}
       </section>
@@ -181,7 +237,7 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
           </label>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className="btn btn-ghost text-sm" disabled={!serverReady || !!busy || enhancementRunning} onClick={() => void request("profile", { features: undefined })}>
+          <button className="btn btn-ghost text-sm" disabled={!profileReady || !!busy || enhancementRunning} onClick={() => void request("profile", { features: undefined })}>
             {busy === "profile" ? <Loader2 size={14} className="animate-spin" /> : <ClipboardCheck size={14} />} Profile workbook
           </button>
           <button className="btn btn-ghost text-sm" disabled={!serverReady || !!busy || features.length === 0} onClick={() => void request("preview")}>
@@ -241,7 +297,18 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
         {displayedOutputs.map(output => <div key={output.fileId} className="flex items-center gap-3 border border-edge/70 rounded-lg p-3">
           <FileCheck2 size={16} className="text-ok shrink-0" />
           <div className="min-w-0 flex-1"><div className="text-sm font-medium truncate">{output.name}</div><div className="mono text-[10px] text-dim">{(output.size / 1024).toFixed(1)} KB · {output.fileId.slice(0, 8)}</div></div>
-          <a href={output.downloadUrl ?? "/api/outputs/" + output.fileId + "/download"} className="btn btn-ghost text-xs"><Download size={13} /> Download</a>
+          <button
+            type="button"
+            className="btn btn-ghost text-xs"
+            onClick={() => {
+              void downloadOutput(output.fileId, output.name).then(
+                () => toast(output.name, "ok"),
+                () => undefined
+              );
+            }}
+          >
+            <Download size={13} /> Download
+          </button>
         </div>)}
       </section>}
     </div>

@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { CellModel, SheetModel, WorkbookModel } from "../src/lib/excel/types";
-import { applyTransforms, verifyAppliedDiffs } from "../src/lib/excel/transform";
+import { applyDiffSelection, applyTransforms, diffKey, verifyAppliedDiffs } from "../src/lib/excel/transform";
 
 const NBSP = String.fromCharCode(0xa0);
 
@@ -186,5 +186,54 @@ describe("deterministic transformation rules", () => {
         ]),
       /DIFF_UNVERIFIED/
     );
+  });
+
+  it("T012 breaks a circular formula chain by freezing one cell", () => {
+    const m = workbook([
+      sheet("S", [
+        c("A1", 0, 0, "n", 1, "B1+1"),
+        c("B1", 0, 1, "n", 2, "A1+1"),
+      ]),
+    ]);
+    const { models, diffs } = applyTransforms([m], ["T012"]);
+    assert.equal(diffs.length, 1);
+    assert.equal(diffs[0].ruleId, "T012");
+    const a = models[0].sheets[0].cells["A1"];
+    const b = models[0].sheets[0].cells["B1"];
+    const frozen = [a, b].filter((cell) => !cell.f);
+    assert.equal(frozen.length, 1);
+    assert.ok(a.f || b.f);
+  });
+
+  it("applyDiffSelection can restore a skipped named-range removal", () => {
+    const m = workbook([sheet("S", [c("A1", 0, 0, "n", 1)])], [
+      { name: "Broken", ref: "#REF!", broken: true },
+      { name: "Ok", ref: "S!$A$1", broken: false },
+    ]);
+    const { models, diffs } = applyTransforms([m], ["T006"]);
+    const removed = diffs.find((d) => d.kind === "name" && String(d.before).startsWith("Broken"));
+    assert.ok(removed);
+    const selected = applyDiffSelection(models, diffs, new Set()); // skip all selectable (including names)
+    assert.ok(selected.models[0].names.some((n) => n.name === "Broken"));
+  });
+
+  it("applyDiffSelection skips unchecked cell changes and restores before values", () => {
+    const sp = String.fromCharCode(0x3000);
+    const beforeB = `world${sp}`;
+    const m = workbook([
+      sheet("S", [
+        c("A1", 0, 0, "s", ` hello `),
+        c("B1", 0, 1, "s", beforeB),
+      ]),
+    ]);
+    const { models, diffs } = applyTransforms([m], ["T007"]);
+    assert.equal(diffs.length, 2);
+    const keep = diffs.find((d) => d.cell === "A1");
+    assert.ok(keep);
+    const selected = applyDiffSelection(models, diffs, new Set([diffKey(keep)]));
+    assert.equal(selected.diffs.length, 1);
+    assert.equal(selected.diffs[0].cell, "A1");
+    assert.equal(selected.models[0].sheets[0].cells["A1"].v, "hello");
+    assert.equal(selected.models[0].sheets[0].cells["B1"].v, beforeB);
   });
 });

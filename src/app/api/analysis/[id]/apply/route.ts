@@ -23,6 +23,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       tools?: unknown;
       summary?: unknown;
       language?: unknown;
+      acceptedDiffKeys?: unknown;
     };
     if (body.exportFormats !== undefined && (!Array.isArray(body.exportFormats) || body.exportFormats.some((f) => typeof f !== "string"))) {
       return NextResponse.json({ errorCode: "BAD_FORMAT", message: "exportFormats must be an array of format IDs", retryable: false }, { status: 400 });
@@ -33,6 +34,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (body.localRecord !== undefined && typeof body.localRecord !== "boolean") {
       return NextResponse.json({ errorCode: "BAD_REQUEST", message: "localRecord must be boolean", retryable: false }, { status: 400 });
     }
+    if (
+      body.acceptedDiffKeys !== undefined &&
+      (!Array.isArray(body.acceptedDiffKeys) || body.acceptedDiffKeys.some((k) => typeof k !== "string"))
+    ) {
+      return NextResponse.json(
+        { errorCode: "BAD_REQUEST", message: "acceptedDiffKeys must be an array of strings", retryable: false },
+        { status: 400 }
+      );
+    }
+    const acceptedDiffKeys = body.acceptedDiffKeys as string[] | undefined;
     const requestedFormats = (body.exportFormats as string[] | undefined) ?? ["xlsx"];
     const formats = [...new Set(requestedFormats.filter((f) => VALID_FORMATS.has(f)))];
     if (formats.length === 0 || formats.length !== requestedFormats.length) {
@@ -76,9 +87,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
     const [job] = await db
       .insert(jobs)
-      .values({ analysisId: id, previewId: preview.id, kind: "apply", status: "queued", progress: 0, formats })
+      .values({
+        analysisId: id,
+        previewId: preview.id,
+        kind: "apply",
+        status: "queued",
+        progress: 0,
+        formats,
+        summary: acceptedDiffKeys ? { acceptedDiffKeys } : {},
+      })
       .returning();
-    await db.insert(auditLogs).values({ analysisId: id, action: "apply.queued", detail: { jobId: job.id, previewId: preview.id, formats } });
+    await db.insert(auditLogs).values({
+      analysisId: id,
+      action: "apply.queued",
+      detail: { jobId: job.id, previewId: preview.id, formats, acceptedDiffCount: acceptedDiffKeys?.length },
+    });
     void runApplyJob(job.id).catch((e) => console.error("runApplyJob", e));
     return NextResponse.json({ jobId: job.id, status: "queued" });
   } catch (e) {

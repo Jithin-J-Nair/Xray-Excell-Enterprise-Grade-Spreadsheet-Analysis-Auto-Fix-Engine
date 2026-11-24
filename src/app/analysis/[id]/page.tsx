@@ -1,6 +1,6 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { LayoutDashboard, GitFork, AlertOctagon, Grid3X3, Wrench, PackageCheck, RefreshCw, Trash2, ArrowLeft, Terminal, Sparkles } from "lucide-react";
 import Link from "next/link";
@@ -26,21 +26,42 @@ const TABS = [
 ] as const;
 
 export default function AnalysisPage() {
+  return (
+    <Suspense fallback={<div className="app-shell text-dim text-sm py-16">Loading…</div>}>
+      <AnalysisPageInner />
+    </Suspense>
+  );
+}
+
+function AnalysisPageInner() {
   const { t } = useI18n();
   const params = useParams<{ id: string }>();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const id = params.id;
   const [detail, setDetail] = useState<AnalysisDetail | null>(null);
   const [status, setStatus] = useState<StatusPayload | null>(null);
   const [tab, setTab] = useState<string>("overview");
+  const [focusToolId, setFocusToolId] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const q = new URLSearchParams(window.location.search).get("tab");
-    // This one-time URL-to-tab synchronization is an intentional state initializer.
+    const q = searchParams.get("tab");
+    // Keep the visible tab in sync with ?tab= when the URL changes without remounting.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (q && TABS.some((x) => x.key === q)) setTab(q);
-  }, []);
+  }, [searchParams]);
+
+  const selectTab = useCallback(
+    (key: string) => {
+      setTab(key);
+      const next = new URLSearchParams(searchParams.toString());
+      next.set("tab", key);
+      router.replace(`/analysis/${id}?${next.toString()}`, { scroll: false });
+    },
+    [id, router, searchParams]
+  );
 
   const loadDetail = useCallback(async () => {
     const res = await fetch(`/api/analysis/${id}`);
@@ -215,7 +236,7 @@ export default function AnalysisPage() {
               type="button"
               role="tab"
               aria-selected={active}
-              onClick={() => setTab(tb.key)}
+              onClick={() => selectTab(tb.key)}
               className={`analysis-tabs__btn ${active ? "is-active" : ""}`}
             >
               <tb.icon size={14} />
@@ -232,9 +253,24 @@ export default function AnalysisPage() {
         <motion.div key={tab} initial={false} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.22 }}>
           {tab === "overview" && <OverviewTab detail={detail} />}
           {tab === "graph" && <GraphTab detail={detail} />}
-          {tab === "risks" && <RisksTab detail={detail} />}
+          {tab === "risks" && (
+            <RisksTab
+              detail={detail}
+              onJumpTool={(ruleId) => {
+                setFocusToolId(ruleId);
+                selectTab("workbench");
+              }}
+            />
+          )}
           {tab === "sheets" && <SheetsTab detail={detail} />}
-          {tab === "workbench" && <WorkbenchTab detail={detail} reload={reload} />}
+          {tab === "workbench" && (
+            <WorkbenchTab
+              detail={detail}
+              reload={reload}
+              focusToolId={focusToolId}
+              onFocusToolConsumed={() => setFocusToolId(null)}
+            />
+          )}
           {tab === "export" && <ExportTab detail={detail} reload={reload} />}
           {tab === "enhancement" && <EnhancementTab detail={detail} reload={reload} />}
         </motion.div>

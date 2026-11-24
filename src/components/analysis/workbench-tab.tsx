@@ -7,7 +7,7 @@ import { Panel, PanelTitle, Switch, fmtBytes, fmtNum } from "@/components/ui";
 import { toast } from "@/components/toast";
 import { downloadOutput, saveBlob } from "@/lib/download";
 import type { AnalysisDetail } from "./shared";
-import { TOOLS, AUTOFIX_TOOLS } from "@/lib/excel/transform";
+import { TOOLS, AUTOFIX_TOOLS, DESTRUCTIVE_TOOLS, applyDiffSelection, diffKey, isSelectableDiff } from "@/lib/excel/transform";
 import { autoFixSelection, computeToolStates, enabledToolIds, reconcile, toggleTool, type ToolState } from "@/lib/excel/tool-state";
 import type { Diff } from "@/lib/excel/types";
 
@@ -30,14 +30,24 @@ interface PreviewState {
 }
 
 const FORMATS = [
-  { id: "xlsx", label: ".xlsx", desc: "fixed workbook (formulas preserved)" },
-  { id: "csv", label: ".csv", desc: "UTF-8 + BOM, primary sheet" },
-  { id: "json", label: ".json", desc: "header-aware objects" },
-  { id: "ndjson", label: ".ndjson", desc: "streaming rows" },
-  { id: "md", label: ".md", desc: "localized audit report" },
+  { id: "xlsx", label: ".xlsx", desc: "fixed workbook copy" },
+  { id: "csv", label: ".csv", desc: "main sheet as text" },
+  { id: "json", label: ".json", desc: "rows as objects" },
+  { id: "ndjson", label: ".ndjson", desc: "one row per line" },
+  { id: "md", label: ".md", desc: "readable audit report" },
 ];
 
-export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reload: () => void }) {
+export function WorkbenchTab({
+  detail,
+  reload,
+  focusToolId,
+  onFocusToolConsumed,
+}: {
+  detail: AnalysisDetail;
+  reload: () => void;
+  focusToolId?: string | null;
+  onFocusToolConsumed?: () => void;
+}) {
   const { t, lang } = useI18n();
   const router = useRouter();
   const res = detail.result!;
@@ -71,6 +81,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
     () => new Set(xlsxDisabled ? ["csv", "md"] : ["xlsx", "csv", "md"])
   );
   const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [acceptedKeys, setAcceptedKeys] = useState<Set<string>>(new Set());
   const [busyPreview, setBusyPreview] = useState(false);
   const [applyJob, setApplyJob] = useState<string | null>(null);
   const [applyDone, setApplyDone] = useState<{ outputs: { format: string; fileId: string; name: string; size: number }[]; summary: unknown } | null>(null);
@@ -78,6 +89,21 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
   const [filterTool, setFilterTool] = useState<string>("all");
   const [diffFilter, setDiffFilter] = useState<string>("");
   const [downloading, setDownloading] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!focusToolId) return;
+    setToolStates((prev) =>
+      prev.map((s) => (s.id === focusToolId && s.available ? { ...s, enabled: true } : s))
+    );
+    setFilterTool(focusToolId);
+    setPreview(null);
+    setAcceptedKeys(new Set());
+    onFocusToolConsumed?.();
+  }, [focusToolId, onFocusToolConsumed]);
+
+  const seedAccepted = (diffs: Diff[]) => {
+    setAcceptedKeys(new Set(diffs.filter(isSelectableDiff).map(diffKey)));
+  };
 
   const groups = useMemo(
     () => [
@@ -90,11 +116,13 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
 
   const onToggle = (id: string) => {
     setPreview(null);
+    setAcceptedKeys(new Set());
     setApplyDone(null);
     setToolStates((prev) => toggleTool(prev, id));
   };
   const onAutoFix = () => {
     setPreview(null);
+    setAcceptedKeys(new Set());
     setApplyDone(null);
     setToolStates((prev) => autoFixSelection(prev));
   };
@@ -115,6 +143,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
         summary.riskScoreAfter = rescoreModel(patched[0], { language: lang });
         summary.risksResolved = Math.max(0, summary.riskScoreBefore - summary.riskScoreAfter);
         setPreview({ previewId: `local-${Date.now()}`, tools, diffs, summary });
+        seedAccepted(diffs);
       } else {
         const resp = await fetch(`/api/analysis/${detail.id}/preview`, {
           method: "POST",
@@ -124,6 +153,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
         const json = await resp.json();
         if (!resp.ok) throw new Error(json.message ?? "preview failed");
         setPreview({ previewId: json.previewId, tools, diffs: json.diffs, summary: json.summary });
+        seedAccepted(json.diffs as Diff[]);
       }
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -181,7 +211,8 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
       const { allModels } = await import("@/lib/excel/analyze");
       const { workbookToXlsxBytes, sheetToCsv, modelToJson, modelToNdjson, buildMarkdownReport } = await import("@/lib/excel/serialize");
       const models = allModels(res);
-      const { models: patched, summary } = applyTransforms(models, preview.tools, { minOccurrences: minOcc });
+      const transformed = applyTransforms(models, preview.tools, { minOccurrences: minOcc });
+      const { models: patched, summary } = applyDiffSelection(transformed.models, transformed.diffs, acceptedKeys);
       const unsafeXlsxModel = patched.find((model) => model.macroEnabled || model.styleMetadataUnavailable);
       if (formats.has("xlsx") && unsafeXlsxModel) {
         throw new Error(
@@ -253,6 +284,11 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
   const apply = async () => {
     if (!preview) return;
     setErr(null);
+    const destructive = preview.tools.filter((id) => DESTRUCTIVE_TOOLS.has(id));
+    if (destructive.length) {
+      const labels = destructive.map((id) => t(`tool.${id}.name`)).join(", ");
+      if (!window.confirm(t("wb.apply.destructive", { tools: labels }))) return;
+    }
     if (isLocal) {
       await applyLocal();
       return;
@@ -261,7 +297,11 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
       const resp = await fetch(`/api/analysis/${detail.id}/apply`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ previewId: preview.previewId, exportFormats: [...formats] }),
+        body: JSON.stringify({
+          previewId: preview.previewId,
+          exportFormats: [...formats],
+          acceptedDiffKeys: [...acceptedKeys],
+        }),
       });
       const json = await resp.json();
       if (!resp.ok) throw new Error(json.message ?? "apply failed");
@@ -296,9 +336,9 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
         <Panel>
           <PanelTitle
             right={
-              <button onClick={onAutoFix} className="btn btn-ghost !py-1 !px-2.5 text-[10.5px]" title={t("wb.autofix")}>
+              <button onClick={onAutoFix} className="btn btn-ghost !py-1 !px-2.5 text-[10.5px]" title={t("wb.autofix.hint")}>
                 <Wand2 size={12} />
-                Auto-Fix
+                {t("wb.autofix")}
               </button>
             }
           >
@@ -331,26 +371,31 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
                       >
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className="mono text-[9px] text-dim shrink-0">{s.id}</span>
-                            <span className="text-xs font-medium truncate">{s.def.name}</span>
+                            <span className="text-xs font-medium truncate">{t(s.def.nameKey)}</span>
                           </div>
                           <span onClick={(e) => e.stopPropagation()}>
                             <Switch checked={s.enabled} onChange={() => onToggle(s.id)} disabled={!s.available} />
                           </span>
                         </div>
-                        <div className="text-[10.5px] text-dim mt-1 leading-relaxed">{s.def.desc}</div>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="text-[10.5px] text-dim mt-1 leading-relaxed">{t(s.def.descKey)}</div>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
                           {s.available ? (
-                            <span className="mono text-[9px] text-warn">{s.findings} findings</span>
+                            <span className="mono text-[9px] text-warn">
+                              {s.findings} {t("wb.findings")}
+                            </span>
                           ) : (
                             <span className="mono text-[9px] text-dim flex items-center gap-1">
-                              <Ban size={9} /> no findings
+                              <Ban size={9} /> {t("wb.nofindings")}
                             </span>
                           )}
-                          {s.defaultOn && <span className="mono text-[9px] text-ok/80">safe</span>}
+                          {s.def.autoFix && <span className="mono text-[9px] text-ok/80">{t("wb.badge.quickclean")}</span>}
+                          {s.defaultOn && !s.def.autoFix && <span className="mono text-[9px] text-ok/80">{t("wb.badge.safe")}</span>}
+                          {!s.def.safeDefault && <span className="mono text-[9px] text-warn/80">{t("wb.badge.review")}</span>}
                           {preview && s.enabled && (
                             <span className="mono text-[9px] text-accent">
-                              {(preview.summary.byTool[s.id] ?? 0) > 0 ? `${preview.summary.byTool[s.id]} changes` : "0 changes"}
+                              {(preview.summary.byTool[s.id] ?? 0) > 0
+                                ? t("wb.nchanges", { n: preview.summary.byTool[s.id] })
+                                : t("wb.nchanges", { n: 0 })}
                             </span>
                           )}
                         </div>
@@ -372,6 +417,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
                 value={minOcc}
                 onChange={(e) => {
                   setPreview(null);
+                  setAcceptedKeys(new Set());
                   setApplyDone(null);
                   setMinOcc(Math.max(2, Math.min(50, Number(e.target.value) || 3)));
                 }}
@@ -380,7 +426,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
             </div>
             <button onClick={runPreview} disabled={busyPreview || !selectedIds.length} className="btn btn-primary w-full justify-center">
               {busyPreview ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
-              {busyPreview ? t("wb.running") : `${t("wb.runpreview")} (${selectedIds.length} tools)`}
+              {busyPreview ? t("wb.running") : t("wb.runpreview.n", { n: selectedIds.length })}
             </button>
           </div>
         </Panel>
@@ -409,7 +455,11 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
             }
           >
             {t("wb.preview.title")}
-            {preview && <span className="ml-2 text-accent normal-case tracking-normal">{fmtNum(filteredDiffs.length)} diffs</span>}
+            {preview && (
+              <span className="ml-2 text-accent normal-case tracking-normal">
+                {fmtNum(filteredDiffs.length)} · {t("wb.accepted.count", { n: acceptedKeys.size })}
+              </span>
+            )}
           </PanelTitle>
           {err && <div className="mx-4 mb-3 text-hot text-xs mono border border-hot/40 bg-hot/10 rounded-lg px-3 py-2">{err}</div>}
           {!preview && !busyPreview && (
@@ -428,50 +478,99 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
             <>
               {filteredDiffs.length === 0 && <div className="px-6 py-16 text-center text-dim text-sm">{t("wb.preview.empty")}</div>}
               {filteredDiffs.length > 0 && (
-                <div className="max-h-[520px] overflow-auto">
-                  <table className="table-x">
-                    <thead>
-                      <tr>
-                        <th className="w-24">{t("wb.col.sheet")}</th>
-                        <th className="w-16">{t("wb.col.cell")}</th>
-                        <th>{t("wb.col.before")}</th>
-                        <th className="w-6"></th>
-                        <th>{t("wb.col.after")}</th>
-                        <th className="w-16">{t("wb.col.rule")}</th>
-                        <th className="w-14" title={t("wb.col.conf.title")}>{t("wb.col.conf")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredDiffs.slice(0, 600).map((d, i) => (
-                        <tr key={i} title={d.reason}>
-                          <td className="mono text-[10px] text-dim">{d.sheet}</td>
-                          <td className="mono text-[11px] text-accent">{d.cell}</td>
-                          <td className="mono text-[10.5px] max-w-[220px]">
-                            <span className="block truncate text-hot/90" title={String(d.before ?? "∅")}>
-                              {d.before === null ? "∅" : String(d.before)}
-                            </span>
-                          </td>
-                          <td className="text-dim">
-                            <ChevronRight size={12} />
-                          </td>
-                          <td className="mono text-[10.5px] max-w-[220px]">
-                            <span className="block truncate text-ok" title={String(d.after ?? "∅")}>
-                              {d.after === null ? "∅" : String(d.after)}
-                            </span>
-                          </td>
-                          <td>
-                            <span className="mono text-[9px] px-1.5 py-0.5 rounded border border-edge2 text-dim">{d.ruleId}</span>
-                          </td>
-                          <td>
-                            <div className="h-1 w-10 rounded-full bg-edge/60 overflow-hidden" title={`${Math.round(d.confidence * 100)}% — ${t("wb.col.conf.title")}`}>
-                              <div className="h-full bg-accent" style={{ width: `${d.confidence * 100}%` }} />
-                            </div>
-                          </td>
+                <>
+                  <div className="px-4 pb-2 flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      className="btn btn-ghost !py-1 !px-2 text-[10.5px]"
+                      onClick={() => seedAccepted(preview.diffs)}
+                    >
+                      {t("wb.accept.all")}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost !py-1 !px-2 text-[10.5px]"
+                      onClick={() => setAcceptedKeys(new Set())}
+                    >
+                      {t("wb.accept.none")}
+                    </button>
+                    <span className="text-[10px] text-dim">{t("wb.accept.hint")}</span>
+                  </div>
+                  <div className="max-h-[520px] overflow-auto">
+                    <table className="table-x">
+                      <thead>
+                        <tr>
+                          <th className="w-10">{t("wb.col.apply")}</th>
+                          <th className="w-24">{t("wb.col.sheet")}</th>
+                          <th className="w-16">{t("wb.col.cell")}</th>
+                          <th>{t("wb.col.before")}</th>
+                          <th className="w-6"></th>
+                          <th>{t("wb.col.after")}</th>
+                          <th className="w-28">{t("wb.col.rule")}</th>
+                          <th className="w-14" title={t("wb.col.conf.title")}>{t("wb.col.conf")}</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {filteredDiffs.slice(0, 2000).map((d, i) => {
+                          const key = diffKey(d);
+                          const selectable = isSelectableDiff(d);
+                          const checked = selectable ? acceptedKeys.has(key) : true;
+                          const toolName = t(`tool.${d.ruleId}.name`);
+                          return (
+                            <tr key={i} title={d.reason} className={selectable && !checked ? "opacity-45" : undefined}>
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  disabled={!selectable}
+                                  title={selectable ? t("wb.accept.toggle") : t("wb.accept.locked")}
+                                  onChange={() => {
+                                    if (!selectable) return;
+                                    setAcceptedKeys((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(key)) next.delete(key);
+                                      else next.add(key);
+                                      return next;
+                                    });
+                                  }}
+                                  style={{ accentColor: "var(--p-accent)" }}
+                                />
+                              </td>
+                              <td className="mono text-[10px] text-dim">{d.sheet}</td>
+                              <td className="mono text-[11px] text-accent">{d.cell}</td>
+                              <td className="mono text-[10.5px] max-w-[220px]">
+                                <span className="block truncate text-hot/90" title={String(d.before ?? "∅")}>
+                                  {d.before === null ? "∅" : String(d.before)}
+                                </span>
+                              </td>
+                              <td className="text-dim">
+                                <ChevronRight size={12} />
+                              </td>
+                              <td className="mono text-[10.5px] max-w-[220px]">
+                                <span className="block truncate text-ok" title={String(d.after ?? "∅")}>
+                                  {d.after === null ? "∅" : String(d.after)}
+                                </span>
+                              </td>
+                              <td>
+                                <span className="text-[10px] text-dim" title={d.ruleId}>
+                                  {toolName.startsWith("tool.") ? d.ruleId : toolName}
+                                </span>
+                              </td>
+                              <td>
+                                <div
+                                  className="h-1 w-10 rounded-full bg-edge/60 overflow-hidden"
+                                  title={`${Math.round(d.confidence * 100)}% — ${t("wb.col.conf.title")}`}
+                                >
+                                  <div className="h-full bg-accent" style={{ width: `${d.confidence * 100}%` }} />
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </>
           )}
@@ -574,7 +673,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
               {t("ex.outputs")}
             </div>
             {applyDone.outputs.map((o) => (
-              <div key={o.fileId + o.format} className="flex items-center justify-between gap-2 rounded-lg border border-edge/60 bg-ink/60 px-2.5 py-2">
+              <div key={`${o.fileId}-${o.format}-${o.name}`} className="flex items-center justify-between gap-2 rounded-lg border border-edge/60 bg-ink/60 px-2.5 py-2">
                 <div className="min-w-0">
                   <div className="text-[11px] mono truncate">{o.name}</div>
                   <div className="text-[9.5px] text-dim mono">
@@ -611,7 +710,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
 
         {preview && !isLocal && (
           <div className="text-[10px] text-dim flex items-center gap-1.5 px-1 mono">
-            preview {preview.previewId.slice(0, 8)} · tools: {preview.tools.join(" ")} · deterministic
+            {t("wb.footer.meta", { id: preview.previewId.slice(0, 8), n: acceptedKeys.size })}
           </div>
         )}
       </div>
