@@ -58,19 +58,20 @@ export async function validateDownloadBlob(
   }
 
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-  const expectedMime: Record<string, string> = {
-    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    xlsm: "application/vnd.ms-excel.sheet.macroenabled.12",
-    xls: "application/vnd.ms-excel",
-    csv: "text/csv",
-    json: "application/json",
-    ndjson: "application/x-ndjson",
-    md: "text/markdown",
+  const expectedMime: Record<string, string[]> = {
+    xlsx: ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+    xlsm: ["application/vnd.ms-excel.sheet.macroenabled.12"],
+    xls: ["application/vnd.ms-excel"],
+    csv: ["text/csv", "application/csv"],
+    json: ["application/json"],
+    ndjson: ["application/x-ndjson", "application/json"],
+    md: ["text/markdown", "text/x-markdown", "text/plain"],
   };
   const actualMime = (contentType ?? "").split(";")[0].trim().toLowerCase();
-  if (expectedMime[ext] && actualMime !== expectedMime[ext]) {
+  const allowed = expectedMime[ext];
+  if (allowed && actualMime && !allowed.includes(actualMime)) {
     throw new Error(
-      `DOWNLOAD_MIME_MISMATCH: .${ext} expected ${expectedMime[ext]} but received ${actualMime || "no Content-Type"}`
+      `DOWNLOAD_MIME_MISMATCH: .${ext} expected ${allowed[0]} but received ${actualMime}`
     );
   }
 

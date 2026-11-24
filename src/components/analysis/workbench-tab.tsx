@@ -37,7 +37,17 @@ const FORMATS = [
   { id: "md", label: ".md", desc: "readable audit report" },
 ];
 
-export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reload: () => void }) {
+export function WorkbenchTab({
+  detail,
+  reload,
+  focusToolId,
+  onFocusToolConsumed,
+}: {
+  detail: AnalysisDetail;
+  reload: () => void;
+  focusToolId?: string | null;
+  onFocusToolConsumed?: () => void;
+}) {
   const { t, lang } = useI18n();
   const router = useRouter();
   const res = detail.result!;
@@ -79,6 +89,17 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
   const [filterTool, setFilterTool] = useState<string>("all");
   const [diffFilter, setDiffFilter] = useState<string>("");
   const [downloading, setDownloading] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!focusToolId) return;
+    setToolStates((prev) =>
+      prev.map((s) => (s.id === focusToolId && s.available ? { ...s, enabled: true } : s))
+    );
+    setFilterTool(focusToolId);
+    setPreview(null);
+    setAcceptedKeys(new Set());
+    onFocusToolConsumed?.();
+  }, [focusToolId, onFocusToolConsumed]);
 
   const seedAccepted = (diffs: Diff[]) => {
     setAcceptedKeys(new Set(diffs.filter(isSelectableDiff).map(diffKey)));
@@ -652,7 +673,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
               {t("ex.outputs")}
             </div>
             {applyDone.outputs.map((o) => (
-              <div key={o.fileId + o.format} className="flex items-center justify-between gap-2 rounded-lg border border-edge/60 bg-ink/60 px-2.5 py-2">
+              <div key={`${o.fileId}-${o.format}-${o.name}`} className="flex items-center justify-between gap-2 rounded-lg border border-edge/60 bg-ink/60 px-2.5 py-2">
                 <div className="min-w-0">
                   <div className="text-[11px] mono truncate">{o.name}</div>
                   <div className="text-[9.5px] text-dim mono">

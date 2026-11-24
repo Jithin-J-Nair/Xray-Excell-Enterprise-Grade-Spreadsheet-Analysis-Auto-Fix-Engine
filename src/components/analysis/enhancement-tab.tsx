@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, Calculator, CheckCircle2, ClipboardCheck, Download, FileCheck2, Loader2, ShieldCheck, Sparkles, Undo2, WandSparkles } from "lucide-react";
 import type { AnalysisDetail } from "@/components/analysis/shared";
+import { downloadOutput } from "@/lib/download";
+import { toast } from "@/components/toast";
 
 type Action = "profile" | "preview" | "verify" | "apply" | "recalculate" | "undo";
 type Feature = "formatting" | "numberFormats" | "formulaRepairs";
@@ -44,6 +46,8 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
   const [recentJobId, setRecentJobId] = useState<string | null>(null);
 
   const serverReady = detail.mode === "server" && detail.status === "completed" && !!detail.result;
+  const localProfileReady = detail.mode === "local" && detail.status === "completed" && !!detail.result;
+  const profileReady = serverReady || localProfileReady;
   const enhancementRunning = detail.jobs.some(job => (job.kind === "enhancement" || job.kind === "recalculation") && job.status === "running");
   const undoableJob = useMemo(() => [...detail.jobs]
     .filter(job => job.kind === "enhancement" && job.status === "completed" && !job.reverted && !!job.patchFileId)
@@ -233,7 +237,7 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
           </label>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className="btn btn-ghost text-sm" disabled={!serverReady || !!busy || enhancementRunning} onClick={() => void request("profile", { features: undefined })}>
+          <button className="btn btn-ghost text-sm" disabled={!profileReady || !!busy || enhancementRunning} onClick={() => void request("profile", { features: undefined })}>
             {busy === "profile" ? <Loader2 size={14} className="animate-spin" /> : <ClipboardCheck size={14} />} Profile workbook
           </button>
           <button className="btn btn-ghost text-sm" disabled={!serverReady || !!busy || features.length === 0} onClick={() => void request("preview")}>
@@ -293,7 +297,18 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
         {displayedOutputs.map(output => <div key={output.fileId} className="flex items-center gap-3 border border-edge/70 rounded-lg p-3">
           <FileCheck2 size={16} className="text-ok shrink-0" />
           <div className="min-w-0 flex-1"><div className="text-sm font-medium truncate">{output.name}</div><div className="mono text-[10px] text-dim">{(output.size / 1024).toFixed(1)} KB · {output.fileId.slice(0, 8)}</div></div>
-          <a href={output.downloadUrl ?? "/api/outputs/" + output.fileId + "/download"} className="btn btn-ghost text-xs"><Download size={13} /> Download</a>
+          <button
+            type="button"
+            className="btn btn-ghost text-xs"
+            onClick={() => {
+              void downloadOutput(output.fileId, output.name).then(
+                () => toast(output.name, "ok"),
+                () => undefined
+              );
+            }}
+          >
+            <Download size={13} /> Download
+          </button>
         </div>)}
       </section>}
     </div>
