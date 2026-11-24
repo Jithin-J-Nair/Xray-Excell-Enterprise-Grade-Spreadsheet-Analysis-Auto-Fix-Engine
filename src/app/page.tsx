@@ -197,7 +197,7 @@ export default function HomePage() {
 
         <HowItWorks />
 
-        <section className="section" id="product" style={{ ["--h" as string]: 2 }} aria-labelledby="product-h">
+        <section className="section" id="product" aria-labelledby="product-h">
           <div className="wrap">
             <div className="section-head">
               <h2 id="product-h">The analysis workbench</h2>
@@ -211,10 +211,13 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="section ground-surface" id="features" style={{ ["--h" as string]: 1 }} aria-labelledby="features-h">
+        <section className="section ground-surface" id="features" aria-labelledby="features-h">
           <div className="wrap">
             <div className="section-head">
               <h2 id="features-h">Checks the engine runs</h2>
+              <p className="measure" style={{ color: "var(--p-muted)", marginTop: 16, fontSize: 16, lineHeight: 1.55 }}>
+                Four passes on every upload: the graph, the risk list, the patch queue, and the scan mode.
+              </p>
             </div>
             <div className="feat-grid">
               <article className="feat-card m-nolift">
@@ -272,21 +275,48 @@ export default function HomePage() {
           id="claim"
           data-moment="letters-assemble"
           data-moment-opts='{"spread":1}'
-          style={{ ["--h" as string]: 1 }}
           aria-labelledby="claim-h"
         >
-          <div className="wrap">
-            <h2 id="claim-h" className="mo-la__type">
-              Reverse every patch
-            </h2>
-            <p className="mo-la__sub">The source workbook is never rewritten in place. Exports are copies with an audit trail.</p>
+          <div className="wrap claim-layout">
+            <div>
+              <h2 id="claim-h" className="mo-la__type">
+                Reverse every patch
+              </h2>
+              <p className="mo-la__sub">The source workbook is never rewritten in place. Exports are copies with an audit trail.</p>
+            </div>
+            <ul className="claim-facts">
+              <li>
+                <span className="claim-facts__k mono">01</span>
+                <div>
+                  <strong>Forward and reverse together</strong>
+                  <p>Every accepted change writes its undo patch in the same pass.</p>
+                </div>
+              </li>
+              <li>
+                <span className="claim-facts__k mono">02</span>
+                <div>
+                  <strong>Source stays read-only</strong>
+                  <p>Patches land on a derived copy. The upload is never rewritten in place.</p>
+                </div>
+              </li>
+              <li>
+                <span className="claim-facts__k mono">03</span>
+                <div>
+                  <strong>Audit on the export</strong>
+                  <p>Health, risks and applied tools travel with the downloaded workbook.</p>
+                </div>
+              </li>
+            </ul>
           </div>
         </section>
 
-        <section className="section ground-surface" id="work" style={{ ["--h" as string]: 1 }} aria-labelledby="work-h">
+        <section className="section ground-surface" id="work" aria-labelledby="work-h">
           <div className="wrap">
             <div className="section-head">
               <h2 id="work-h">Your recent scans</h2>
+              <p className="measure" style={{ color: "var(--p-muted)", marginTop: 16, fontSize: 16, lineHeight: 1.55 }}>
+                Health, risk count and status for the last workbooks you opened in this workspace.
+              </p>
             </div>
             <div className="work-grid">
               <div className="panel work-list" style={{ overflow: "hidden" }}>
@@ -321,8 +351,12 @@ export default function HomePage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="px-4 py-16 text-center text-[color:var(--p-muted)] text-sm">
-                    No scans yet. Start a workbook scan to see health and risks here.
+                  <div className="work-empty">
+                    <p className="work-empty__title">No scans yet</p>
+                    <p className="work-empty__body">Start a workbook scan to land health scores and risks in this list.</p>
+                    <Link className="btn btn--primary" href="/analyze">
+                      Start a workbook scan
+                    </Link>
                   </div>
                 )}
               </div>

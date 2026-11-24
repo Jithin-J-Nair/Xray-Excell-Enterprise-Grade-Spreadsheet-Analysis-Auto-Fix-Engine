@@ -598,6 +598,27 @@ a.feat-card:hover,
     grid-template-columns: 1fr;
   }
 }
+.work-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 32px 28px;
+}
+.work-empty__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: var(--display-tracking);
+  color: var(--p-ink);
+}
+.work-empty__body {
+  margin: 0 0 8px;
+  max-width: 36ch;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--p-muted);
+}
 
 .mo-la__type,
 .mo-lt__type {

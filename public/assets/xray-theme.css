@@ -1072,26 +1072,100 @@ html[data-buttons] .btn.btn--secondary,
 @media (min-width: 1024px) {
   #how .how-layout {
     grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr) !important;
+    align-items: stretch;
+  }
+  #how .how-scan-stage {
+    display: flex;
+    flex-direction: column;
+  }
+  #how .how-scan-stage .sheet-scan {
+    flex: 1 1 auto;
+    min-height: 100%;
   }
 }
-/* How section must clear its content — never spill into the next screen */
-#how.section {
+/*
+ * Content-driven section height. Kit forces --h × 100svh which left
+ * ~1000px of empty air on how/product. Hug content; keep tidy pad.
+ */
+main > section.section:not(.hero) {
   height: auto !important;
-  min-height: calc(var(--h, 1) * 100svh);
+  min-height: 0 !important;
+  padding-block: clamp(72px, 9vh, 120px);
+  overflow: visible;
+}
+#how.section {
   overflow: visible;
 }
 #how .how-track--stack {
   margin-top: 24px;
 }
-#product.section {
+#claim.section > .wrap {
   height: auto !important;
-  min-height: calc(var(--h, 1) * 100svh);
 }
-#features.section,
-#work.section,
-#claim.section {
+.claim-layout {
+  display: grid;
+  gap: 40px;
+  align-items: start;
+}
+@media (min-width: 1024px) {
+  .claim-layout {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    gap: 56px;
+    align-items: start;
+  }
+}
+#claim .mo-la__type {
+  font-size: clamp(36px, 5.5vw, 72px);
+  max-width: 14ch;
+}
+#claim .mo-la__sub {
+  margin-top: 20px;
+}
+.claim-facts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 20px;
+}
+.claim-facts li {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 16px 0;
+  border-top: 1px solid color-mix(in oklab, var(--p-ink) 12%, transparent);
+}
+.claim-facts li:last-child {
+  border-bottom: 1px solid color-mix(in oklab, var(--p-ink) 12%, transparent);
+}
+.claim-facts__k {
+  font-size: 12px;
+  color: var(--p-accent);
+  padding-top: 4px;
+}
+.claim-facts strong {
+  display: block;
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: var(--display-tracking);
+  color: var(--p-ink);
+  margin-bottom: 6px;
+}
+.claim-facts p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--p-muted);
+}
+/* Closing CTA: size to the statement, not a second empty screen */
+footer.closing {
   height: auto !important;
-  min-height: calc(var(--h, 1) * 100svh);
+  min-height: 0 !important;
+  padding-block: clamp(80px, 10vh, 140px) clamp(48px, 6vh, 80px);
+}
+footer.closing > .wrap {
+  height: auto !important;
 }
 
 /*
@@ -1158,10 +1232,10 @@ html[data-buttons] .btn.btn--secondary,
   margin: 0;
   font-family: var(--font-display);
   font-weight: 500;
-  font-size: clamp(56px, 12vw, 140px);
-  line-height: 0.92;
+  font-size: clamp(48px, 8vw, 104px);
+  line-height: 0.94;
   letter-spacing: -0.045em;
-  max-width: 12ch;
+  max-width: 14ch;
   color: var(--p-ink);
 }
 .huge-cta__lead {
@@ -1182,8 +1256,7 @@ html[data-buttons] .btn.btn--secondary,
   gap: 16px;
 }
 footer.closing {
-  /* give the huge close room: two screens on desktop */
-  --h: 2;
+  --h: 1;
 }
 
 /* ----- workbench accept pulse ----- */
