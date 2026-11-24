@@ -17,6 +17,8 @@ import { createRecoverySnapshot, sealRecoverySnapshot, undoWorkbook, parseRecove
 import { verifyWorkbookExport } from "@/lib/excel/enhancement/verification";
 import { recalculateWithLibreOffice } from "@/lib/excel/enhancement/recalculation";
 import { recalculateWithMicrosoftExcel } from "@/lib/excel/enhancement/excel-com-recalculation";
+import { collectFormulaValueDiffs } from "@/lib/excel/value-diff";
+import { parseFile } from "@/lib/excel/parse";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -367,6 +369,13 @@ async function runRecalculation(analysisId: string, models: WorkbookModel[], eng
         const bytes = calculated.bytes;
         const name = outputName(model, index, "recalculated");
         const saved = await saveBytes("exports", jobId, name, bytes);
+        let valueDiffs: ReturnType<typeof collectFormulaValueDiffs> = [];
+        try {
+          const afterModel = await parseFile(model.fileId, name, bytes);
+          valueDiffs = collectFormulaValueDiffs(model, afterModel, 200);
+        } catch {
+          valueDiffs = [];
+        }
         successes.push({
           model, name, bytes, path: saved.relPath,
           details: {
@@ -375,6 +384,8 @@ async function runRecalculation(analysisId: string, models: WorkbookModel[], eng
             formulasAfter: calculated.formulasAfter,
             warnings: "warnings" in calculated ? calculated.warnings : [],
             preservedFeatures: "preservedFeatures" in calculated ? calculated.preservedFeatures : [],
+            valueDiffCount: valueDiffs.length,
+            valueDiffs: valueDiffs.slice(0, 100),
           },
         });
       } catch (error) {
@@ -407,6 +418,13 @@ async function runRecalculation(analysisId: string, models: WorkbookModel[], eng
       action: "recalculate", engine, jobId, status: "completed",
       outputs: outputRecords.map(output => ({ ...output, downloadUrl: "/api/outputs/" + output.fileId + "/download" })),
       skippedFiles,
+      valueDiffs: successes.flatMap((item) =>
+        ((item.details.valueDiffs as ReturnType<typeof collectFormulaValueDiffs>) ?? []).map((row) => ({
+          fileName: item.model.fileName,
+          ...row,
+        }))
+      ),
+      valueDiffCount: successes.reduce((n, item) => n + (Number(item.details.valueDiffCount) || 0), 0),
       message: "Recalculation ran on separate copies. Uploaded originals and the current analysis model were not overwritten.",
     });
   } catch (error) {

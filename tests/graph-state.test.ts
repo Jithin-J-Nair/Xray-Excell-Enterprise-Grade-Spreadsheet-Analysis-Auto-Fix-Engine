@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { autoFixSelection, computeToolStates, enabledToolIds, toggleTool } from "../src/lib/excel/tool-state";
-import { AUTOFIX_TOOLS, TOOLS } from "../src/lib/excel/transform";
-import { buildRiskIndex, filterGraph, layoutGraph, GRAPH_NODE_CAP, DEFAULT_FILTER } from "../src/lib/excel/graph-layout";
+import { autoFixSelection, computeToolStates, enabledToolIds, japanHygieneSelection, toggleTool } from "../src/lib/excel/tool-state";
+import { AUTOFIX_TOOLS, JAPAN_HYGIENE_TOOLS, TOOLS } from "../src/lib/excel/transform";
+import { buildRiskIndex, crossFileNodeIds, filterGraph, layoutGraph, GRAPH_NODE_CAP, DEFAULT_FILTER } from "../src/lib/excel/graph-layout";
 import type { DependencyGraph, GraphNode, Risk } from "../src/lib/excel/types";
 
 describe("tool toggle state machine", () => {
@@ -46,6 +46,22 @@ describe("tool toggle state machine", () => {
     for (const id of ["T002", "T003", "T005", "T011"]) {
       assert.ok(!AUTOFIX_TOOLS.includes(id), id + " must not be Auto-Fix");
     }
+  });
+
+  it("Japan hygiene enables T007/T009/T010/T013 when available", () => {
+    assert.deepEqual([...JAPAN_HYGIENE_TOOLS].sort(), ["T007", "T009", "T010", "T013"]);
+    const findingsJp = new Map<string, number>([
+      ["T007", 2],
+      ["T009", 1],
+      ["T010", 4],
+      ["T013", 0],
+      ["T002", 9],
+    ]);
+    const states = japanHygieneSelection(computeToolStates(findingsJp));
+    const ids = enabledToolIds(states).sort();
+    assert.deepEqual(ids, ["T007", "T009", "T010"]);
+    assert.ok(!ids.includes("T002"));
+    assert.ok(!ids.includes("T013"));
   });
 
   it("preview payload contains only enabled+available tool ids", () => {
@@ -142,6 +158,30 @@ describe("graph filtering", () => {
     }
     const ids = new Set(f.nodes.map((n) => n.id));
     assert.ok(f.edges.every((e) => ids.has(e.from) && ids.has(e.to)));
+  });
+
+  it("cross-file filter keeps nodes on cross-file or external edges", () => {
+    const withXf: DependencyGraph = {
+      ...graph,
+      nodes: [
+        ...graph.nodes,
+        gn("fileA.xlsx::Sheet1!A1", { sheet: "Sheet1", file: "fileA.xlsx" } as Partial<GraphNode>),
+        gn("fileB.xlsx::Sheet1!B1", { sheet: "Sheet1", file: "fileB.xlsx" } as Partial<GraphNode>),
+      ],
+      edges: [
+        ...graph.edges,
+        { from: "fileA.xlsx::Sheet1!A1", to: "fileB.xlsx::Sheet1!B1", kind: "cross-file" },
+      ],
+    };
+    const xfIds = crossFileNodeIds(withXf);
+    assert.ok(xfIds.has("EXT::[B]S!A1"));
+    assert.ok(xfIds.has("fileA.xlsx::Sheet1!A1"));
+    assert.ok(xfIds.has("fileB.xlsx::Sheet1!B1"));
+    const f = filterGraph(withXf, { ...DEFAULT_FILTER, onlyCrossFile: true, type: "cross-file" }, idx);
+    assert.ok(f.primaryIds.size > 0);
+    for (const id of f.primaryIds) {
+      assert.ok(xfIds.has(id) || withXf.nodes.find((n) => n.id === id)?.external, `${id} should be on a cross-file path`);
+    }
   });
 
   it("sheet filter keeps only that sheet's nodes (1-hop widened)", () => {

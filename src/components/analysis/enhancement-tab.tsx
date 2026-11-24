@@ -18,9 +18,18 @@ interface ProfileFile {
 }
 interface PreviewFile { fileName: string; changes: Record<Feature, number>; blockedReason?: string | null; profile?: { totalProposals: number; proposals: Finding[]; truncated: boolean } }
 interface VerifyFile { fileName: string; report: { ok: boolean; issues: { code: string; message: string; cell?: string }[] } }
+interface ValueDiffRow {
+  fileName?: string;
+  sheet: string;
+  cell: string;
+  before: string | number | null;
+  after: string | number | null;
+  formula?: string;
+}
 interface ApiResult {
   action?: string; message?: string; errorCode?: string; jobId?: string; files?: ProfileFile[] | PreviewFile[] | VerifyFile[];
   outputs?: Output[]; status?: string; features?: Feature[]; engine?: string; skippedFiles?: { fileName: string; reason: string }[];
+  valueDiffs?: ValueDiffRow[]; valueDiffCount?: number;
 }
 
 const FEATURE_LABELS: Record<Feature, string> = {
@@ -44,6 +53,8 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
   const [verification, setVerification] = useState<VerifyFile[] | null>(null);
   const [recentOutputs, setRecentOutputs] = useState<Output[]>([]);
   const [recentJobId, setRecentJobId] = useState<string | null>(null);
+  const [valueDiffs, setValueDiffs] = useState<ValueDiffRow[]>([]);
+  const [valueDiffCount, setValueDiffCount] = useState(0);
 
   const serverReady = detail.mode === "server" && detail.status === "completed" && !!detail.result;
   const localProfileReady = detail.mode === "local" && detail.status === "completed" && !!detail.result;
@@ -135,9 +146,20 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
       if (action === "apply" || action === "recalculate") {
         setRecentOutputs(data.outputs ?? []);
         setRecentJobId(data.jobId ?? null);
-        setNotice(action === "recalculate"
-          ? "Recalculated " + (data.outputs?.length ?? 0) + " workbook copy/copies using " + (data.engine ?? engine) + ". Original uploads and analysis model remain unchanged." + (data.skippedFiles?.length ? " Skipped " + data.skippedFiles.length + " unsupported workbook(s)." : "")
-          : data.skippedFiles?.length ? "Verified " + (data.outputs?.length ?? 0) + " output(s); skipped " + data.skippedFiles.length + " unsupported workbook(s). See job summary for details." : "Enhanced workbook copies created and offline verification passed.");
+        if (action === "recalculate") {
+          setValueDiffs(data.valueDiffs ?? []);
+          setValueDiffCount(data.valueDiffCount ?? data.valueDiffs?.length ?? 0);
+          setNotice(
+            "Recalculated " + (data.outputs?.length ?? 0) + " workbook copy/copies using " + (data.engine ?? engine) +
+            ". " + (data.valueDiffCount ?? data.valueDiffs?.length ?? 0) + " formula cell value(s) changed vs the last saved cache." +
+            " Original uploads and analysis model remain unchanged." +
+            (data.skippedFiles?.length ? " Skipped " + data.skippedFiles.length + " unsupported workbook(s)." : "")
+          );
+        } else {
+          setValueDiffs([]);
+          setValueDiffCount(0);
+          setNotice(data.skippedFiles?.length ? "Verified " + (data.outputs?.length ?? 0) + " output(s); skipped " + data.skippedFiles.length + " unsupported workbook(s). See job summary for details." : "Enhanced workbook copies created and offline verification passed.");
+        }
       } else if (action === "undo") {
         setRecentOutputs(data.outputs ?? []);
         setRecentJobId(null);
@@ -290,6 +312,36 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
           <div className="flex items-center gap-2 text-sm font-medium">{file.report.ok ? <CheckCircle2 size={15} className="text-ok" /> : <AlertTriangle size={15} className="text-hot" />}{file.fileName}<span className="ml-auto text-xs">{file.report.ok ? "PASS" : "BLOCKED / FAILED"}</span></div>
           {file.report.issues.slice(0, 12).map((issue, index) => <p key={issue.code + index} className="text-xs text-dim mt-2">{issue.code}: {issue.message}</p>)}
         </div>)}
+      </section>}
+
+      {!!valueDiffs.length && <section className="panel p-5 space-y-3">
+        <h3 className="font-semibold">Formula value changes after recalculation</h3>
+        <p className="text-xs text-dim">Cached values on formula cells before vs after the engine ran on a copy. This is not a financial audit — it only shows what numbers moved.</p>
+        <p className="mono text-xs text-dim">{valueDiffCount} cell(s) changed{valueDiffCount > valueDiffs.length ? ` · showing first ${valueDiffs.length}` : ""}</p>
+        <div className="max-h-[320px] overflow-auto">
+          <table className="table-x text-xs">
+            <thead>
+              <tr>
+                <th>File</th>
+                <th>Sheet</th>
+                <th>Cell</th>
+                <th>Before</th>
+                <th>After</th>
+              </tr>
+            </thead>
+            <tbody>
+              {valueDiffs.slice(0, 80).map((row, i) => (
+                <tr key={(row.fileName ?? "") + row.sheet + row.cell + i}>
+                  <td className="truncate max-w-[120px]">{row.fileName ?? "—"}</td>
+                  <td className="mono">{row.sheet}</td>
+                  <td className="mono">{row.cell}</td>
+                  <td className="mono text-hot">{row.before === null || row.before === undefined ? "—" : String(row.before)}</td>
+                  <td className="mono text-ok">{row.after === null || row.after === undefined ? "—" : String(row.after)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>}
 
       {!!displayedOutputs.length && <section className="panel p-5 space-y-3">

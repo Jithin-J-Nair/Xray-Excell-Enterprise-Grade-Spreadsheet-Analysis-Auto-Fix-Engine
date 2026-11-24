@@ -1,6 +1,6 @@
 // ── Tool toggle state machine (pure, isomorphic, unit-testable) ──────────────
 import type { ToolDef } from "./types";
-import { TOOLS, AUTOFIX_TOOLS } from "./transform";
+import { TOOLS, AUTOFIX_TOOLS, JAPAN_HYGIENE_TOOLS } from "./transform";
 
 export interface ToolState {
   id: string;
@@ -49,6 +49,15 @@ export function autoFixSelection(states: ToolState[]): ToolState[] {
   return states.map((s) => ({
     ...s,
     enabled: AUTOFIX_TOOLS.includes(s.id) && s.available,
+  }));
+}
+
+/** Enable Japan hygiene tools (spaces, full-width, dates/numbers as text) when available. */
+export function japanHygieneSelection(states: ToolState[]): ToolState[] {
+  const set = new Set<string>(JAPAN_HYGIENE_TOOLS);
+  return states.map((s) => ({
+    ...s,
+    enabled: set.has(s.id) && s.available,
   }));
 }
 
