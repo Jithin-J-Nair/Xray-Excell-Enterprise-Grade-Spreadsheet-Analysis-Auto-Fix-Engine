@@ -7,7 +7,7 @@ This matrix is a release gate, not a claim that all checks have already passed.
 | Formatting | Deterministic theme, existing-style preservation and width bounds unit tests | Open exported workbooks in Excel; compare representative rendered sheets |
 | Number formats | Proposal/apply thresholds and value-immutability tests | Validate date serials, locale, currency, percent scale and identifier columns against domain-specific fixtures |
 | Formula repair | Nearby template consensus; no default mutation; explicit opt-in tests | Domain owner confirms formula semantics, units, edge cases and result deltas |
-| Excel recalculation | A CI step installs LibreOffice Calc and runs a generated formula workbook through recalculation; the script checks cached result, formula text and round-trip verification. A separate unit test covers a missing executable. Excel COM has a manual smoke script. | Confirm the current CI run passes; run `npm run verify:excel-com` on Windows with supported desktop Excel; compare cached results to Excel; exercise external links, UDFs and volatile functions; add native Excel fixtures for charts, pivots, macros, validation and connections |
+| Excel recalculation | CI installs LibreOffice Calc, runs `verify:libreoffice` smoke, and runs `verify:corpus:ci` (formula subset with cached-value checks). Missing-executable unit coverage remains. Excel COM is Windows-manual only. | Run `npm run verify:excel-com` on Windows with desktop Excel; compare LO vs Excel on proprietary functions; add native Excel fixtures for charts/pivots/macros when available |
 | OOXML preservation | Part names, worksheet/workbook XML markers, relationship types and content-type declarations are checked; tests include a generated XLSX with hyperlinks, data validation and conditional formatting plus synthetic package declarations for charts, VBA, signatures, pivot caches, query tables and embeddings. Relationship targets are compared during package verification. | Add Excel-generated real fixtures and verify each feature is preserved or blocked, including pivot caches, external connections, embedded objects, signatures and vendor extensions |
 | Data quality | Mixed types, numeric-looking text, impossible dates, suspicious dates, negative quantities, duplicate rows and missing keys | Locale-specific and domain-specific datasets; false-positive review |
 | Recovery | Snapshot integrity, optimistic conflict refusal, full model restoration, bounded retries, DB integration test proving atomic claims and stale-token publication rejection, and a best-effort sweeper for old unreferenced lease directories | Add process-crash/fault-injection tests, enhancement-operation fencing, multi-user edits, and retention/authorization |
@@ -20,7 +20,10 @@ This matrix is a release gate, not a claim that all checks have already passed.
 - `npm run lint`
 - `npm run test:unit`
 - `npm run test:integration`
+- `npm run verify:libreoffice`
+- `npm run verify:corpus` / `npm run verify:corpus:ci`
 - `npm run build`
+- Benchmark artifact: `docs/RELEASE_BENCHMARK.md` (written by `--write-benchmark`)
 
 ## Required engine setup
 

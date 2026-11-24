@@ -108,7 +108,7 @@ For a persistent Node deployment, run the web server and the durable database-po
 npm run build
 npm start
 npm run worker
-``
+```
 
 The worker scans queued analyses/apply exports and claims each job atomically, so a worker and a request-triggered runner cannot both process the same queued record. Request-scoped enhancement/recalculation jobs are never reclaimed as apply work — stale ones fail closed. Active runners refresh database heartbeats; the worker requeues abandoned durable work after `XRAY_JOB_STALE_MS` (default 5 minutes, bounded to 1–60 minutes) and periodically purges server uploads older than `XRAY_RETENTION_DAYS` (default 30). Configure `XRAY_JOB_HEARTBEAT_MS` (default 15 seconds), `XRAY_WORKER_POLL_MS`, and `XRAY_WORKER_BATCH_SIZE`. Set `XRAY_DATA_DIR` to a persistent mounted directory in production; the default `.data` directory is only durable when the host filesystem itself is persistent. Configure the reverse proxy/platform with a matching request-body limit as defense in depth; upload and local-import APIs require `Content-Length` and reject oversized declared bodies before parsing. Configure upload budgets with `XRAY_MAX_FILE_BYTES`.
 
@@ -152,8 +152,10 @@ For `.xlsx` files, the workbook model preserves cell values/formulas, number for
 
 This is not a byte-for-byte Excel editor. Before reconstructing XLSX files, the parser inspects OOXML package parts and worksheet XML and refuses export when it detects features the reduced model cannot preserve, including conditional formatting, data validation rules, hyperlinks, auto-filters, Excel tables, charts/drawings/images, pivot tables/caches, slicers, external data connections/query tables, comments, embedded objects/controls, worksheet/workbook protection, frozen panes, workbook/worksheet extension data, VBA macros, and custom XML. This is a safety block, not a claim that those features are repaired. Validate business-critical workbooks in desktop Excel before using repaired exports.
 
-## 7. Roadmap
+**Supported upload formats:** `.xlsx .xlsm .xlsb .xls .csv .tsv .json .ndjson` (see `supportedExtensions()`). **Recalc engines:** LibreOffice Calc when `soffice` is installed (CI-proven); Microsoft Excel COM on Windows only (`npm run verify:excel-com` — not claimed by Linux CI). LibreOffice ≠ Excel parity.
 
-- **v2** — parameter extraction upgrades, circular-ref resolution assistant, external-link relink map UI, schema/parquet export, rule engine v2 (apply custom JSON rules).
-- **v3** — LLM-assisted naming & documentation (deterministic output), git-like workbook versioning, collaborative review, Google Sheets / OneDrive connectors, scheduled scans.
-- **v4** — generated unit tests for critical formulas, sandboxed iteration engine, auto-refactor to Python/SQL, data lineage & impact analysis.
+**Phase 3 prove gate:** `npm run verify:corpus` generates ≥30 in-memory workbooks (formulas, JP locale, messy text, structure, blocked hyperlinks) and checks parse / export / LibreOffice. Latest numbers: `docs/RELEASE_BENCHMARK.md`. Portfolio demo path is documented there.
+
+## 7. Roadmap (frozen after Phase 3)
+
+Feature expansion is frozen after the Phase 1–3 trust / reliability / prove gates. Do not resume the old endless enhancement roadmap; ship the portfolio release instead.
