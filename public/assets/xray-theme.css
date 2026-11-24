@@ -1111,8 +1111,15 @@ main > section.section:not(.hero) {
   .claim-layout {
     grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
     gap: 56px;
-    align-items: end;
+    align-items: start;
   }
+}
+#claim .mo-la__type {
+  font-size: clamp(36px, 5.5vw, 72px);
+  max-width: 14ch;
+}
+#claim .mo-la__sub {
+  margin-top: 20px;
 }
 .claim-facts {
   list-style: none;
