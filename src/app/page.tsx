@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { HowItWorks } from "@/components/home/how-it-works";
+import { HugeCta } from "@/components/home/huge-cta";
+import { SheetScan } from "@/components/home/sheet-scan";
 import { StatusChip, fmtNum, relTime } from "@/components/ui";
 import { useI18n } from "@/components/i18n";
 
@@ -43,79 +45,85 @@ function healthColor(h: number | null): string {
   return "#fb7185";
 }
 
-function HeroUi() {
+function WorkbenchDemo() {
+  const [accepted, setAccepted] = useState(false);
+  useEffect(() => {
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) return;
+    const id = window.setInterval(() => setAccepted((v) => !v), 2800);
+    return () => window.clearInterval(id);
+  }, []);
+
   return (
-    <div className="xray-hero-ui" data-visual="">
-      <div
-        data-fx="painterly-landscape"
-        data-fx-seed="11"
-        data-fx-palette='{"bg":"#18191b","surface":"#222427","ink":"#eff0f1","muted":"#9c9ea3","accent":"#ff4a1f"}'
-        data-fx-params='{"blur":0.7,"brush":0.45,"slope":12,"hillY":0.18,"horizon":0.55,"calm":0.35,"calmX":0.55,"calmY":0.4,"drift":0.02,"side":1}'
-        style={{ position: "absolute", inset: 0, opacity: 0.35, pointerEvents: "none" }}
-        aria-hidden="true"
-      />
-      <div className="xray-hero-ui__bar" style={{ position: "relative" }}>
-        <span className="xray-hero-ui__dot" />
-        <span className="xray-hero-ui__dot" />
-        <span className="xray-hero-ui__dot" />
-        <span className="mono" style={{ marginLeft: 8, fontSize: 11, color: "var(--p-muted)" }}>
-          cashflow_FY26.xlsx · graph ready
-        </span>
-      </div>
-      <div className="xray-hero-ui__body" style={{ position: "relative" }}>
-        <div className="xray-hero-ui__sheet">
-          <div className="xray-hero-ui__row">
-            <span>A</span>
-            <strong>Sheet</strong>
-            <strong>Cell</strong>
-            <strong>Risk</strong>
+    <div className="app-frame" data-m-loop="2.8">
+      <aside className="app-frame__rail" aria-hidden="true">
+        <div className="rail-item is-on">Overview</div>
+        <div className="rail-item">Risks</div>
+        <div className="rail-item">Graph</div>
+        <div className="rail-item">Patches</div>
+        <div className="rail-item">Sheets</div>
+        <div className="rail-item">Export</div>
+      </aside>
+      <div className="app-frame__main">
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16, gap: 12, alignItems: "flex-start" }}>
+          <div>
+            <div className="mono" style={{ fontSize: 12, color: "var(--p-muted)" }}>
+              ANALYSIS · LOCAL COPY IMMUTABLE
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: "var(--display-tracking)" }}>ops_budget_Q3.xlsx</div>
           </div>
-          <div className="xray-hero-ui__row">
-            <span>1</span>
-            <span>P&amp;L</span>
-            <span>D14</span>
-            <span>#REF!</span>
-          </div>
-          <div className="xray-hero-ui__row xray-hero-ui__row--risk">
-            <span>2</span>
-            <span>Cash</span>
-            <span>F22</span>
-            <span>circular</span>
-          </div>
-          <div className="xray-hero-ui__row">
-            <span>3</span>
-            <span>Ops</span>
-            <span>B8</span>
-            <span>cross-file</span>
-          </div>
-          <div className="xray-hero-ui__row">
-            <span>4</span>
-            <span>Tax</span>
-            <span>H3</span>
-            <span>volatile</span>
+          <div className="mono" style={{ fontSize: 28, color: "var(--color-ok)", fontWeight: 500 }}>
+            {accepted ? "86" : "81"}
           </div>
         </div>
-        <div className="xray-hero-ui__side">
-          <div className="xray-hero-ui__pill">
-            <b>72</b>
-            <span>workbook health</span>
-          </div>
-          <div className="xray-hero-ui__pill">
-            <b>18</b>
-            <span>open risks</span>
-          </div>
-          <div className="xray-hero-ui__pill">
-            <b>4</b>
-            <span>patches ready</span>
-          </div>
+        <table className="app-frame__table">
+          <thead>
+            <tr>
+              <th>Finding</th>
+              <th>Sheet</th>
+              <th>Cell</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className={accepted ? "row-fixed" : "row-risk"}>
+              <td>{accepted ? "External link restored" : "Broken external link"}</td>
+              <td>Cash</td>
+              <td>C12</td>
+              <td>
+                <span className={`patch-btn ${accepted ? "is-done" : "is-pulse"}`}>{accepted ? "Undone available" : "Accept patch"}</span>
+              </td>
+            </tr>
+            <tr>
+              <td>Circular chain (3 cells)</td>
+              <td>Forecast</td>
+              <td>E4</td>
+              <td>
+                <span className="patch-btn">Review</span>
+              </td>
+            </tr>
+            <tr>
+              <td>Volatile NOW() in total</td>
+              <td>Summary</td>
+              <td>B2</td>
+              <td>
+                <span className="patch-btn">Accept patch</span>
+              </td>
+            </tr>
+            <tr>
+              <td>Empty range in SUM</td>
+              <td>P&amp;L</td>
+              <td>G40</td>
+              <td>
+                <span className="patch-btn">Accept patch</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div className="workbench-diff mono" aria-hidden="true">
+          <div className="workbench-diff__minus">− =[old.xlsx]Cash!C12</div>
+          <div className="workbench-diff__plus">+ =&apos;[ops.xlsx]Cash&apos;!C12</div>
         </div>
-      </div>
-      <div className="ly-float" style={{ position: "absolute", left: 16, bottom: 16, zIndex: 2 }}>
-        <div className="ly-float__row">
-          <span className="ly-live">live</span>
-          <span className="mono">graph</span>
-        </div>
-        <div className="ly-float__title">1,842 formula edges mapped</div>
       </div>
     </div>
   );
@@ -140,7 +148,6 @@ export default function HomePage() {
   return (
     <>
       <main id="top">
-        {/* hero: split */}
         <section className="hero hero--split bg-halo" data-enter aria-labelledby="hero-h">
           <div className="wrap">
             <div className="hero-text grid hero__grid">
@@ -151,14 +158,21 @@ export default function HomePage() {
                 </p>
                 <h1 id="hero-h">Spreadsheet analysis for finance teams</h1>
                 <p className="hero__lead">
-                  Scan .xlsx workbooks for broken formulas, circular refs and cross-file links, then apply
-                  reversible patches without rewriting the original file.
+                  Scan .xlsx workbooks for broken formulas, circular refs and cross-file links, then apply reversible
+                  patches without rewriting the original file.
                 </p>
                 <div className="btn-row">
                   <Link className="btn btn--primary" href="/analyze">
                     Start a workbook scan
                     <svg className="m-arrow" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-                      <path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                      <path
+                        d="M3 8h10M9 4l4 4-4 4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
                     </svg>
                   </Link>
                   <Link className="btn btn--secondary" href="/#how">
@@ -166,8 +180,16 @@ export default function HomePage() {
                   </Link>
                 </div>
               </div>
-              <div className="hero__media span-6 start-7">
-                <HeroUi />
+              <div className="hero__media span-6 start-7" data-visual="">
+                <div
+                  data-fx="painterly-landscape"
+                  data-fx-seed="11"
+                  data-fx-palette='{"bg":"#18191b","surface":"#222427","ink":"#eff0f1","muted":"#9c9ea3","accent":"#ff4a1f"}'
+                  data-fx-params='{"blur":0.7,"brush":0.45,"slope":12,"hillY":0.18,"horizon":0.55,"calm":0.35,"calmX":0.55,"calmY":0.4,"drift":0.02,"side":1}'
+                  className="hero-fx"
+                  aria-hidden="true"
+                />
+                <SheetScan />
               </div>
             </div>
           </div>
@@ -175,7 +197,6 @@ export default function HomePage() {
 
         <HowItWorks />
 
-        {/* product app-frame */}
         <section className="section" id="product" style={{ ["--h" as string]: 2 }} aria-labelledby="product-h">
           <div className="wrap">
             <div className="section-head">
@@ -184,71 +205,12 @@ export default function HomePage() {
                 One window for the risk list, the formula graph and the patch queue. Accept or undo cell by cell.
               </p>
             </div>
-            <div className="app-frame" style={{ marginTop: 48 }} data-m-loop="3.2">
-              <aside className="app-frame__rail" aria-hidden="true">
-                <div className="rail-item is-on">Overview</div>
-                <div className="rail-item">Risks</div>
-                <div className="rail-item">Graph</div>
-                <div className="rail-item">Patches</div>
-                <div className="rail-item">Sheets</div>
-                <div className="rail-item">Export</div>
-              </aside>
-              <div className="app-frame__main">
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16, gap: 12 }}>
-                  <div>
-                    <div className="mono" style={{ fontSize: 12, color: "var(--p-muted)" }}>
-                      ANALYSIS · LOCAL COPY IMMUTABLE
-                    </div>
-                    <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: "var(--display-tracking)" }}>
-                      ops_budget_Q3.xlsx
-                    </div>
-                  </div>
-                  <div className="mono" style={{ fontSize: 28, color: "var(--color-ok)", fontWeight: 500 }}>
-                    81
-                  </div>
-                </div>
-                <table className="app-frame__table">
-                  <thead>
-                    <tr>
-                      <th>Finding</th>
-                      <th>Sheet</th>
-                      <th>Cell</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td style={{ color: "var(--p-accent)" }}>Broken external link</td>
-                      <td>Cash</td>
-                      <td>C12</td>
-                      <td>Patch ready</td>
-                    </tr>
-                    <tr>
-                      <td>Circular chain (3 cells)</td>
-                      <td>Forecast</td>
-                      <td>E4</td>
-                      <td>Review</td>
-                    </tr>
-                    <tr>
-                      <td>Volatile NOW() in total</td>
-                      <td>Summary</td>
-                      <td>B2</td>
-                      <td>Patch ready</td>
-                    </tr>
-                    <tr>
-                      <td>Empty range in SUM</td>
-                      <td>P&amp;L</td>
-                      <td>G40</td>
-                      <td>Accept</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+            <div style={{ marginTop: 48 }}>
+              <WorkbenchDemo />
             </div>
           </div>
         </section>
 
-        {/* features */}
         <section className="section ground-surface" id="features" style={{ ["--h" as string]: 1 }} aria-labelledby="features-h">
           <div className="wrap">
             <div className="section-head">
@@ -256,10 +218,13 @@ export default function HomePage() {
             </div>
             <div className="feat-grid">
               <article className="feat-card m-nolift">
-                <div className="feat-card__viz" aria-hidden="true">
-                  <div>A1 → B4 → D9</div>
-                  <div style={{ marginTop: 8, color: "var(--p-accent)" }}>D9 → A1 · cycle detected</div>
-                  <div style={{ marginTop: 18, opacity: 0.7 }}>nodes 1,842 · edges 2,110</div>
+                <div className="feat-card__viz feat-graph" aria-hidden="true">
+                  <span className="feat-graph__n">A1</span>
+                  <span className="feat-graph__line" />
+                  <span className="feat-graph__n">B4</span>
+                  <span className="feat-graph__line" />
+                  <span className="feat-graph__n is-hot">D9</span>
+                  <span className="feat-graph__cycle">cycle</span>
                 </div>
                 <div className="feat-card__body">
                   <h3>Formula dependency graph</h3>
@@ -267,16 +232,10 @@ export default function HomePage() {
                 </div>
               </article>
               <article className="feat-card m-nolift">
-                <div className="feat-card__viz" aria-hidden="true">
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <span className="chip" style={{ color: "#fb7185", borderColor: "rgba(251,113,133,.4)", background: "rgba(251,113,133,.08)" }}>
-                      critical
-                    </span>
-                    <span className="chip" style={{ color: "var(--color-warn)", borderColor: "rgba(232,163,23,.4)", background: "rgba(232,163,23,.08)" }}>
-                      warning
-                    </span>
-                  </div>
-                  <div style={{ marginTop: 16 }}>#REF! · #DIV/0! · circular · volatile</div>
+                <div className="feat-card__viz feat-risks" aria-hidden="true">
+                  <span className="chip chip-crit">critical</span>
+                  <span className="chip chip-warn">warning</span>
+                  <div className="feat-risks__list mono">#REF! · circular · volatile · #DIV/0!</div>
                 </div>
                 <div className="feat-card__body">
                   <h3>Risk scoring</h3>
@@ -284,10 +243,10 @@ export default function HomePage() {
                 </div>
               </article>
               <article className="feat-card m-nolift">
-                <div className="feat-card__viz" aria-hidden="true">
-                  <div>+ patch forward · cell D14</div>
-                  <div style={{ marginTop: 6 }}>- patch reverse · restore D14</div>
-                  <div style={{ marginTop: 18, color: "var(--color-ok)" }}>undo queue: 4</div>
+                <div className="feat-card__viz feat-patch" aria-hidden="true">
+                  <div className="feat-patch__row is-minus">− cell D14 · restore</div>
+                  <div className="feat-patch__row is-plus">+ cell D14 · forward</div>
+                  <div className="feat-patch__q mono">undo queue: 4</div>
                 </div>
                 <div className="feat-card__body">
                   <h3>Reversible patches</h3>
@@ -295,9 +254,9 @@ export default function HomePage() {
                 </div>
               </article>
               <article className="feat-card m-nolift">
-                <div className="feat-card__viz" aria-hidden="true">
-                  <div>mode: local · bytes stay on device</div>
-                  <div style={{ marginTop: 8 }}>mode: server · worker lease fenced</div>
+                <div className="feat-card__viz feat-modes" aria-hidden="true">
+                  <div className="feat-modes__pill is-on">local · on device</div>
+                  <div className="feat-modes__pill">server · worker fenced</div>
                 </div>
                 <div className="feat-card__body">
                   <h3>Local or server scan</h3>
@@ -308,7 +267,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* moment: letters-assemble */}
         <section
           className="section"
           id="claim"
@@ -325,14 +283,13 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* recent work */}
         <section className="section ground-surface" id="work" style={{ ["--h" as string]: 1 }} aria-labelledby="work-h">
           <div className="wrap">
             <div className="section-head">
               <h2 id="work-h">Your recent scans</h2>
             </div>
             <div className="work-grid">
-              <div className="panel" style={{ overflow: "hidden" }}>
+              <div className="panel work-list" style={{ overflow: "hidden" }}>
                 {data?.recent?.length ? (
                   <div>
                     {data.recent.slice(0, 6).map((r) => (
@@ -340,10 +297,10 @@ export default function HomePage() {
                         key={r.id}
                         type="button"
                         onClick={() => router.push(`/analysis/${r.id}`)}
-                        className="w-full text-left px-4 py-3 flex items-center gap-4 border-b border-[color:color-mix(in_oklab,var(--p-ink)_8%,transparent)] hover:bg-[color:color-mix(in_oklab,var(--p-ink)_4%,transparent)] transition-colors"
+                        className="work-row"
                       >
                         <div
-                          className="w-10 h-10 rounded border flex items-center justify-center mono text-xs font-medium shrink-0"
+                          className="work-row__score mono"
                           style={{
                             borderColor: `${healthColor(r.healthScore)}55`,
                             color: healthColor(r.healthScore),
@@ -392,38 +349,11 @@ export default function HomePage() {
           </div>
         </section>
 
-        {/* moment: liquid-type */}
-        <section className="section" id="statement" style={{ ["--h" as string]: 1 }} aria-labelledby="statement-h">
-          <div className="wrap">
-            <h2
-              id="statement-h"
-              className="mo-lt__type"
-              data-moment="liquid-type"
-              data-moment-opts='{"strength":1}'
-            >
-              Built for the ugly workbook
-            </h2>
-            <p className="mo-la__sub">
-              Shared drives, linked files, decade-old macros. The engine is deterministic: same book, same findings.
-            </p>
-          </div>
-        </section>
       </main>
 
-      <footer className="footer closing footer--dark" id="contact">
+      <footer className="footer closing footer--dark" id="go" aria-labelledby="go-h">
         <div className="wrap">
-          <div className="closing__cta close--type">
-            <h2>Scan the next workbook</h2>
-            <p style={{ color: "var(--p-muted)", maxWidth: "42ch" }}>
-              Upload a file or run a sample book. You get a health score, a risk list and a reversible patch queue.
-            </p>
-            <Link className="btn btn--primary btn--xl" href="/analyze">
-              Start a workbook scan
-              <svg className="m-arrow" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </Link>
-          </div>
+          <HugeCta />
           <div className="closing__links">
             <div className="grid">
               <div className="footer__col span-4">

@@ -16,7 +16,7 @@ export function Header() {
         { href: "/#how", label: "How it works" },
         { href: "/#product", label: "Workbench" },
         { href: "/#features", label: "Checks" },
-        { href: "/#work", label: "Your scans" },
+        { href: "/#go", label: "Fix it" },
       ]
     : [
         { href: "/", label: t("nav.dashboard") },

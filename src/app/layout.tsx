@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import Script from "next/script";
 import "./globals.css";
 import { I18nProvider } from "@/components/i18n";
 import { Header } from "@/components/header";
@@ -55,18 +56,18 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body className="xray-page antialiased">
-        {/* deal: palette graphite-safety-orange · type instrument · hero split · ground sage · effect painterly-landscape · moments liquid-type, letters-assemble · nav-centre · footer-columns · close-type · surface-pairs · arrow · arc · sharp */}
+        {/* deal: graphite-safety-orange · instrument · split · sage · painterly · liquid-type + letters-assemble · nav-centre · footer-dark · close-word · surface-pairs · arrow · arc · sharp */}
         <I18nProvider>
           <TasteRuntime />
           <Header />
           {children}
           <Toaster />
-          <script type="module" src="/assets/motion/motion.js" async />
-          <script type="module" src="/assets/layout/layout.js" async />
-          <script type="module" src="/assets/system.js" async />
-          <script type="module" src="/assets/effects/fx.js" data-fx-auto="" async />
-          <script type="module" src="/assets/moments/moments.js" async />
         </I18nProvider>
+        <Script src="/assets/motion/motion.js" type="module" strategy="afterInteractive" />
+        <Script src="/assets/layout/layout.js" type="module" strategy="afterInteractive" />
+        <Script src="/assets/system.js" type="module" strategy="afterInteractive" />
+        <Script src="/assets/effects/fx.js" type="module" strategy="afterInteractive" data-fx-auto="" />
+        <Script src="/assets/moments/moments.js" type="module" strategy="afterInteractive" />
       </body>
     </html>
   );

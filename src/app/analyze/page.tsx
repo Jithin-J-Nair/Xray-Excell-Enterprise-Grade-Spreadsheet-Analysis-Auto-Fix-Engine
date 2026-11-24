@@ -136,8 +136,10 @@ export default function AnalyzePage() {
               addFiles(e.dataTransfer.files);
             }}
             onClick={() => inputRef.current?.click()}
-            className={`cursor-pointer rounded-lg border border-dashed p-12 text-center transition-all ${
-              drag ? "border-accent bg-accent/10" : "border-edge2 hover:border-accent/50 hover:bg-[color:color-mix(in_oklab,var(--p-ink)_3%,transparent)]"
+            className={`analyze-drop cursor-pointer rounded-lg border border-dashed p-12 text-center transition-all ${
+              drag
+                ? "is-drag border-accent bg-accent/10"
+                : "border-edge2 hover:border-accent/50 hover:bg-[color:color-mix(in_oklab,var(--p-ink)_3%,transparent)]"
             }`}
           >
             <input
