@@ -81,9 +81,9 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
 
   const groups = useMemo(
     () => [
-      { key: "organize", label: t("wb.group.organize"), color: "#38bdf8" },
-      { key: "clean", label: t("wb.group.clean"), color: "#34d399" },
-      { key: "mitigate", label: t("wb.group.mitigate"), color: "#f472b6" },
+      { key: "organize", label: t("wb.group.organize"), color: "#ff6a45" },
+      { key: "clean", label: t("wb.group.clean"), color: "#5ecf9a" },
+      { key: "mitigate", label: t("wb.group.mitigate"), color: "#fb7185" },
     ],
     [t]
   );
@@ -484,13 +484,13 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
           <PanelTitle>{t("wb.preview.title")} — Δ</PanelTitle>
           <div className="px-4 pb-4 grid grid-cols-2 gap-2">
             {[
-              { label: t("wb.sum.cells"), value: preview?.summary.cellsChanged, color: "#22d3ee" },
-              { label: t("wb.sum.formulas"), value: preview?.summary.formulasChanged, color: "#38bdf8" },
-              { label: t("wb.sum.rows"), value: preview?.summary.rowsRemoved, color: "#fbbf24" },
-              { label: t("wb.sum.names"), value: preview?.summary.namesFixed, color: "#a78bfa" },
+              { label: t("wb.sum.cells"), value: preview?.summary.cellsChanged, color: "#ff4a1f" },
+              { label: t("wb.sum.formulas"), value: preview?.summary.formulasChanged, color: "#ff6a45" },
+              { label: t("wb.sum.rows"), value: preview?.summary.rowsRemoved, color: "#e8a317" },
+              { label: t("wb.sum.names"), value: preview?.summary.namesFixed, color: "#9c9ea3" },
             ].map((x) => (
               <div key={x.label} className="rounded-lg border border-edge/60 bg-ink/50 p-2.5">
-                <div className="mono text-lg font-bold" style={{ color: x.value ? x.color : "#4b5a75" }}>
+                <div className="mono text-lg font-bold" style={{ color: x.value ? x.color : "#5b5c5e" }}>
                   {x.value ?? "—"}
                 </div>
                 <div className="text-[9.5px] text-dim">{x.label}</div>
@@ -532,7 +532,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
                         return next;
                       })
                     }
-                    className="accent-cyan-400"
+                    style={{ accentColor: "var(--p-accent)" }}
                   />
                   <span className="mono font-semibold text-accent">{f.label}</span>
                 </span>

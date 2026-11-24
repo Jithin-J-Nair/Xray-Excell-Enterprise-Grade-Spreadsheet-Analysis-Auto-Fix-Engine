@@ -1,108 +1,16 @@
-"use client";
-import { useCallback, useEffect, useState } from "react";
-import { BookLock, ShieldCheck, Wand2, CheckCircle2, AlertTriangle } from "lucide-react";
-import { useI18n } from "@/components/i18n";
-import { Panel, PanelTitle } from "@/components/ui";
-
-interface RuleRow {
-  id: string;
-  group: string;
-  name: string;
-  description: string;
-  safeDefault: boolean;
-  autoFix: boolean;
-  targets: string[];
-}
+import { TOOLS, AUTOFIX_TOOLS } from "@/lib/excel/transform";
+import { SettingsView } from "@/components/settings-view";
 
 export default function SettingsPage() {
-  const { t } = useI18n();
-  const [rules, setRules] = useState<RuleRow[]>([]);
-  const [autofix, setAutofix] = useState<string[]>([]);
+  const rules = TOOLS.map((t) => ({
+    id: t.id,
+    group: t.group,
+    name: t.name,
+    description: t.desc,
+    safeDefault: t.safeDefault,
+    autoFix: t.autoFix,
+    targets: t.targets,
+  }));
 
-  const load = useCallback(async () => {
-    const r = await fetch("/api/rules");
-    const j = await r.json();
-    setRules(j.rules ?? []);
-    setAutofix(j.autoFix ?? []);
-  }, []);
-
-  useEffect(() => {
-    // Initial network hydration is intentionally triggered after mount.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
-  }, [load]);
-
-  const groupColor: Record<string, string> = { organize: "#38bdf8", clean: "#34d399", mitigate: "#f472b6", custom: "#a78bfa" };
-
-  return (
-    <div className="max-w-[1100px] mx-auto px-5 pt-12 pb-20">
-      <div className="flex items-center gap-3 mb-2">
-        <BookLock size={20} className="text-accent" />
-        <h1 className="text-2xl font-black tracking-tight">{t("settings.title")}</h1>
-      </div>
-      <p className="text-dim text-sm mb-8 max-w-2xl">{t("settings.sub")}</p>
-
-      <Panel className="overflow-hidden mb-6">
-        <div className="max-h-[480px] overflow-auto">
-          <table className="table-x">
-            <thead>
-              <tr>
-                <th className="w-16">{t("settings.col.id")}</th>
-                <th className="w-24">{t("settings.col.group")}</th>
-                <th className="w-56">{t("settings.col.name")}</th>
-                <th>{t("settings.col.desc")}</th>
-                <th className="w-32">{t("settings.col.safety")}</th>
-                <th className="w-24">Auto-Fix</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rules.map((r) => (
-                <tr key={r.id}>
-                  <td className="mono text-[11px] text-accent">{r.id}</td>
-                  <td>
-                    <span className="chip" style={{ color: groupColor[r.group] ?? "#7d90ad", borderColor: `${groupColor[r.group] ?? "#7d90ad"}55`, background: `${groupColor[r.group] ?? "#7d90ad"}11` }}>
-                      {r.group}
-                    </span>
-                  </td>
-                  <td className="text-xs font-medium">{r.name}</td>
-                  <td className="text-[11.5px] text-dim leading-relaxed">{r.description}</td>
-                  <td>
-                    {r.safeDefault ? (
-                      <span className="chip text-ok border-ok/35 bg-ok/10">
-                        <CheckCircle2 size={10} />
-                        {t("settings.safe")}
-                      </span>
-                    ) : (
-                      <span className="chip text-warn border-warn/35 bg-warn/10">{t("settings.review")}</span>
-                    )}
-                  </td>
-                  <td className="mono text-[10px]">{autofix.includes(r.id) ? <Wand2 size={12} className="text-accent inline" /> : "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Panel>
-
-      <Panel className="mb-6 p-4">
-        <PanelTitle>{t("settings.custom")}</PanelTitle>
-        <div className="px-1 pb-1 flex items-start gap-2 text-xs text-dim leading-relaxed">
-          <AlertTriangle size={14} className="text-warn shrink-0 mt-0.5" />
-          <span>{t("settings.custom.note")}</span>
-        </div>
-      </Panel>
-
-      <Panel className="mt-6 p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <ShieldCheck size={15} className="text-ok" />
-          <span className="text-[11px] uppercase tracking-[0.15em] font-semibold text-dim">{t("settings.policies")}</span>
-        </div>
-        <ul className="text-xs text-dim space-y-2 leading-relaxed list-disc pl-4">
-          <li>{t("settings.policy.retention")}</li>
-          <li>{t("settings.policy.guard")}</li>
-          <li>{t("settings.policy.det")}</li>
-        </ul>
-      </Panel>
-    </div>
-  );
+  return <SettingsView initialRules={rules} initialAutofix={[...AUTOFIX_TOOLS]} />;
 }

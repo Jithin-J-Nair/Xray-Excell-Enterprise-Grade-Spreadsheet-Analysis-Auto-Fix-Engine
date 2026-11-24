@@ -35,7 +35,7 @@
   --color-edge2: #3f4349;
   --color-accent: var(--p-accent);
   --color-accent2: #ff6a45;
-  --color-hot: #ff6a45;
+  --color-hot: #fb7185;
   --color-warn: #e8a317;
   --color-ok: #5ecf9a;
   --color-txt: var(--p-ink);
@@ -50,7 +50,7 @@
   --color-edge2: #3f4349;
   --color-accent: #ff4a1f;
   --color-accent2: #ff6a45;
-  --color-hot: #ff6a45;
+  --color-hot: #fb7185;
   --color-warn: #e8a317;
   --color-ok: #5ecf9a;
   --color-txt: #eff0f1;
@@ -64,6 +64,7 @@ html {
   scroll-padding-top: 0;
   background: var(--p-bg);
   color: var(--p-ink);
+  accent-color: var(--p-accent);
 }
 
 html,
@@ -162,13 +163,14 @@ body {
 }
 .btn-primary,
 .btn.btn--primary {
-  background: var(--p-action);
-  color: var(--p-action-ink);
-  border-color: var(--p-action);
+  background: #ff4a1f !important;
+  color: #18191b !important;
+  border-color: #ff4a1f !important;
+  box-shadow: none !important;
 }
 .btn-primary:hover:not(:disabled),
 .btn.btn--primary:hover:not(:disabled) {
-  filter: brightness(1.08);
+  filter: brightness(1.06);
   transform: translateY(-1px);
 }
 .btn-primary:active:not(:disabled),
@@ -618,104 +620,32 @@ a.feat-card:hover,
   background: var(--p-surface);
 }
 
-/* header bridge when not using full system nav */
-.xray-nav {
-  position: fixed;
-  inset: 0 0 auto 0;
-  z-index: 50;
-  height: 72px;
-  background: color-mix(in oklab, var(--p-bg) 92%, transparent);
+/* Nav / page chrome live in /assets/xray-theme.css (loaded last). */
+
+/* App data tables */
+.table-x {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.table-x th,
+.table-x td {
+  text-align: left;
+  padding: 12px 14px;
   border-bottom: 1px solid color-mix(in oklab, var(--p-ink) 10%, transparent);
-  backdrop-filter: blur(10px);
+  vertical-align: top;
 }
-.xray-nav__bar {
-  height: 72px;
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 0 80px;
-  position: relative;
-}
-@media (max-width: 639px) {
-  .xray-nav__bar {
-    padding: 0 24px;
-    height: 56px;
-  }
-  .xray-nav {
-    height: 56px;
-  }
-}
-.xray-nav__logo {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--p-ink);
-  text-decoration: none;
+.table-x th {
+  color: color-mix(in oklab, var(--p-ink) 72%, var(--p-muted));
+  font-size: 11px;
   font-weight: 500;
-  letter-spacing: var(--display-tracking);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: color-mix(in oklab, var(--p-ink) 5%, var(--p-surface));
+  position: sticky;
+  top: 0;
   z-index: 1;
 }
-.xray-nav__links {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.xray-nav__links a {
-  color: var(--p-muted);
-  text-decoration: none;
-  font-size: 15px;
-  padding: 8px 12px;
-  position: relative;
-}
-.xray-nav__links a[aria-current="page"] {
-  color: var(--p-ink);
-}
-.xray-nav__links a[aria-current="page"]::after {
-  content: "";
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 2px;
-  height: 2px;
-  background: var(--p-ink);
-}
-.xray-nav__links a:hover {
-  color: var(--p-ink);
-}
-.xray-nav__actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  z-index: 1;
-}
-@media (max-width: 900px) {
-  .xray-nav__links {
-    display: none;
-  }
-}
-
-.xray-page {
-  padding-top: 72px;
-}
-@media (max-width: 639px) {
-  .xray-page {
-    padding-top: 56px;
-  }
-}
-
-/* ensure wrap exists even if system.css load order shifts */
-.wrap {
-  width: min(1280px, calc(100% - 2 * var(--gut, 80px)));
-  margin-inline: auto;
-}
-@media (max-width: 639px) {
-  .wrap {
-    width: min(1280px, calc(100% - 48px));
-  }
+.table-x tbody tr:hover td {
+  background: color-mix(in oklab, var(--p-ink) 3%, transparent);
 }

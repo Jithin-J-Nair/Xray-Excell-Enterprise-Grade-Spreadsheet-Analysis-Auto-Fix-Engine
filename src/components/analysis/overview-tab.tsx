@@ -13,7 +13,7 @@ export function OverviewTab({ detail }: { detail: AnalysisDetail }) {
   const sevItems = (["critical", "error", "warning", "info"] as const).map((s) => ({
     label: t(`an.sev.${s}`),
     value: m.risksBySeverity[s],
-    color: { critical: "#f472b6", error: "#fb7185", warning: "#fbbf24", info: "#38bdf8" }[s],
+    color: { critical: "#ff4a1f", error: "#fb7185", warning: "#e8a317", info: "#9c9ea3" }[s],
   }));
 
   const topTypes = Object.entries(res.riskCounts)
@@ -22,22 +22,22 @@ export function OverviewTab({ detail }: { detail: AnalysisDetail }) {
     .map(([type, n]) => ({
       label: t(`risk.${type}`),
       value: n ?? 0,
-      color: "#38bdf8",
+      color: "#ff4a1f",
     }));
 
   const metricTiles: { key: string; value: number; icon: typeof Type; color: string }[] = [
-    { key: "an.metric.sheets", value: m.sheets, icon: FileSpreadsheet, color: "#38bdf8" },
-    { key: "an.metric.cells", value: m.cells, icon: Type, color: "#7d90ad" },
-    { key: "an.metric.formulas", value: m.formulas, icon: FileCode, color: "#22d3ee" },
-    { key: "an.metric.volatile", value: m.volatile, icon: ShieldAlert, color: "#fbbf24" },
-    { key: "an.metric.circular", value: m.circular, icon: ShieldAlert, color: "#f472b6" },
+    { key: "an.metric.sheets", value: m.sheets, icon: FileSpreadsheet, color: "#ff6a45" },
+    { key: "an.metric.cells", value: m.cells, icon: Type, color: "#9c9ea3" },
+    { key: "an.metric.formulas", value: m.formulas, icon: FileCode, color: "#eff0f1" },
+    { key: "an.metric.volatile", value: m.volatile, icon: ShieldAlert, color: "#e8a317" },
+    { key: "an.metric.circular", value: m.circular, icon: ShieldAlert, color: "#ff4a1f" },
     { key: "an.metric.external", value: m.externalLinks, icon: ShieldAlert, color: "#fb7185" },
-    { key: "an.metric.merged", value: m.merged, icon: ShieldAlert, color: "#fbbf24" },
-    { key: "an.metric.hidden", value: m.hiddenSheets, icon: EyeOff, color: "#a78bfa" },
-    { key: "an.metric.hardcoded", value: m.hardcoded, icon: ShieldAlert, color: "#38bdf8" },
-    { key: "an.metric.dupes", value: m.duplicateRows, icon: ShieldAlert, color: "#fbbf24" },
+    { key: "an.metric.merged", value: m.merged, icon: ShieldAlert, color: "#e8a317" },
+    { key: "an.metric.hidden", value: m.hiddenSheets, icon: EyeOff, color: "#9c9ea3" },
+    { key: "an.metric.hardcoded", value: m.hardcoded, icon: ShieldAlert, color: "#ff6a45" },
+    { key: "an.metric.dupes", value: m.duplicateRows, icon: ShieldAlert, color: "#e8a317" },
     { key: "an.metric.errors", value: m.errorCells, icon: ShieldAlert, color: "#fb7185" },
-    { key: "an.metric.names", value: m.names, icon: ShieldAlert, color: "#7d90ad" },
+    { key: "an.metric.names", value: m.names, icon: ShieldAlert, color: "#9c9ea3" },
   ];
 
   return (
@@ -49,7 +49,7 @@ export function OverviewTab({ detail }: { detail: AnalysisDetail }) {
             value={m.healthScore}
             label={String(m.healthScore)}
             sub={t("an.health")}
-            color={m.healthScore >= 75 ? "#34d399" : m.healthScore >= 45 ? "#fbbf24" : "#fb7185"}
+            color={m.healthScore >= 75 ? "#5ecf9a" : m.healthScore >= 45 ? "#e8a317" : "#fb7185"}
           />
           <div className="space-y-3">
             <div>
@@ -78,7 +78,7 @@ export function OverviewTab({ detail }: { detail: AnalysisDetail }) {
           <div className="mt-5">
             <PanelTitle>{lang === "jp" ? "種別トップ" : "Top finding types"}</PanelTitle>
             <HBars
-              items={topTypes.map((x, i) => ({ ...x, color: ["#f472b6", "#fb7185", "#fbbf24", "#38bdf8", "#22d3ee", "#a78bfa"][i % 6] }))}
+              items={topTypes.map((x, i) => ({ ...x, color: ["#ff4a1f", "#fb7185", "#e8a317", "#ff6a45", "#5ecf9a", "#9c9ea3"][i % 6] }))}
             />
           </div>
         </Panel>
@@ -116,8 +116,8 @@ export function OverviewTab({ detail }: { detail: AnalysisDetail }) {
       {/* metric tiles */}
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3">
         {metricTiles.map((x) => (
-          <Panel key={x.key} className={`p-3.5 ${x.value > 0 && x.color !== "#7d90ad" && x.color !== "#38bdf8" ? "border-l-2" : ""}`}>
-            <div className="mono text-xl font-bold" style={{ color: x.value > 0 ? x.color : "#4b5a75" }}>
+          <Panel key={x.key} className={`p-3.5 ${x.value > 0 && x.color !== "#9c9ea3" && x.color !== "#eff0f1" ? "border-l-2" : ""}`} style={x.value > 0 && x.color !== "#9c9ea3" && x.color !== "#eff0f1" ? { borderLeftColor: x.color } : undefined}>
+            <div className="mono text-xl font-bold" style={{ color: x.value > 0 ? x.color : "#5b5c5e" }}>
               {fmtNum(x.value)}
             </div>
             <div className="text-[10px] text-dim mt-0.5">{t(x.key)}</div>

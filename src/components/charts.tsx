@@ -6,8 +6,8 @@ export function Donut({
   value,
   size = 150,
   stroke = 14,
-  color = "#22d3ee",
-  track = "#16233a",
+  color = "#ff4a1f",
+  track = "#32353a",
   label,
   sub,
 }: {

@@ -119,21 +119,22 @@ export default function AnalysisPage() {
     const prog = status?.progress ?? detail?.progress ?? 3;
     return (
       <div className="relative">
-        <div className="grid-bg absolute inset-x-0 top-0 h-[300px] pointer-events-none" />
-        <div className="max-w-3xl mx-auto px-5 pt-16 relative">
+        <div className="app-shell" style={{ maxWidth: 720 }}>
           <motion.div initial={false} animate={{ opacity: 1, y: 0 }}>
-            <div className="flex items-center gap-3 mb-2">
+            <div className="flex items-center gap-3 mb-3">
               <StatusChip status={status?.status ?? "queued"} t={t} />
               <span className="mono text-xs text-dim">{id.slice(0, 8)}</span>
             </div>
-            <h1 className="text-2xl font-black tracking-tight mb-1 truncate">{detail?.name ?? status?.statusText ?? "…"}</h1>
+            <h1 className="text-2xl font-medium tracking-tight mb-2 truncate" style={{ letterSpacing: "var(--display-tracking)" }}>
+              {detail?.name ?? status?.statusText ?? "…"}
+            </h1>
             <p className="text-dim text-sm mb-8">{status?.statusText ?? t("up.scanning")}</p>
             <div className="mb-3 flex items-center justify-between mono text-xs text-dim">
               <span>{t("up.scanning")}</span>
               <span className="text-accent text-lg font-bold">{prog}%</span>
             </div>
             <ProgressBar value={prog} />
-            <div className="panel mt-6 scanline">
+            <div className="panel app-panel mt-6">
               <div className="flex items-center gap-2 px-4 py-2.5 border-b border-edge/60 text-dim">
                 <Terminal size={13} />
                 <span className="mono text-[10px] tracking-widest uppercase">engine log</span>
@@ -171,7 +172,7 @@ export default function AnalysisPage() {
   const res = detail.result!;
 
   return (
-    <div className="max-w-[1400px] mx-auto px-5 pt-6 pb-16">
+    <div className="app-shell" style={{ paddingTop: 32 }}>
       {/* header */}
       <div className="flex flex-wrap items-start gap-4 mb-6">
         <div className="min-w-0 flex-1">
@@ -182,7 +183,9 @@ export default function AnalysisPage() {
             )}
             <span className="mono text-[10px] text-dim">{detail.id.slice(0, 8)} · {detail.sourceFiles.map((f) => f.name).join(", ") || detail.name}</span>
           </div>
-          <h1 className="text-2xl md:text-3xl font-black tracking-tight truncate">{detail.name}</h1>
+          <h1 className="text-2xl md:text-3xl font-medium tracking-tight truncate" style={{ letterSpacing: "var(--display-tracking)" }}>
+            {detail.name}
+          </h1>
           <div className="mono text-xs text-dim mt-1">
             {fmtNum(res.metrics.cells)} cells · {fmtNum(res.metrics.formulas)} formulas · {riskTotal} findings · structural health{" "}
             <span className={res.metrics.healthScore >= 75 ? "text-ok" : res.metrics.healthScore >= 45 ? "text-warn" : "text-hot"}>
@@ -202,24 +205,24 @@ export default function AnalysisPage() {
       </div>
 
       {/* tabs */}
-      <div className="flex gap-1 border-b border-edge/70 mb-6 overflow-x-auto">
+      <div className="analysis-tabs" role="tablist">
         {TABS.map((tb) => {
           const active = tab === tb.key;
           const count = tb.key === "risks" ? riskTotal : undefined;
           return (
             <button
               key={tb.key}
+              type="button"
+              role="tab"
+              aria-selected={active}
               onClick={() => setTab(tb.key)}
-              className={`relative flex items-center gap-1.5 px-4 py-2.5 text-sm whitespace-nowrap transition-colors ${
-                active ? "text-accent" : "text-dim hover:text-txt"
-              }`}
+              className={`analysis-tabs__btn ${active ? "is-active" : ""}`}
             >
               <tb.icon size={14} />
               {t(tb.labelKey)}
               {count !== undefined && (
                 <span className={`mono text-[10px] rounded-full px-1.5 py-0.5 ${active ? "bg-accent/15" : "bg-edge/60"}`}>{count}</span>
               )}
-              {active && <motion.span layoutId="tabline" className="absolute inset-x-2 -bottom-px h-0.5 bg-accent rounded-full" />}
             </button>
           );
         })}
