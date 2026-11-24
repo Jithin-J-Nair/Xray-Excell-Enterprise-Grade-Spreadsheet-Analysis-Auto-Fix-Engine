@@ -40,6 +40,11 @@ export function ExportTab({ detail, reload }: { detail: AnalysisDetail; reload: 
       const r = await fetch(`/api/undo/${job.id}`, { method: "POST" });
       const json = await r.json();
       if (!r.ok) throw new Error(json.message ?? "undo failed");
+      if (detail.mode === "local" || json.mode === "local") {
+        toast(t("ex.undo.local.hint"), "ok");
+      } else {
+        toast(json.name ? `Restored ${json.name}` : t("ex.undone"), "ok");
+      }
       reload();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -142,10 +147,11 @@ export function ExportTab({ detail, reload }: { detail: AnalysisDetail; reload: 
                         <button
                           onClick={() => undo(j)}
                           disabled={undoing === j.id}
+                          title={detail.mode === "local" ? t("ex.undo.local.hint") : undefined}
                           className="ml-auto btn btn-danger !py-1 !px-2.5 text-[10px]"
                         >
                           {undoing === j.id ? <Loader2 size={11} className="animate-spin" /> : <Undo2 size={11} />}
-                          {t("ex.undo")}
+                          {detail.mode === "local" ? t("ex.undo.local") : t("ex.undo")}
                         </button>
                       )}
                     </div>
@@ -185,9 +191,7 @@ export function ExportTab({ detail, reload }: { detail: AnalysisDetail; reload: 
             <ShieldCheck size={18} className="text-ok mt-0.5 shrink-0" />
             <div className="text-xs text-dim leading-relaxed">
               <span className="text-txt font-semibold">Deterministic guarantee.</span>{" "}
-              {lang === "jp"
-                ? "すべての適用はコピーに対して実行され、逆パッチが自動生成されます。undo は原本のバイトから完全に復元します。データは一切失われません。"
-                : "Every apply writes to a copy and auto-generates a reverse patch. Undo restores byte-identical originals from the immutable upload. No silent data loss, ever."}
+              {detail.mode === "local" ? t("ex.guarantee.local") : t("ex.guarantee.server")}
             </div>
           </div>
         </Panel>

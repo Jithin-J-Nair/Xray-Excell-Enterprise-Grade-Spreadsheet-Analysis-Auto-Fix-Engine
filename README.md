@@ -54,7 +54,7 @@
 | `GET /api/outputs/:outputId/download` | **binary stream** of a generated export: exact MIME, `Content-Disposition: attachment; filename=…; filename*=UTF-8''…`, `Cache-Control: no-store` |
 | `GET /api/download/:fileId` | chunked stream, correct MIME, `filename*=UTF-8''…`, `X-Content-SHA256` |
 | `POST /api/undo/:applyId` | → `{ status:"reverted", fileId }` (restored original) |
-| `GET/POST /api/rules` | rule registry / custom rule registration |
+| `GET /api/rules` | built-in rule registry (custom executable rules are not implemented; POST returns 501) |
 | `POST /api/samples` | `{ kind:"monster"\|"jp" }` → generates a messy demo workbook |
 
 Structured errors: `{ errorCode, message, retryable, details? }`.
@@ -64,19 +64,19 @@ Structured errors: `{ errorCode, message, retryable, details? }`.
 | ID | Group | Rule | Safety |
 |---|---|---|---|
 | T001 | organize | Extract repeated hard-coded literals into a **Parameters** sheet + named ranges | review |
-| T002 | organize | Align deviating column formulas to the majority R1C1 pattern | safe |
+| T002 | organize | Align deviating column formulas to the majority R1C1 pattern | review |
 | T003 | mitigate | Snapshot external-workbook links to values + `SourceData` relink log | review |
 | T004 | mitigate | Freeze volatile functions (NOW/TODAY/RAND/OFFSET/INDIRECT…) to cached values | review |
-| T005 | organize | Unmerge ranges, fill with anchor values | safe |
+| T005 | organize | Unmerge ranges, fill with anchor values | review |
 | T006 | organize | Remove broken (`#REF!`) / duplicate named ranges | safe |
 | T007 | clean | Trim whitespace, NBSP / ideographic-space → space | safe |
 | T008 | clean | Remove exact duplicate rows | review |
 | T009 | clean | Full-width → half-width, NFC normalization | safe |
 | T010 | clean | Parse date text (`YYYY/MM/DD`, `YYYY-MM-DD`, `YYYY年M月D日`) into date cells | safe |
-| T011 | mitigate | Wrap error-producing formulas in `IFERROR`; blank error literals | safe |
+| T011 | mitigate | Wrap error-producing formulas in `IFERROR`; blank error literals | review |
 | T013 | clean | Coerce comma-grouped numeric text to numbers | safe |
 
-**Auto-Fix** = `T002 T003 T005 T007 T009 T011`. Every diff carries `{ sheet, cell, before, after, ruleId, reason, confidence, riskDelta }`.
+**Auto-Fix (conservative)** = `T007 T009` only. `T002` / `T005` / `T011` / `T003` are review-first (structural consensus, layout changes, error masking, and live-link destruction are not auto-selected). Every diff carries `{ sheet, cell, before, after, ruleId, reason, confidence, riskDelta }` where `confidence` is a structural match score, not calibrated correctness probability. Overview scores are **Structural Health / Detected Risk** — not financial correctness.
 
 ## 4. Detected finding types (18)
 
@@ -88,7 +88,7 @@ Structured errors: `{ errorCode, message, retryable, details? }`.
 2. Click **Generate monster workbook** — 22 sheets with circular refs, an unresolved `[Budget2023.xlsx]` link, volatile functions, duplicates, hidden/very-hidden sheets, broken named ranges.
 3. Watch the **scan terminal** stream engine logs until analysis completes.
 4. **Overview**: health donut, risk distribution, sheet inventory. **Dependency Graph**: pan/zoom, click nodes, note the pink circular path. **Risks**: filter by severity; each finding shows its auto-fix rule id. **Sheets & Cells**: toggle formula view; risky cells glow red.
-5. **Tools & Preview**: leave Auto-Fix defaults → **Run preview** → inspect cell-level before→after diffs and the risk-score delta.
+5. **Tools & Preview**: leave conservative Auto-Fix defaults (trim/Unicode) or opt into review-first tools → **Run preview** → inspect cell-level before→after diffs and the detected-risk-score delta.
 6. Pick formats (`xlsx` + `csv` + `md`) → **Apply & generate exports** → download the fixed workbook (formulas preserved), CSV (UTF-8 BOM), and the audit report.
 7. **Export & Audit**: download the reverse patch, then **Undo** — a byte-identical restored original is produced, and the job is marked reverted.
 8. 日本語デモ: **日本語メシーブック** generates 全角文字・日付文字列・カンマ数値・結合セル・非表示シート — same flow works fully in JP (language toggle in header).

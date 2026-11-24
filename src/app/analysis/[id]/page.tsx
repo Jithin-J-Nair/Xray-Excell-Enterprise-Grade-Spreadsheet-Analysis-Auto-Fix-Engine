@@ -184,7 +184,7 @@ export default function AnalysisPage() {
           </div>
           <h1 className="text-2xl md:text-3xl font-black tracking-tight truncate">{detail.name}</h1>
           <div className="mono text-xs text-dim mt-1">
-            {fmtNum(res.metrics.cells)} cells · {fmtNum(res.metrics.formulas)} formulas · {riskTotal} findings · health{" "}
+            {fmtNum(res.metrics.cells)} cells · {fmtNum(res.metrics.formulas)} formulas · {riskTotal} findings · structural health{" "}
             <span className={res.metrics.healthScore >= 75 ? "text-ok" : res.metrics.healthScore >= 45 ? "text-warn" : "text-hot"}>
               {res.metrics.healthScore}
             </span>

@@ -230,7 +230,8 @@ export function buildMarkdownReport(ctx: ReportContext): string {
   lines.push("");
   lines.push(`- ${L("Workbook", "対象")}: \`${esc(analysis.name)}\``);
   lines.push(`- ${L("Generated", "生成日時")}: ${new Date().toISOString()}`);
-  lines.push(`- ${L("Data Health Score", "データヘルススコア")}: **${m.healthScore} / 100** (${L("risk score", "リスクスコア")} ${m.riskScore})`);
+  lines.push(`- ${L("Structural Health Score", "構造ヘルススコア")}: **${m.healthScore} / 100** (${L("detected risk score", "検出リスクスコア")} ${m.riskScore})`);
+  lines.push(`- ${L("Note", "注記")}: ${L("Structural scores measure detected conditions only — not financial or business correctness.", "構造スコアは検出された条件のみを示し、財務・業務上の正しさは保証しません。")}`);
   lines.push("");
   lines.push(`## ${L("Summary", "サマリー")}`);
   lines.push("");
@@ -285,7 +286,7 @@ export function buildMarkdownReport(ctx: ReportContext): string {
   if (ctx.toolsApplied?.length) {
     for (const t of ctx.toolsApplied) lines.push(`- \`${t.id}\` ${esc(t.name)}`);
   } else {
-    lines.push(L("Run Auto-Fix (Organize + Clean + Mitigate) from the Tools panel and review the preview before applying.", "ツールパネルで自動修正（整理＋クリーニング＋リスク低減）を実行し、プレビュー確認後に適用してください。"));
+    lines.push(L("Use Auto-Fix only for conservative cleaners (trim/Unicode), then review any Organize/Mitigate tools before applying.", "自動修正は保守的なクリーニング（空白／Unicode）のみ既定です。整理・リスク低減ツールはレビュー後に適用してください。"));
   }
   if (ctx.summary && Object.keys(ctx.summary).length) {
     lines.push("");

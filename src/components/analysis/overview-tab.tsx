@@ -55,6 +55,7 @@ export function OverviewTab({ detail }: { detail: AnalysisDetail }) {
             <div>
               <div className="text-[10px] uppercase tracking-widest text-dim">{t("an.riskscore")}</div>
               <div className="mono text-2xl font-bold text-hot">{m.riskScore}</div>
+              <p className="text-[10px] text-dim leading-snug mt-1 max-w-[14rem]">{t("an.score.note")}</p>
             </div>
             <div className="space-y-1.5">
               {sevItems.map((s) => (

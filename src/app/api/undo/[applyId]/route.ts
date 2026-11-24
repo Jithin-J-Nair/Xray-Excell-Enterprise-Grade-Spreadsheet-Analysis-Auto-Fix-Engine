@@ -31,12 +31,35 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ applyId: 
       return NextResponse.json({ errorCode: "ANALYSIS_NOT_FOUND", message: "Analysis not found", retryable: false }, { status: 404 });
     }
     if (analysis.mode === "local" || !analysis.uploadId) {
+      // Honest acknowledgment only: local mode never uploaded originals, so the
+      // server cannot restore bytes. Clients must keep / re-download their own file.
       await db
         .update(jobs)
-        .set({ reverted: true, undoFileId: null, summary: { ...(job.summary as object), undo: "local-mode: original bytes remain on the client" } })
+        .set({
+          reverted: true,
+          undoFileId: null,
+          summary: {
+            ...(job.summary as object),
+            undo: {
+              mode: "local",
+              restoredBytes: false,
+              note: "Audit mark only — original bytes were never on the server",
+            },
+          },
+        })
         .where(eq(jobs.id, job.id));
-      await db.insert(auditLogs).values({ analysisId, action: "undo.performed", detail: { jobId: job.id, mode: "local" } });
-      return NextResponse.json({ status: "reverted", mode: "local", message: "Local mode: original file never left the client; nothing to restore server-side." });
+      await db.insert(auditLogs).values({
+        analysisId,
+        action: "undo.acknowledged",
+        detail: { jobId: job.id, mode: "local", restoredBytes: false },
+      });
+      return NextResponse.json({
+        status: "acknowledged",
+        mode: "local",
+        restoredBytes: false,
+        message:
+          "Local mode: original never left the client. This marks the apply as reverted in the audit trail only; no file was restored server-side.",
+      });
     }
     const [original] = await db
       .select()

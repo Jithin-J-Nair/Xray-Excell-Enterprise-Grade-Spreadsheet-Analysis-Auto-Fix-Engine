@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { BookLock, ShieldCheck, Plus, Braces, CheckCircle2, Wand2 } from "lucide-react";
+import { BookLock, ShieldCheck, Wand2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useI18n } from "@/components/i18n";
 import { Panel, PanelTitle } from "@/components/ui";
 
@@ -14,31 +14,15 @@ interface RuleRow {
   targets: string[];
 }
 
-interface CustomRule {
-  id: string;
-  name: string;
-  group: string;
-  description: string;
-  definition: unknown;
-  createdAt: string;
-}
-
 export default function SettingsPage() {
-  const { t, lang } = useI18n();
+  const { t } = useI18n();
   const [rules, setRules] = useState<RuleRow[]>([]);
-  const [customs, setCustoms] = useState<CustomRule[]>([]);
   const [autofix, setAutofix] = useState<string[]>([]);
-  const [name, setName] = useState("");
-  const [desc, setDesc] = useState("");
-  const [def, setDef] = useState('{\n  "in": "string",\n  "match": "regex",\n  "action": "flag|transform",\n  "params": {}\n}');
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const r = await fetch("/api/rules");
     const j = await r.json();
     setRules(j.rules ?? []);
-    setCustoms(j.customRules ?? []);
     setAutofix(j.autoFix ?? []);
   }, []);
 
@@ -47,34 +31,6 @@ export default function SettingsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
-
-  const submit = async () => {
-    setBusy(true);
-    setMsg(null);
-    try {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(def);
-      } catch {
-        throw new Error("Definition must be valid JSON");
-      }
-      const r = await fetch("/api/rules", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, description: desc, definition: parsed }),
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.message ?? "failed");
-      setMsg(`Rule registered: ${j.id}`);
-      setName("");
-      setDesc("");
-      load();
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const groupColor: Record<string, string> = { organize: "#38bdf8", clean: "#34d399", mitigate: "#f472b6", custom: "#a78bfa" };
 
@@ -128,52 +84,13 @@ export default function SettingsPage() {
         </div>
       </Panel>
 
-      <div className="grid md:grid-cols-2 gap-4">
-        <Panel>
-          <PanelTitle>{t("settings.custom")}</PanelTitle>
-          <div className="px-4 pb-4 space-y-2">
-            {customs.map((c) => (
-              <div key={c.id} className="rounded-lg border border-edge/60 bg-ink/50 p-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <Braces size={12} className="text-accent2" />
-                  <span className="text-sm font-medium">{c.name}</span>
-                  <span className="mono text-[9px] text-dim ml-auto">{new Date(c.createdAt).toLocaleDateString()}</span>
-                </div>
-                <div className="text-[11px] text-dim mb-2">{c.description}</div>
-                <pre className="mono text-[9.5px] text-accent/70 bg-void/70 rounded p-2 overflow-x-auto">{JSON.stringify(c.definition, null, 1).slice(0, 300)}</pre>
-              </div>
-            ))}
-            {!customs.length && <div className="text-center text-dim text-xs py-6">{t("common.empty")}</div>}
-          </div>
-        </Panel>
-
-        <Panel>
-          <PanelTitle>
-            <span className="flex items-center gap-1.5">
-              <Plus size={12} />
-              {t("settings.custom.add")}
-            </span>
-          </PanelTitle>
-          <div className="px-4 pb-4 space-y-3">
-            <div>
-              <label className="text-[10px] text-dim uppercase tracking-widest">{t("settings.custom.name")}</label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full mt-1" placeholder="PII: detect 携帯電話 patterns" />
-            </div>
-            <div>
-              <label className="text-[10px] text-dim uppercase tracking-widest">{t("settings.custom.desc")}</label>
-              <input type="text" value={desc} onChange={(e) => setDesc(e.target.value)} className="w-full mt-1" placeholder="What this rule detects or rewrites…" />
-            </div>
-            <div>
-              <label className="text-[10px] text-dim uppercase tracking-widest">{t("settings.custom.def")}</label>
-              <textarea value={def} onChange={(e) => setDef(e.target.value)} rows={8} className="w-full mt-1 mono text-[11px]" />
-            </div>
-            <button onClick={submit} disabled={busy || !name.trim()} className="btn btn-primary w-full justify-center">
-              {t("settings.custom.submit")}
-            </button>
-            {msg && <div className="text-[11px] mono text-ok border border-ok/30 bg-ok/10 rounded-lg px-3 py-2">{msg}</div>}
-          </div>
-        </Panel>
-      </div>
+      <Panel className="mb-6 p-4">
+        <PanelTitle>{t("settings.custom")}</PanelTitle>
+        <div className="px-1 pb-1 flex items-start gap-2 text-xs text-dim leading-relaxed">
+          <AlertTriangle size={14} className="text-warn shrink-0 mt-0.5" />
+          <span>{t("settings.custom.note")}</span>
+        </div>
+      </Panel>
 
       <Panel className="mt-6 p-5">
         <div className="flex items-center gap-2 mb-3">

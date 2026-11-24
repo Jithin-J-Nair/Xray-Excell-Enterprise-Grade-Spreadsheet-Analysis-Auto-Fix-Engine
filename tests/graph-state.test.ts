@@ -31,14 +31,21 @@ describe("tool toggle state machine", () => {
 
   it("clicking toggles only enabled tools; unavailable are no-ops", () => {
     let states = computeToolStates(findings);
-    const before = enabledToolIds(states);
-    // flip T002 off
-    states = toggleTool(states, "T002");
-    assert.ok(!states.find((s) => s.id === "T002")!.enabled);
+    // T007 is Auto-Fix with findings; T002 is review-first (not auto-selected).
+    assert.ok(enabledToolIds(states).includes("T007"));
+    assert.ok(!enabledToolIds(states).includes("T002"));
+    states = toggleTool(states, "T007");
+    assert.ok(!states.find((s) => s.id === "T007")!.enabled);
     // attempt to enable T003 (unavailable) → no-op
     states = toggleTool(states, "T003");
     assert.ok(!states.find((s) => s.id === "T003")!.enabled);
-    assert.ok(before.includes("T002"));
+  });
+
+  it("Auto-Fix set is conservative: T007/T009 only", () => {
+    assert.deepEqual([...AUTOFIX_TOOLS].sort(), ["T007", "T009"]);
+    for (const id of ["T002", "T003", "T005", "T011"]) {
+      assert.ok(!AUTOFIX_TOOLS.includes(id), id + " must not be Auto-Fix");
+    }
   });
 
   it("preview payload contains only enabled+available tool ids", () => {

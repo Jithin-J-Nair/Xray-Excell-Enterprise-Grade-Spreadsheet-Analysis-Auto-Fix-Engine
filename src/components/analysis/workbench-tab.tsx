@@ -438,7 +438,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
                         <th className="w-6"></th>
                         <th>{t("wb.col.after")}</th>
                         <th className="w-16">{t("wb.col.rule")}</th>
-                        <th className="w-14">{t("wb.col.conf")}</th>
+                        <th className="w-14" title={t("wb.col.conf.title")}>{t("wb.col.conf")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -463,7 +463,7 @@ export function WorkbenchTab({ detail, reload }: { detail: AnalysisDetail; reloa
                             <span className="mono text-[9px] px-1.5 py-0.5 rounded border border-edge2 text-dim">{d.ruleId}</span>
                           </td>
                           <td>
-                            <div className="h-1 w-10 rounded-full bg-edge/60 overflow-hidden" title={`${Math.round(d.confidence * 100)}%`}>
+                            <div className="h-1 w-10 rounded-full bg-edge/60 overflow-hidden" title={`${Math.round(d.confidence * 100)}% — ${t("wb.col.conf.title")}`}>
                               <div className="h-full bg-accent" style={{ width: `${d.confidence * 100}%` }} />
                             </div>
                           </td>

@@ -10,8 +10,9 @@ import {
 } from "./formula";
 
 export const TOOLS: ToolDef[] = [
-  { id: "T005", group: "organize", name: "Unmerge cells", desc: "Unmerge all merged ranges and fill every cell with the anchor value so sorting, filtering and pivots work.", safeDefault: true, autoFix: true, targets: ["MERGED_CELLS"], nameKey: "tool.T005.name", descKey: "tool.T005.desc" },
-  { id: "T002", group: "organize", name: "Normalize inconsistent formulas", desc: "Detect the majority formula pattern per column range and rewrite deviating cells to match it.", safeDefault: true, autoFix: true, targets: ["INCONSISTENT_FORMULA"], nameKey: "tool.T002.name", descKey: "tool.T002.desc" },
+  // Review-first: unmerge and formula-pattern rewrites can change layout/intent.
+  { id: "T005", group: "organize", name: "Unmerge cells", desc: "Unmerge all merged ranges and fill every cell with the anchor value so sorting, filtering and pivots work. Review-first: can alter layout and data semantics.", safeDefault: false, autoFix: false, targets: ["MERGED_CELLS"], nameKey: "tool.T005.name", descKey: "tool.T005.desc" },
+  { id: "T002", group: "organize", name: "Normalize inconsistent formulas", desc: "Detect the majority formula pattern per column range and rewrite deviating cells to match it. Review-first: structural consensus is not business correctness.", safeDefault: false, autoFix: false, targets: ["INCONSISTENT_FORMULA"], nameKey: "tool.T002.name", descKey: "tool.T002.desc" },
   { id: "T001", group: "organize", name: "Extract hard-coded parameters", desc: "Repeated numeric literals inside formulas are moved to a Parameters sheet with named ranges; formulas reference the names.", safeDefault: false, autoFix: false, targets: ["HARDCODED_NUMBER"], nameKey: "tool.T001.name", descKey: "tool.T001.desc" },
   { id: "T006", group: "organize", name: "Repair named ranges", desc: "Remove broken (#REF!) and duplicate named ranges so lookups stop erroring.", safeDefault: true, autoFix: false, targets: ["BROKEN_NAMED_RANGE"], nameKey: "tool.T006.name", descKey: "tool.T006.desc" },
   { id: "T007", group: "clean", name: "Trim & normalize whitespace", desc: "Remove leading/trailing spaces, convert NBSP and ideographic spaces to normal spaces.", safeDefault: true, autoFix: true, targets: ["WHITESPACE"], nameKey: "tool.T007.name", descKey: "tool.T007.desc" },
@@ -19,9 +20,11 @@ export const TOOLS: ToolDef[] = [
   { id: "T010", group: "clean", name: "Coerce dates stored as text", desc: "Parse YYYY/MM/DD, YYYY-MM-DD and Japanese YYYY年M月D日 strings into real date cells.", safeDefault: true, autoFix: false, targets: ["DATE_AS_TEXT"], nameKey: "tool.T010.name", descKey: "tool.T010.desc" },
   { id: "T013", group: "clean", name: "Coerce numbers stored as text", desc: "Convert comma-grouped numeric text (1,234,567) into real numbers for math and pivots.", safeDefault: true, autoFix: false, targets: ["NUMBER_AS_TEXT"], nameKey: "tool.T013.name", descKey: "tool.T013.desc" },
   { id: "T008", group: "clean", name: "Deduplicate rows", desc: "Remove exact duplicate data rows (first occurrence kept; remaining rows shift up).", safeDefault: false, autoFix: false, targets: ["DUPLICATE_ROWS"], nameKey: "tool.T008.name", descKey: "tool.T008.desc" },
-  { id: "T003", group: "mitigate", name: "Snapshot external links", desc: "Replace references to external workbooks with their cached snapshot values; an audit table of original references is written to a SourceData sheet.", safeDefault: false, autoFix: true, targets: ["EXTERNAL_LINK"], nameKey: "tool.T003.name", descKey: "tool.T003.desc" },
+  // Destructive to live-link behavior — never auto-selected.
+  { id: "T003", group: "mitigate", name: "Snapshot external links", desc: "DESTRUCTIVE: replaces external-workbook references with cached values and writes originals to a SourceData sheet. Live links stop updating.", safeDefault: false, autoFix: false, targets: ["EXTERNAL_LINK"], nameKey: "tool.T003.name", descKey: "tool.T003.desc" },
   { id: "T004", group: "mitigate", name: "Freeze volatile functions", desc: "Replace NOW/TODAY/RAND/OFFSET/INDIRECT formulas with their last cached values for reproducible results.", safeDefault: false, autoFix: false, targets: ["VOLATILE_FUNCTION"], nameKey: "tool.T004.name", descKey: "tool.T004.desc" },
-  { id: "T011", group: "mitigate", name: "Guard error cells (IFERROR)", desc: "Wrap formulas that currently evaluate to #REF!, #DIV/0!, #N/A etc. in IFERROR; blank static error literals.", safeDefault: true, autoFix: true, targets: ["ERROR_CELL"], nameKey: "tool.T011.name", descKey: "tool.T011.desc" },
+  // Masks errors; never Auto-Fix.
+  { id: "T011", group: "mitigate", name: "Guard error cells (IFERROR)", desc: "Wrap formulas that currently evaluate to errors in IFERROR, or blank static error literals. Review-only: this masks failures; it does not repair the underlying calculation.", safeDefault: false, autoFix: false, targets: ["ERROR_CELL"], nameKey: "tool.T011.name", descKey: "tool.T011.desc" },
 ];
 
 export const AUTOFIX_TOOLS = TOOLS.filter((t) => t.autoFix).map((t) => t.id);
@@ -128,13 +131,14 @@ function t010Dates(models: WorkbookModel[], ctx: Ctx) {
         dt.getUTCMonth() !== mo - 1 ||
         dt.getUTCDate() !== d
       ) continue;
+      const iso = dt.toISOString();
       pushDiff(ctx, {
-        sheet: sheet.name, cell: addr.toUpperCase(), before: cell.v, after: dt.toISOString().slice(0, 10),
+        sheet: sheet.name, cell: addr.toUpperCase(), before: cell.v, after: iso,
         kind: "value", ruleId: "T010", reason: "Converted date text to a real date cell",
         confidence: 0.95, riskDelta: "down",
       });
       cell.t = "d";
-      cell.v = dt.toISOString();
+      cell.v = iso;
     }
   });
 }
@@ -543,6 +547,38 @@ const RULES: Record<string, (models: WorkbookModel[], ctx: Ctx, opts: TransformO
 /** Order matters: textual cleaning first, then structural, then formula rewrites. */
 const EXECUTION_ORDER = ["T007", "T009", "T010", "T013", "T008", "T005", "T006", "T011", "T002", "T003", "T004", "T001"];
 
+/**
+ * Fail closed if a recorded cell/formula diff does not match the transformed model.
+ * Structure/name/row diffs are audited separately; this guards value+formula claims.
+ */
+export function verifyAppliedDiffs(models: WorkbookModel[], diffs: Diff[]): void {
+  for (const diff of diffs) {
+    if (diff.kind !== "value" && diff.kind !== "formula") continue;
+    if (diff.before === diff.after) {
+      throw new Error(`DIFF_NOOP: ${diff.ruleId} ${diff.sheet}!${diff.cell} before===after`);
+    }
+    const sheet = models.flatMap((m) => m.sheets).find((s) => s.name === diff.sheet);
+    const cell = sheet?.cells[diff.cell] ?? sheet?.cells[diff.cell.toUpperCase()];
+    if (!cell) {
+      throw new Error(`DIFF_UNVERIFIED: missing cell after ${diff.ruleId} ${diff.sheet}!${diff.cell}`);
+    }
+    if (diff.kind === "formula") {
+      const normalize = (f: unknown) => String(f ?? "").replace(/^=/, "");
+      // After a freeze/replace, the formula may be cleared while after records a value-like claim —
+      // only compare when the cell still has a formula.
+      if (cell.f != null && normalize(cell.f) !== normalize(diff.after)) {
+        throw new Error(`DIFF_UNVERIFIED: formula mismatch after ${diff.ruleId} ${diff.sheet}!${diff.cell}`);
+      }
+      if (cell.f == null && normalize(diff.after) !== "") {
+        // Formula removed: after should describe the cleared formula text or empty; accept empty/value handoff.
+        continue;
+      }
+    } else if (String(cell.v ?? "") !== String(diff.after ?? "")) {
+      throw new Error(`DIFF_UNVERIFIED: value mismatch after ${diff.ruleId} ${diff.sheet}!${diff.cell}`);
+    }
+  }
+}
+
 export interface TransformOptions {
   minOccurrences?: number;
 }
@@ -571,6 +607,7 @@ export function applyTransforms(
   const ctx: Ctx = { diffs: [], byTool: {}, total: 0 };
   const order = EXECUTION_ORDER.filter((id) => toolIds.includes(id));
   for (const id of order) RULES[id]?.(models, ctx, options);
+  verifyAppliedDiffs(models, ctx.diffs);
   const summary: TransformOutput["summary"] = {
     cellsChanged: ctx.diffs.filter((d) => d.kind === "value").length,
     formulasChanged: ctx.diffs.filter((d) => d.kind === "formula").length,

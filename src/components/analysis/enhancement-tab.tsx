@@ -224,7 +224,7 @@ export function EnhancementTab({ detail, reload }: { detail: AnalysisDetail; rel
           <div className="font-medium text-sm truncate mb-2">{file.fileName}</div>
           {file.blockedReason && <p className="text-xs text-hot mb-2">Blocked for safety: {file.blockedReason}</p>}
           <div className="grid grid-cols-3 gap-2 text-xs">{(["formatting", "numberFormats", "formulaRepairs"] as Feature[]).map(feature => <div key={feature} className="bg-edge/30 rounded p-2"><div className="mono text-lg">{file.changes?.[feature] ?? 0}</div><div className="text-dim">{FEATURE_LABELS[feature]}</div></div>)}</div>
-          {file.profile?.proposals?.slice(0, 8).map((proposal, index) => <p key={(proposal.cell ?? "") + index} className="text-xs text-dim mt-2">{proposal.cell}: {proposal.before} → {proposal.proposed} ({Math.round((proposal.confidence ?? 0) * 100)}%)</p>)}
+          {file.profile?.proposals?.slice(0, 8).map((proposal, index) => <p key={(proposal.cell ?? "") + index} className="text-xs text-dim mt-2">{proposal.cell}: {proposal.before} → {proposal.proposed} ({Math.round((proposal.confidence ?? 0) * 100)}% pattern match)</p>)}
         </div>)}
       </section>}
 

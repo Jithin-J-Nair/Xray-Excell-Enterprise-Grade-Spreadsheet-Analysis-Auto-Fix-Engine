@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import type { CellModel, SheetModel, WorkbookModel } from "../src/lib/excel/types";
-import { applyTransforms } from "../src/lib/excel/transform";
+import { applyTransforms, verifyAppliedDiffs } from "../src/lib/excel/transform";
 
 const NBSP = String.fromCharCode(0xa0);
 
@@ -165,5 +165,26 @@ describe("deterministic transformation rules", () => {
     const a = applyTransforms([m], ["T007"]);
     const b = applyTransforms([m], ["T007"]);
     assert.deepEqual(a.diffs, b.diffs);
+  });
+
+  it("rejects a forged value/formula diff that does not match the model", () => {
+    const m = workbook([sheet("S", [c("A1", 0, 0, "s", "ok")])]);
+    assert.throws(
+      () =>
+        verifyAppliedDiffs([m], [
+          {
+            sheet: "S",
+            cell: "A1",
+            before: "ok",
+            after: "tampered",
+            kind: "value",
+            ruleId: "T007",
+            reason: "test",
+            confidence: 1,
+            riskDelta: "down",
+          },
+        ]),
+      /DIFF_UNVERIFIED/
+    );
   });
 });

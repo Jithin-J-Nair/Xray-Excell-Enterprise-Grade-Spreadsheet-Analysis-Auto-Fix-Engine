@@ -87,7 +87,7 @@ export async function runAnalysisJob(analysisId: string): Promise<void> {
     await pushLog(analysisId, leaseToken, log, `graph: ${result.graph.nodes.length} nodes / ${result.graph.edges.length} edges`, 58, "Building dependency graph");
     await new Promise((r) => setImmediate(r));
     await pushLog(analysisId, leaseToken, log, `scan: ${result.risks.length} findings (${result.metrics.risksBySeverity.critical} critical)`, 76, "Detecting risks");
-    await pushLog(analysisId, leaseToken, log, `score: risk=${result.metrics.riskScore} health=${result.metrics.healthScore}`, 90, "Scoring workbook health");
+    await pushLog(analysisId, leaseToken, log, `score: detectedRisk=${result.metrics.riskScore} structuralHealth=${result.metrics.healthScore}`, 90, "Scoring structural findings");
     // strip the heavyweight raw model duplication (keep main + models for preview/apply)
     log.push({ t: now(), msg: "done: analysis complete" });
     const [published] = await db
