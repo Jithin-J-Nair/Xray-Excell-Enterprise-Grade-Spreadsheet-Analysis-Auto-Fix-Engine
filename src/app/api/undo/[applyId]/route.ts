@@ -31,9 +31,8 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ applyId: 
       return NextResponse.json({ errorCode: "ANALYSIS_NOT_FOUND", message: "Analysis not found", retryable: false }, { status: 404 });
     }
     if (analysis.mode === "local" || !analysis.uploadId) {
-      // Honest acknowledgment only: local mode never uploaded originals, so the
-      // server cannot restore bytes. Clients must keep / re-download their own file.
-      await db
+      // Atomic claim so concurrent local undos cannot double-acknowledge.
+      const [claimed] = await db
         .update(jobs)
         .set({
           reverted: true,
@@ -47,7 +46,11 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ applyId: 
             },
           },
         })
-        .where(eq(jobs.id, job.id));
+        .where(and(eq(jobs.id, job.id), eq(jobs.reverted, false), eq(jobs.status, "completed"), eq(jobs.kind, "apply")))
+        .returning({ id: jobs.id });
+      if (!claimed) {
+        return NextResponse.json({ errorCode: "ALREADY_REVERTED", message: "This apply has already been reverted", retryable: false }, { status: 409 });
+      }
       await db.insert(auditLogs).values({
         analysisId,
         action: "undo.acknowledged",
@@ -69,30 +72,47 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ applyId: 
     if (!original) {
       return NextResponse.json({ errorCode: "ORIGINAL_MISSING", message: "Original file no longer available (retention window elapsed?)", retryable: false }, { status: 410 });
     }
-    const bytes = await readBytes(original.path);
-    const name = `reverted_${original.name}`;
-    const saved = await saveBytes("exports", `undo-${job.id.slice(0, 8)}`, name, new Uint8Array(bytes));
-    const [row] = await db
-      .insert(files)
-      .values({
-        jobId: job.id,
+
+    // Claim before writing restore bytes so concurrent undos cannot double-write.
+    const [claimed] = await db
+      .update(jobs)
+      .set({ reverted: true })
+      .where(and(eq(jobs.id, job.id), eq(jobs.reverted, false), eq(jobs.status, "completed"), eq(jobs.kind, "apply")))
+      .returning({ id: jobs.id });
+    if (!claimed) {
+      return NextResponse.json({ errorCode: "ALREADY_REVERTED", message: "This apply has already been reverted", retryable: false }, { status: 409 });
+    }
+
+    try {
+      const bytes = await readBytes(original.path);
+      const name = `reverted_${original.name}`;
+      const saved = await saveBytes("exports", `undo-${job.id.slice(0, 8)}`, name, new Uint8Array(bytes));
+      const [row] = await db
+        .insert(files)
+        .values({
+          jobId: job.id,
+          analysisId,
+          kind: "reverted",
+          name,
+          size: bytes.length,
+          mime: original.mime,
+          path: saved.relPath,
+          sha256: sha256(bytes),
+          meta: { undoOf: job.id, originalFileId: original.id },
+        })
+        .returning();
+      await db.update(jobs).set({ undoFileId: row.id }).where(eq(jobs.id, job.id));
+      await db.insert(auditLogs).values({
         analysisId,
-        kind: "reverted",
-        name,
-        size: bytes.length,
-        mime: original.mime,
-        path: saved.relPath,
-        sha256: sha256(bytes),
-        meta: { undoOf: job.id, originalFileId: original.id },
-      })
-      .returning();
-    await db.update(jobs).set({ reverted: true, undoFileId: row.id }).where(eq(jobs.id, job.id));
-    await db.insert(auditLogs).values({
-      analysisId,
-      action: "undo.performed",
-      detail: { jobId: job.id, restoredFrom: original.name, sha256: sha256(bytes) },
-    });
-    return NextResponse.json({ status: "reverted", fileId: row.id, name });
+        action: "undo.performed",
+        detail: { jobId: job.id, restoredFrom: original.name, sha256: sha256(bytes) },
+      });
+      return NextResponse.json({ status: "reverted", fileId: row.id, name });
+    } catch (error) {
+      // Release the claim so a later retry can restore bytes.
+      await db.update(jobs).set({ reverted: false, undoFileId: null }).where(eq(jobs.id, job.id)).catch(() => undefined);
+      throw error;
+    }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ errorCode: "UNDO_FAILED", message, retryable: true, details: message }, { status: 500 });

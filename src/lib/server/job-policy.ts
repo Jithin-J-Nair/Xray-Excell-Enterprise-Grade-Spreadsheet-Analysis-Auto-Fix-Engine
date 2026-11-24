@@ -1,5 +1,8 @@
 export const MAX_JOB_ATTEMPTS = 3;
 
+/** Job kinds the durable worker can reclaim and re-run. Request-scoped kinds are excluded. */
+export const DURABLE_WORKER_JOB_KINDS = ["apply"] as const;
+
 export type StaleJobDisposition = "retry" | "fail";
 
 /**
@@ -15,4 +18,9 @@ export function staleJobDisposition(attempts: number, maxAttempts = MAX_JOB_ATTE
     throw new Error("INVALID_JOB_RETRY_LIMIT: maxAttempts must be a positive safe integer.");
   }
   return attempts < maxAttempts ? "retry" : "fail";
+}
+
+/** True when the durable worker owns reclaim/retry for this jobs.kind value. */
+export function isDurableWorkerJobKind(kind: string): boolean {
+  return (DURABLE_WORKER_JOB_KINDS as readonly string[]).includes(kind);
 }

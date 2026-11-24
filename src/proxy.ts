@@ -41,8 +41,10 @@ export function productionAuthIsMissing(
 }
 
 export function proxy(request: NextRequest) {
-  // Health checks expose only database readiness and must remain probeable.
-  if (request.nextUrl.pathname === "/api/health") return NextResponse.next();
+  // Liveness and readiness probes must remain unauthenticated.
+  if (request.nextUrl.pathname === "/api/health" || request.nextUrl.pathname === "/api/ready") {
+    return NextResponse.next();
+  }
 
   const username = process.env.XRAY_BASIC_AUTH_USER;
   const password = process.env.XRAY_BASIC_AUTH_PASSWORD;

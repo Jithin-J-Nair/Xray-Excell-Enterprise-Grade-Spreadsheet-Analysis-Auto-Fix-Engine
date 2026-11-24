@@ -18,6 +18,18 @@ describe("request body size preflight", () => {
     assert.equal(parsed, false);
   });
 
+  it("rejects uploads without Content-Length before formData parsing", async () => {
+    const { POST } = await import("../src/app/api/upload/route");
+    let parsed = false;
+    const request = {
+      headers: new Headers(),
+      formData: async () => { parsed = true; throw new Error("should not parse"); },
+    } as unknown as NextRequest;
+    const response = await POST(request);
+    assert.equal(response.status, 411);
+    assert.equal(parsed, false);
+  });
+
   it("rejects oversized local-analysis JSON before json parsing", async () => {
     const { POST } = await import("../src/app/api/analysis/import/route");
     let parsed = false;
@@ -27,6 +39,18 @@ describe("request body size preflight", () => {
     } as unknown as NextRequest;
     const response = await POST(request);
     assert.equal(response.status, 413);
+    assert.equal(parsed, false);
+  });
+
+  it("rejects imports without Content-Length before json parsing", async () => {
+    const { POST } = await import("../src/app/api/analysis/import/route");
+    let parsed = false;
+    const request = {
+      headers: new Headers(),
+      json: async () => { parsed = true; throw new Error("should not parse"); },
+    } as unknown as NextRequest;
+    const response = await POST(request);
+    assert.equal(response.status, 411);
     assert.equal(parsed, false);
   });
 });

@@ -67,4 +67,35 @@ describe("database fencing-token lease", () => {
       .returning({ id: jobs.id });
     assert.equal(currentPublish.length, 1, "only the current lease owner can publish");
   });
+
+  it("does not treat stale enhancement jobs as durable apply reclaim candidates", async () => {
+    const { isDurableWorkerJobKind } = await import("../src/lib/server/job-policy");
+    const [enhancement] = await db.insert(jobs).values({
+      analysisId: null,
+      previewId: null,
+      kind: "enhancement",
+      status: "running",
+      formats: [],
+      heartbeatAt: new Date(Date.now() - 60 * 60 * 1000),
+      attempts: 1,
+    }).returning();
+    try {
+      assert.equal(isDurableWorkerJobKind(enhancement.kind), false);
+      // Simulate the worker reclaim filter: only apply kinds return to queued.
+      const reclaimed = await db.update(jobs)
+        .set({ status: "queued", leaseToken: null, heartbeatAt: null })
+        .where(and(eq(jobs.id, enhancement.id), eq(jobs.status, "running"), eq(jobs.kind, "apply")))
+        .returning({ id: jobs.id });
+      assert.equal(reclaimed.length, 0, "enhancement must not be requeued as apply work");
+
+      const abandoned = await db.update(jobs)
+        .set({ status: "failed", error: "JOB_ABANDONED: request-scoped worker stopped responding", heartbeatAt: null, completedAt: new Date() })
+        .where(and(eq(jobs.id, enhancement.id), eq(jobs.status, "running")))
+        .returning({ id: jobs.id, status: jobs.status });
+      assert.equal(abandoned.length, 1);
+      assert.equal(abandoned[0].status, "failed");
+    } finally {
+      await db.delete(jobs).where(eq(jobs.id, enhancement.id));
+    }
+  });
 });

@@ -21,7 +21,8 @@
 │ POST /api/analysis/import        GET  /api/jobs/:id                          │
 │ GET  /api/analysis/:id(/status)  GET  /api/download/:fileId  (stream+RFC5987)│
 │ POST /api/undo/:applyId          GET/POST /api/rules                         │
-│ POST /api/samples                GET  /api/dashboard · GET /api/health       │
+│ POST /api/samples                GET  /api/dashboard · GET /api/health (live) │
+│                              GET  /api/ready (DB + storage readiness)         │
 ├───────────────────────────────────────────────────────────────────────────────┤
 │ Isomorphic Excel Engine (src/lib/excel)                                       │
 │  parse.ts      → bytes → WorkbookModel (SheetJS; Shift_JIS→UTF-8 detection)   │
@@ -109,7 +110,7 @@ npm start
 npm run worker
 ``
 
-The worker scans queued analyses/exports and claims each job atomically, so a worker and a request-triggered runner cannot both process the same queued record. Active runners refresh database heartbeats; the worker requeues abandoned work after `XRAY_JOB_STALE_MS` (default 5 minutes, bounded to 1–60 minutes). Configure `XRAY_JOB_HEARTBEAT_MS` (default 15 seconds), `XRAY_WORKER_POLL_MS`, and `XRAY_WORKER_BATCH_SIZE`. Set `XRAY_DATA_DIR` to a persistent mounted directory in production; the default `.data` directory is only durable when the host filesystem itself is persistent. Configure the reverse proxy/platform with a matching request-body limit as defense in depth; the upload and local-import APIs reject oversized declared bodies before parsing. Configure upload budgets with `XRAY_MAX_FILE_BYTES`.
+The worker scans queued analyses/apply exports and claims each job atomically, so a worker and a request-triggered runner cannot both process the same queued record. Request-scoped enhancement/recalculation jobs are never reclaimed as apply work — stale ones fail closed. Active runners refresh database heartbeats; the worker requeues abandoned durable work after `XRAY_JOB_STALE_MS` (default 5 minutes, bounded to 1–60 minutes) and periodically purges server uploads older than `XRAY_RETENTION_DAYS` (default 30). Configure `XRAY_JOB_HEARTBEAT_MS` (default 15 seconds), `XRAY_WORKER_POLL_MS`, and `XRAY_WORKER_BATCH_SIZE`. Set `XRAY_DATA_DIR` to a persistent mounted directory in production; the default `.data` directory is only durable when the host filesystem itself is persistent. Configure the reverse proxy/platform with a matching request-body limit as defense in depth; upload and local-import APIs require `Content-Length` and reject oversized declared bodies before parsing. Configure upload budgets with `XRAY_MAX_FILE_BYTES`.
 
 ## Tests
 
@@ -136,7 +137,7 @@ Server downloads use `src/lib/download.ts` (`fetch → blob → object URL → a
 
 ## Production deployment security
 
-All pages and API routes (except the minimal `/api/health` readiness probe and static assets) are protected by a shared HTTP Basic Auth gate. **Production fails closed with HTTP 503 if either credential is missing.** Set both environment variables on the server:
+All pages and API routes (except `/api/health` liveness, `/api/ready` readiness, and static assets) are protected by a shared HTTP Basic Auth gate. **Production fails closed with HTTP 503 if either credential is missing.** Set both environment variables on the server:
 
 ```bash
 XRAY_BASIC_AUTH_USER=your-private-username

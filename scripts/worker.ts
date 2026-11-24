@@ -2,9 +2,10 @@ import { db } from "../src/db";
 import { readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { analyses, files, jobs } from "../src/db/schema";
-import { and, eq, gte, isNull, like, lt, or } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, like, lt, or, notInArray } from "drizzle-orm";
 import { runAnalysisJob, runApplyJob } from "../src/lib/server/jobs";
-import { MAX_JOB_ATTEMPTS } from "../src/lib/server/job-policy";
+import { DURABLE_WORKER_JOB_KINDS, MAX_JOB_ATTEMPTS } from "../src/lib/server/job-policy";
+import { purgeExpiredServerData } from "../src/lib/server/retention";
 import { absOf } from "../src/lib/server/storage";
 
 const pollMs = Math.max(250, Number(process.env.XRAY_WORKER_POLL_MS ?? 1000));
@@ -16,6 +17,7 @@ const staleMs = Number.isFinite(configuredStaleMs)
 let stopping = false;
 let preferApply = false;
 let lastArtifactSweep = 0;
+let lastRetentionSweep = 0;
 
 process.on("SIGINT", () => { stopping = true; });
 process.on("SIGTERM", () => { stopping = true; });
@@ -63,8 +65,6 @@ async function cleanupUnreferencedLeaseDirectories(): Promise<void> {
   }
 }
 
-
-
 async function main() {
   console.log(`X-RAY worker online (poll=${pollMs}ms, batch=${batchSize})`);
   while (!stopping) {
@@ -75,23 +75,43 @@ async function main() {
         await cleanupUnreferencedLeaseDirectories();
         lastArtifactSweep = Date.now();
       }
+      if (Date.now() - lastRetentionSweep >= 3_600_000) {
+        const purged = await purgeExpiredServerData().catch((error) => {
+          console.error("X-RAY retention sweep failed", error);
+          return { analysesPurged: 0, orphanUploadsPurged: 0 };
+        });
+        if (purged.analysesPurged || purged.orphanUploadsPurged) {
+          console.warn("Purged expired server data", purged);
+        }
+        lastRetentionSweep = Date.now();
+      }
       const staleBefore = new Date(Date.now() - staleMs);
       const staleAnalysis = and(
         eq(analyses.status, "processing"),
         or(lt(analyses.heartbeatAt, staleBefore), and(isNull(analyses.heartbeatAt), lt(analyses.createdAt, staleBefore)))
       );
-      const staleJob = and(
+      const staleDurableJob = and(
         eq(jobs.status, "running"),
+        inArray(jobs.kind, [...DURABLE_WORKER_JOB_KINDS]),
         or(lt(jobs.heartbeatAt, staleBefore), and(isNull(jobs.heartbeatAt), lt(jobs.createdAt, staleBefore)))
       );
-      const [recoveredAnalyses, recoveredJobs, failedAnalyses, failedJobs] = await Promise.all([
+      // Request-scoped kinds (enhancement/recalculation) have no durable runner.
+      // A stale heartbeat means the HTTP process died — fail closed, never hand them to runApplyJob.
+      const staleRequestScopedJob = and(
+        eq(jobs.status, "running"),
+        notInArray(jobs.kind, [...DURABLE_WORKER_JOB_KINDS]),
+        or(lt(jobs.heartbeatAt, staleBefore), and(isNull(jobs.heartbeatAt), lt(jobs.createdAt, staleBefore)))
+      );
+
+      // SQL attempt bounds mirror staleJobDisposition(attempts) / MAX_JOB_ATTEMPTS.
+      const [recoveredAnalyses, recoveredJobs, failedAnalyses, failedJobs, failedRequestScoped] = await Promise.all([
         db.update(analyses)
           .set({ status: "queued", statusText: "Recovered after stale worker heartbeat", heartbeatAt: null, leaseToken: null, error: null })
           .where(and(staleAnalysis, lt(analyses.attempts, MAX_JOB_ATTEMPTS)))
           .returning({ id: analyses.id }),
         db.update(jobs)
           .set({ status: "queued", progress: 0, outputs: [], patchFileId: null, error: "Recovered after stale worker heartbeat", heartbeatAt: null, leaseToken: null })
-          .where(and(staleJob, lt(jobs.attempts, MAX_JOB_ATTEMPTS)))
+          .where(and(staleDurableJob, lt(jobs.attempts, MAX_JOB_ATTEMPTS)))
           .returning({ id: jobs.id }),
         db.update(analyses)
           .set({ status: "failed", statusText: "Worker stopped responding; retry limit reached", error: "JOB_RETRY_LIMIT_EXCEEDED", heartbeatAt: null, leaseToken: null, completedAt: new Date() })
@@ -99,21 +119,35 @@ async function main() {
           .returning({ id: analyses.id }),
         db.update(jobs)
           .set({ status: "failed", error: "JOB_RETRY_LIMIT_EXCEEDED", outputs: [], patchFileId: null, heartbeatAt: null, leaseToken: null, completedAt: new Date() })
-          .where(and(staleJob, gte(jobs.attempts, MAX_JOB_ATTEMPTS)))
+          .where(and(staleDurableJob, gte(jobs.attempts, MAX_JOB_ATTEMPTS)))
           .returning({ id: jobs.id }),
+        db.update(jobs)
+          .set({
+            status: "failed",
+            error: "JOB_ABANDONED: request-scoped worker stopped responding",
+            heartbeatAt: null,
+            leaseToken: null,
+            completedAt: new Date(),
+          })
+          .where(staleRequestScopedJob)
+          .returning({ id: jobs.id, kind: jobs.kind }),
       ]);
-      for (const stale of [...recoveredJobs, ...failedJobs]) await cleanupStaleJobArtifacts(stale.id).catch(() => undefined);
-      if (recoveredAnalyses.length || recoveredJobs.length || failedAnalyses.length || failedJobs.length) {
+      for (const stale of [...recoveredJobs, ...failedJobs, ...failedRequestScoped]) {
+        await cleanupStaleJobArtifacts(stale.id).catch(() => undefined);
+      }
+      if (recoveredAnalyses.length || recoveredJobs.length || failedAnalyses.length || failedJobs.length || failedRequestScoped.length) {
         console.warn("Recovered stale X-RAY work", {
           analyses: recoveredAnalyses.length,
           applyJobs: recoveredJobs.length,
           failedAnalyses: failedAnalyses.length,
           failedApplyJobs: failedJobs.length,
+          failedRequestScopedJobs: failedRequestScoped.length,
         });
       }
       const [queuedAnalyses, queuedJobs] = await Promise.all([
         db.select({ id: analyses.id }).from(analyses).where(eq(analyses.status, "queued")).limit(batchSize),
-        db.select({ id: jobs.id }).from(jobs).where(eq(jobs.status, "queued")).limit(batchSize),
+        // Only durable apply jobs — never claim enhancement/recalculation into runApplyJob.
+        db.select({ id: jobs.id }).from(jobs).where(and(eq(jobs.status, "queued"), inArray(jobs.kind, [...DURABLE_WORKER_JOB_KINDS]))).limit(batchSize),
       ]);
       if (!queuedAnalyses.length && !queuedJobs.length) {
         await sleep(pollMs);

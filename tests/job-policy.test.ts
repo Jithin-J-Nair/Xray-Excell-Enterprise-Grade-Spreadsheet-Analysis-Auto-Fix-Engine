@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { MAX_JOB_ATTEMPTS, staleJobDisposition } from "../src/lib/server/job-policy";
+import { DURABLE_WORKER_JOB_KINDS, MAX_JOB_ATTEMPTS, isDurableWorkerJobKind, staleJobDisposition } from "../src/lib/server/job-policy";
 
 describe("bounded stale-job retry policy", () => {
   it("retries only while the work item has attempts remaining", () => {
@@ -16,5 +16,12 @@ describe("bounded stale-job retry policy", () => {
     assert.throws(() => staleJobDisposition(-1), /INVALID_JOB_ATTEMPTS/);
     assert.throws(() => staleJobDisposition(1.5), /INVALID_JOB_ATTEMPTS/);
     assert.throws(() => staleJobDisposition(0, 0), /INVALID_JOB_RETRY_LIMIT/);
+  });
+
+  it("only apply jobs are durable-worker reclaimable", () => {
+    assert.deepEqual([...DURABLE_WORKER_JOB_KINDS], ["apply"]);
+    assert.equal(isDurableWorkerJobKind("apply"), true);
+    assert.equal(isDurableWorkerJobKind("enhancement"), false);
+    assert.equal(isDurableWorkerJobKind("recalculation"), false);
   });
 });

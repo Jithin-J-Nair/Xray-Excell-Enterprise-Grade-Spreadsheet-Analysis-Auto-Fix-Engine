@@ -44,9 +44,15 @@ function uniqueStoredName(rawName: string, used: Set<string>): string {
 export async function POST(req: NextRequest) {
   try {
     const contentLengthHeader = req.headers.get("content-length");
-    const contentLength = contentLengthHeader === null ? 0 : Number(contentLengthHeader);
+    if (contentLengthHeader === null) {
+      return NextResponse.json(
+        { errorCode: "CONTENT_LENGTH_REQUIRED", message: "Uploads require a Content-Length header so size can be checked before parsing", retryable: false },
+        { status: 411 }
+      );
+    }
+    const contentLength = Number(contentLengthHeader);
     const maxRequestBytes = MAX_FILE_BYTES * 2 + 1024 * 1024;
-    if (contentLengthHeader !== null && (!Number.isSafeInteger(contentLength) || contentLength < 0)) {
+    if (!Number.isSafeInteger(contentLength) || contentLength < 0) {
       return NextResponse.json({ errorCode: "INVALID_CONTENT_LENGTH", message: "Invalid upload size header", retryable: false }, { status: 400 });
     }
     if (contentLength > maxRequestBytes) {

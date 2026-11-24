@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { analyses, auditLogs, files, jobs, previews, uploads } from "@/db/schema";
-import { and, desc, eq, ne, sql } from "drizzle-orm";
-import { promises as fs } from "fs";
-import { absOf } from "@/lib/server/storage";
+import { analyses, auditLogs, files, jobs } from "@/db/schema";
+import { desc, eq } from "drizzle-orm";
+import { deleteAnalysisRecords, unlinkStoredPaths } from "@/lib/server/analysis-cleanup";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,63 +51,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   try {
-    const removed = await db.transaction(async (tx) => {
-      const [row] = await tx.select().from(analyses).where(eq(analyses.id, id)).for("update").limit(1);
-      if (!row) return null;
-
-      // Lock the upload row while checking sharing, so a concurrent analysis
-      // cannot start referencing the source files while this deletion removes them.
-      if (row.uploadId) {
-        await tx.select({ id: uploads.id }).from(uploads).where(eq(uploads.id, row.uploadId)).for("update").limit(1);
-      }
-      const [otherAnalysis] = row.uploadId
-        ? await tx.select({ id: analyses.id }).from(analyses)
-            .where(and(eq(analyses.uploadId, row.uploadId), ne(analyses.id, id))).limit(1)
-        : [];
-      const deleteSourceUpload = Boolean(row.uploadId && !otherAnalysis);
-      const generatedFiles = await tx.select().from(files).where(eq(files.analysisId, id));
-      const sourceFiles = deleteSourceUpload && row.uploadId
-        ? await tx.select().from(files).where(eq(files.uploadId, row.uploadId))
-        : [];
-      const paths = [...new Set([...generatedFiles, ...sourceFiles].map((file) => file.path))];
-
-      await tx.delete(previews).where(eq(previews.analysisId, id));
-      await tx.delete(jobs).where(eq(jobs.analysisId, id));
-      await tx.delete(files).where(eq(files.analysisId, id));
-      if (deleteSourceUpload && row.uploadId) {
-        await tx.delete(files).where(eq(files.uploadId, row.uploadId));
-        await tx.delete(uploads).where(eq(uploads.id, row.uploadId));
-      }
-
-      // Preserve the previous audit trail, but detach it from the deleted row.
-      await tx.update(auditLogs)
-        .set({
-          analysisId: null,
-          detail: sql`${auditLogs.detail} || jsonb_build_object('deletedAnalysisId', ${id}::text)`,
-        })
-        .where(eq(auditLogs.analysisId, id));
-      await tx.delete(analyses).where(eq(analyses.id, id));
-      await tx.insert(auditLogs).values({
-        analysisId: null,
-        action: "analysis.deleted",
-        detail: { deletedAnalysisId: id, name: row.name, uploadId: row.uploadId },
-      });
-      return paths;
-    });
-
+    const removed = await deleteAnalysisRecords(id);
     if (!removed) return NextResponse.json({ errorCode: "NOT_FOUND", message: "Analysis not found" }, { status: 404 });
-
-    // Database records are already inaccessible; best-effort physical cleanup
-    // removes source/output bytes as well. Missing files are harmless.
-    await Promise.all(removed.map(async (storedPath) => {
-      try {
-        await fs.unlink(absOf(storedPath));
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-          console.error("analysis-file-cleanup-failed", storedPath, error);
-        }
-      }
-    }));
+    await unlinkStoredPaths(removed);
     return NextResponse.json({ status: "deleted" });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

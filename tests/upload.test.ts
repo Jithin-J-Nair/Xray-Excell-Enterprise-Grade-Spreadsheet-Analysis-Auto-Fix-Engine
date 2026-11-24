@@ -38,7 +38,11 @@ describe("POST /api/upload duplicate-name safety", () => {
     form.append("files", new File(["first-content"], "duplicate.txt", { type: "text/plain" }));
     form.append("files", new File(["second-content"], "duplicate.txt", { type: "text/plain" }));
     const route = await import("../src/app/api/upload/route");
-    const response = await route.POST(new Request("http://localhost/api/upload", { method: "POST", body: form }) as never);
+    // Content-Length is required before form parsing; supply a declared size under the batch cap.
+    const response = await route.POST({
+      headers: new Headers({ "content-length": "1024" }),
+      formData: async () => form,
+    } as never);
     if (response.status !== 200) assert.fail(`Upload returned ${response.status}: ${await response.text()}`);
     const body = await response.json() as { uploadId: string; files: Array<{ name: string; size: number }> };
     uploadId = body.uploadId;

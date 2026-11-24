@@ -1,4 +1,4 @@
-import { promises as fs } from "fs";
+import { constants as fsConstants, promises as fs } from "fs";
 import path from "path";
 import crypto from "crypto";
 
@@ -76,6 +76,12 @@ export function absOf(relPath: string): string {
 
 export async function readBytes(relPath: string): Promise<Buffer> {
   return fs.readFile(absOf(relPath));
+}
+
+/** Readiness probe: storage root must exist and accept writes. */
+export async function assertStorageWritable(): Promise<void> {
+  await fs.mkdir(ROOT, { recursive: true });
+  await fs.access(ROOT, fsConstants.W_OK);
 }
 
 const DEFAULT_MAX_FILE_BYTES = 60 * 1024 * 1024;

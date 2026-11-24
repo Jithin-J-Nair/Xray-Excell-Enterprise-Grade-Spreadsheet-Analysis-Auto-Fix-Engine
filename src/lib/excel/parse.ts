@@ -39,8 +39,9 @@ function decodeDelimited(bytes: Uint8Array, name: string): { text: string; encod
 }
 
 const MAX_ZIP_ENTRIES = 100_000;
-const MAX_ZIP_ENTRY_BYTES = 256 * 1024 * 1024;
-const MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES = 512 * 1024 * 1024;
+/** Aligned with the default upload cap (60 MiB) so a max-sized upload cannot expand unbounded. */
+const MAX_ZIP_ENTRY_BYTES = 60 * 1024 * 1024;
+const MAX_ZIP_TOTAL_UNCOMPRESSED_BYTES = 120 * 1024 * 1024;
 const ZIP_RATIO_GUARD_BYTES = 32 * 1024 * 1024;
 const MAX_ZIP_EXPANSION_RATIO = 100;
 

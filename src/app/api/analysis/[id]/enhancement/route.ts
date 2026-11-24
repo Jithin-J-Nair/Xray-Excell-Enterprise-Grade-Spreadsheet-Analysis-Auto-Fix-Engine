@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, inArray, ne } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { basename, extname, join } from "node:path";
 import { rm } from "node:fs/promises";
 import { db } from "@/db";
@@ -145,6 +146,19 @@ async function cleanupJobFiles(jobId: string, undo = false) {
   }
 }
 
+/** Keep request-scoped jobs alive so the durable worker does not fail them mid-flight. */
+function startRequestScopedHeartbeat(jobId: string): () => void {
+  const tick = () => {
+    db.update(jobs)
+      .set({ heartbeatAt: new Date() })
+      .where(and(eq(jobs.id, jobId), eq(jobs.status, "running")))
+      .catch(() => console.error("request-scoped-heartbeat-failed", jobId));
+  };
+  const iv = setInterval(tick, 15_000);
+  iv.unref?.();
+  return () => clearInterval(iv);
+}
+
 /**
  * POST /api/analysis/:id/enhancement
  * Actions: profile, preview, verify, apply, undo. Mutating operations write separate
@@ -154,6 +168,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { id } = await ctx.params;
   let jobId: string | undefined;
   let undoMode = false;
+  let stopHeartbeat: (() => void) | undefined;
   try {
     const raw: unknown = await req.json();
     if (!object(raw) || typeof raw.action !== "string" || !["profile", "preview", "verify", "apply", "recalculate", "undo"].includes(raw.action)) {
@@ -222,12 +237,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       if (active) throw new Error("ENHANCEMENT_ALREADY_RUNNING");
       const [createdJob] = await tx.insert(jobs).values({
         analysisId: id, kind: "enhancement", status: "running", progress: 5, formats: ["xlsx"],
+        heartbeatAt: new Date(), leaseToken: randomUUID(), attempts: 1,
         summary: { action: "apply", features, requestedAt: new Date().toISOString() },
       }).returning();
       await tx.insert(auditLogs).values({ analysisId: id, action: "enhancement.started", detail: { jobId: createdJob.id, features } });
       return [createdJob];
     });
     jobId = created.id;
+    stopHeartbeat = startRequestScopedHeartbeat(jobId);
 
     const snapshots = models.map((model, index) => preflight[index] ? null : createRecoverySnapshot(model));
     const transformed: Array<{ model: WorkbookModel; changes: { formatting: number; numberFormats: number; formulaRepairs: number }; blockedReason: string | null }> = models.map((model, index) => {
@@ -272,7 +289,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       }
       await tx.update(analyses).set({ result: updatedResult }).where(eq(analyses.id, id));
       await tx.update(jobs).set({
-        status: "completed", progress: 100, completedAt: new Date(), heartbeatAt: null, patchFileId: snapshotRow.id,
+        status: "completed", progress: 100, completedAt: new Date(), heartbeatAt: null, leaseToken: null, patchFileId: snapshotRow.id,
         outputs, summary: {
           action: "apply", features, fileCount: savedOutputs.length,
           changes: transformed.map(item => ({ fileName: item.model.fileName, ...item.changes, blockedReason: item.blockedReason })),
@@ -280,12 +297,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
           skippedFiles: transformed.filter(item => item.blockedReason).map(item => ({ fileName: item.model.fileName, reason: item.blockedReason })),
           recoverySnapshotFileId: snapshotRow.id,
         },
-      }).where(eq(jobs.id, jobId!));
+      }).where(and(eq(jobs.id, jobId!), eq(jobs.status, "running")));
       await tx.insert(auditLogs).values({
         analysisId: id, action: "enhancement.completed",
         detail: { jobId, features, outputs: outputs.map(output => output.fileId), snapshotFileId: snapshotRow.id },
       });
     });
+    stopHeartbeat?.();
     return NextResponse.json({
       action: "apply", jobId, status: "completed", features,
       outputs: outputRecords.map(output => ({ ...output, downloadUrl: "/api/outputs/" + output.fileId + "/download" })),
@@ -293,10 +311,11 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       message: "Enhanced copies were created and verified where supported; unsupported files were left unchanged and original uploads remain unchanged.",
     });
   } catch (error) {
+    stopHeartbeat?.();
     const message = error instanceof Error ? error.message : String(error);
     if (jobId) {
       await cleanupJobFiles(jobId, undoMode);
-      await db.update(jobs).set({ status: "failed", error: message.slice(0, 2000), completedAt: new Date(), heartbeatAt: null }).where(eq(jobs.id, jobId)).catch(() => undefined);
+      await db.update(jobs).set({ status: "failed", error: message.slice(0, 2000), completedAt: new Date(), heartbeatAt: null, leaseToken: null }).where(and(eq(jobs.id, jobId), eq(jobs.status, "running"))).catch(() => undefined);
       await db.insert(auditLogs).values({ analysisId: id, action: "enhancement.failed", detail: { jobId, error: message.slice(0, 1000) } }).catch(() => undefined);
     }
     const status = /ALREADY_RUNNING|STATE_CHANGED|CONFLICT|IN_PROGRESS/.test(message) ? 409 : /ANALYSIS_NOT_FOUND/.test(message) ? 404 : /SNAPSHOT_MISSING/.test(message) ? 410 : /UNSUPPORTED_WORKBOOK|MACRO_PRESERVATION|STYLE_METADATA|MODEL_TRUNCATED|VERIFICATION_FAILED|RECOVERY_/.test(message) ? 422 : 500;
@@ -306,6 +325,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
 async function runRecalculation(analysisId: string, models: WorkbookModel[], engine: "excel" | "libreoffice") {
   let jobId: string | undefined;
+  let stopHeartbeat: (() => void) | undefined;
   try {
     const expected = new Map(models.map(model => [model.fileId, fingerprintWorkbook(model)]));
     const [created] = await db.transaction(async tx => {
@@ -321,12 +341,14 @@ async function runRecalculation(analysisId: string, models: WorkbookModel[], eng
       if (active) throw new Error("ENHANCEMENT_ALREADY_RUNNING: another enhancement or recalculation is in progress.");
       const [job] = await tx.insert(jobs).values({
         analysisId, kind: "recalculation", status: "running", progress: 5, formats: engine === "excel" ? ["xlsx", "xlsm"] : ["xlsx"],
+        heartbeatAt: new Date(), leaseToken: randomUUID(), attempts: 1,
         summary: { action: "recalculate", engine, requestedAt: new Date().toISOString() },
       }).returning();
       await tx.insert(auditLogs).values({ analysisId, action: "recalculation.started", detail: { jobId: job.id, engine } });
       return [job];
     });
     jobId = created.id;
+    stopHeartbeat = startRequestScopedHeartbeat(jobId);
 
     const successes: Array<{ model: WorkbookModel; name: string; bytes: Uint8Array; path: string; details: Record<string, unknown> }> = [];
     const skippedFiles: Array<{ fileName: string; reason: string }> = [];
@@ -374,12 +396,13 @@ async function runRecalculation(analysisId: string, models: WorkbookModel[], eng
         outputRecords.push({ fileId: file.id, name: file.name, size: file.size });
       }
       await tx.update(jobs).set({
-        status: "completed", progress: 100, completedAt: new Date(), heartbeatAt: null,
+        status: "completed", progress: 100, completedAt: new Date(), heartbeatAt: null, leaseToken: null,
         outputs: outputRecords.map(output => ({ format: extname(output.name).slice(1), ...output })),
         summary: { action: "recalculate", engine, fileCount: successes.length, skippedFiles, results: successes.map(item => ({ fileName: item.model.fileName, ...item.details })) },
-      }).where(eq(jobs.id, jobId!));
+      }).where(and(eq(jobs.id, jobId!), eq(jobs.status, "running")));
       await tx.insert(auditLogs).values({ analysisId, action: "recalculation.completed", detail: { jobId, engine, outputs: outputRecords.map(output => output.fileId), skippedFiles } });
     });
+    stopHeartbeat?.();
     return NextResponse.json({
       action: "recalculate", engine, jobId, status: "completed",
       outputs: outputRecords.map(output => ({ ...output, downloadUrl: "/api/outputs/" + output.fileId + "/download" })),
@@ -387,10 +410,11 @@ async function runRecalculation(analysisId: string, models: WorkbookModel[], eng
       message: "Recalculation ran on separate copies. Uploaded originals and the current analysis model were not overwritten.",
     });
   } catch (error) {
+    stopHeartbeat?.();
     const message = error instanceof Error ? error.message : String(error);
     if (jobId) {
       await cleanupJobFiles(jobId).catch(() => undefined);
-      await db.update(jobs).set({ status: "failed", error: message.slice(0, 2000), completedAt: new Date(), heartbeatAt: null }).where(eq(jobs.id, jobId)).catch(() => undefined);
+      await db.update(jobs).set({ status: "failed", error: message.slice(0, 2000), completedAt: new Date(), heartbeatAt: null, leaseToken: null }).where(and(eq(jobs.id, jobId), eq(jobs.status, "running"))).catch(() => undefined);
       await db.insert(auditLogs).values({ analysisId, action: "recalculation.failed", detail: { jobId, engine, error: message.slice(0, 1000) } }).catch(() => undefined);
     }
     const status = /STATE_CHANGED|ALREADY_RUNNING|CONFLICT|IN_PROGRESS/.test(message) ? 409 : /RECALCULATION|EXTERNAL_|UNSUPPORTED|MODEL_TRUNCATED|STYLE_METADATA|SIGNED_WORKBOOK|PACKAGE_PARTS|STRUCTURE_MISMATCH|CHECKSUM_MISMATCH|ORIGINAL_FILE_MISSING/.test(message) ? 422 : 500;
